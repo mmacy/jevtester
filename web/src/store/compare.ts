@@ -50,6 +50,13 @@ interface CompareState {
   updateDraft: (change: (draft: RequestDraft) => RequestDraft) => void
   setTargets: (targets: string[]) => void
   ask: () => Promise<void>
+  /** Opens a saved case in the full request, with its expected answers. */
+  openCase: (
+    draft: RequestDraft,
+    targets: string[],
+    expected: Expected,
+    tolerance: Record<string, number>,
+  ) => void
 }
 
 function emptyDraft(): RequestDraft {
@@ -127,6 +134,19 @@ export const useCompare = create<CompareState>((set, get) => ({
   },
   updateDraft: (change) => set({ draft: change(get().draft) }),
   setTargets: (targets) => set({ targets }),
+  openCase: (draft, targets, expected, tolerance) => {
+    controller?.abort()
+    set({
+      mode: 'full',
+      draft,
+      targets,
+      expected,
+      tolerance,
+      asked: null,
+      askError: null,
+      asking: false,
+    })
+  },
   ask: async () => {
     controller?.abort()
     const mine = new AbortController()

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   asEchoed,
+  draftFor,
   fitsQuickTest,
   hasErrors,
   newQuestion,
@@ -124,5 +125,32 @@ describe('fitsQuickTest', () => {
     expect(fitsQuickTest(draft(), 2)).toBe(false)
     expect(fitsQuickTest(draft({ stateMode: 'json' }), 1)).toBe(false)
     expect(fitsQuickTest(draft({ questions: [newQuestion('a', 'choice')] }), 1)).toBe(false)
+  })
+})
+
+describe('draftFor', () => {
+  it('turns a saved state and questions back into a request', () => {
+    const questions = {
+      intent: {
+        type: 'choice' as const,
+        instructions: 'Intent?',
+        criteria: { parley: 'Talk', fight: 'Attack' },
+      },
+      bribe: { type: 'noul' as const, instructions: 'Bribe?', criteria: null },
+      reaction: { type: 'score' as const, instructions: 'React?', criteria: ['Attack', 'Flee'] },
+    }
+    const draft = draftFor({ party: 'Three' }, questions)
+    expect(draft.stateMode).toBe('json')
+    expect(JSON.parse(draft.stateText)).toEqual({ party: 'Three' })
+    expect(toRequest(draft).questions).toEqual({
+      intent: {
+        type: 'choice',
+        instructions: 'Intent?',
+        criteria: { parley: 'Talk', fight: 'Attack' },
+      },
+      bribe: { type: 'noul', instructions: 'Bribe?' },
+      reaction: { type: 'score', instructions: 'React?', criteria: ['Attack', 'Flee'] },
+    })
+    expect(draftFor('Goblins', questions).stateMode).toBe('text')
   })
 })
