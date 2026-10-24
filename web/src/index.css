@@ -24,6 +24,10 @@
   --color-fixed-bg: #1f4537;
   --color-broken-bg: #4a2a28;
 
+  /* Chart series, validated against --color-bg for color vision deficiency. */
+  --color-series-1: #3987e5;
+  --color-series-2: #d95926;
+
   --font-sans: 'Noto Sans Variable', system-ui, sans-serif;
   --font-display: 'Noto Sans Display Variable', 'Noto Sans Variable', sans-serif;
   --font-mono: 'Noto Sans Mono', ui-monospace, monospace;

@@ -8,6 +8,7 @@ import { TopBar } from './components/top-bar'
 import { useTargets } from './store/targets'
 import { CompareView } from './views/compare-view'
 import { RunsView } from './views/runs-view'
+import { PoliciesView } from './views/policies-view'
 import { QuestionSetsView } from './views/question-sets-view'
 import { SuitesView } from './views/suites-view'
 import { TargetsView } from './views/targets-view'
@@ -18,6 +19,7 @@ const BUILT: Record<string, () => React.JSX.Element> = {
   '/suites': SuitesView,
   '/runs': RunsView,
   '/question-sets': QuestionSetsView,
+  '/policies': PoliciesView,
   '/targets': TargetsView,
 }
 
