@@ -22,7 +22,7 @@ jevtester = "jevtester.cli:main"
 dev = [
     "pyright>=1.1.411",
     "pytest>=9.1.1",
-    "ruff>=0.11",
+    "ruff>=0.17.2",
     "types-pyyaml>=6",
 ]
 
