@@ -626,6 +626,28 @@ class RunComparison(Model):
     regressions: list[Regression]
 
 
+type BandLevel = Literal["act", "confirm", "escalate"]
+
+
+class PolicyDecision(Model):
+    """The action a policy chose from one result's answers."""
+
+    action: str
+    band: BandLevel
+    """The lowest band among the policy's banded questions: `act` when every one is at its `act` value or above,
+    `confirm` when one is between `confirm` and `act`, and `escalate` below that. `act` when the policy has no
+    bands."""
+    escalated: bool
+    """Whether the policy escalated instead of deciding, because of a band. A rule may still choose `escalate` as
+    an action."""
+    rule: int | None
+    """The index of the rule that chose the action. `None` for the default action or a band escalation."""
+    composites: dict[str, float | None]
+    """Each composite's value. `None` when an answer it needs is missing."""
+    reason: str | None = None
+    """Why the policy escalated, or that no rule matched."""
+
+
 class CaseResult(Model):
     """One job's result for a case."""
 
@@ -635,6 +657,8 @@ class CaseResult(Model):
     cached: bool
     correct: dict[str, bool | None]
     """Whether each answer meets the case's expectation, keyed by question id. `None` without an expectation."""
+    decision: PolicyDecision | None = None
+    """The suite policy's decision from these answers. `None` without a policy, or when the target failed."""
     result: TargetResult
 
 
@@ -774,6 +798,7 @@ __all__ = [
     "ApiError",
     "ApiErrorBody",
     "ApiErrorCode",
+    "BandLevel",
     "Calibration",
     "CalibrationBin",
     "CancelledEvent",
@@ -790,6 +815,7 @@ __all__ = [
     "FinishedEvent",
     "OptionDiff",
     "PolicyBody",
+    "PolicyDecision",
     "PolicyDetail",
     "PolicyList",
     "PolicySummary",

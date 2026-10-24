@@ -18,6 +18,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from fakes import FakeProvider, Responder
+from jevtester.errors import ServiceError
 from jevtester.normalize import (
     TargetResult,
     choice_confidence,
@@ -30,10 +31,7 @@ from jevtester.schemas import (
     ApiErrorBody,
     DecideBody,
     ErrorDetail,
-    PolicyDetail,
-    PolicyList,
-    PolicySummary,
-    PolicyThreshold,
+    PolicyBody,
     ProbeCell,
     ProbeReport,
     ProbeSummary,
@@ -44,8 +42,7 @@ from jevtester.schemas import (
     RunCreated,
     RunEvent,
     RunSummary,
-    SweepPoint,
-    SweepResult,
+    SweepBody,
     TargetCounts,
 )
 from jevtester.service import Service
@@ -360,6 +357,28 @@ async def start_and_wait(service: Service, body: RunCreate) -> RunCreated:
     return created
 
 
+BAD_POLICY = """\
+name: parley
+thresholds:
+  goodwill: high
+rules:
+  - action: ""
+    when: {intent: parley}
+"""
+"""A policy with two errors, for the 422 fixture."""
+
+
+def rejected(service: Service, name: str, text: str) -> ApiError:
+    """The error envelope the API sends when a policy is rejected."""
+    try:
+        service.save_policy(name, PolicyBody(yaml=text))
+    except ServiceError as error:
+        return ApiError(
+            error=ApiErrorBody(code=error.code, message=str(error), field=error.field, details=error.details or [])
+        )
+    raise AssertionError("The policy was accepted")
+
+
 def service_fixtures(root: Path) -> dict[str, BaseModel | str]:
     """The fixtures for the live routes, made by the service itself."""
     fresh = fixture_service(root / "fresh")
@@ -397,6 +416,12 @@ def service_fixtures(root: Path) -> dict[str, BaseModel | str]:
         "get_runs_{id}_compare.json": service.compare_runs(RUN, BASELINE_RUN),
         "get_runs_{id}_cases_{case_id}.json": service.run_case(RUN, "goblin-bribe"),
         "get_runs_{id}_report.json": service.run_report(RUN),
+        "get_policies.json": service.list_policies(),
+        "get_policies_{name}.json": service.get_policy("parley"),
+        "post_policies_{name}_sweep.json": service.sweep_policy(
+            "parley", SweepBody(run_id=RUN, target=FOUNDRY, threshold="goodwill", start=0.3, stop=0.9, step=0.1)
+        ),
+        "put_policies_{name}.422.json": rejected(service, "parley", BAD_POLICY),
     }
     # The fixtures for the routes that change things come last, so they don't show in the others.
     new_case = Case(
@@ -409,7 +434,9 @@ def service_fixtures(root: Path) -> dict[str, BaseModel | str]:
         expected={"intent": Expectation(answer="parley"), "bribe": Expectation(answer=True)},
         tags=["bribe"],
     )
+    policy_text = (ROOT / "suites" / "policies" / "parley.yaml").read_text()
     fixtures |= {
+        "put_policies_{name}.json": service.save_policy("parley", PolicyBody(yaml=policy_text)),
         "put_question-sets_{name}.json": service.save_question_set("parley", QuestionSetBody(questions=QUESTIONS)),
         "post_suites_{name}_cases.json": service.add_case("parley", new_case),
         "post_runs.json": asyncio.run(start_and_wait(service, RunCreate(suite="parley"))),
@@ -472,8 +499,8 @@ def run_summary(run_id: str, **changes: Any) -> RunSummary:
         suite="parley",
         question_set="parley",
         question_set_version=QUESTION_SET.version,
-        policy=None,
-        policy_version=None,
+        policy="parley",
+        policy_version=POLICY_VERSION,
         targets=RUN_TARGETS,
         repeats=1,
         variants=[],
@@ -490,7 +517,8 @@ def run_summary(run_id: str, **changes: Any) -> RunSummary:
     return summary.model_copy(update={"id": run_id, **changes})
 
 
-POLICY_VERSION = "6c1f0a9e5b7d4c3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a"
+POLICY = SuiteFiles(ROOT / "suites").load_policy("parley")[0]
+POLICY_VERSION = POLICY.version
 
 PROBE_VARIANTS: list[ProbeVariant] = ["option_order", "key_order"]
 PROBE_INSTANCES: dict[ProbeVariant, int] = {"option_order": 3, "key_order": 1}
@@ -565,64 +593,6 @@ def probe_report() -> ProbeReport:
 
 # Policies
 
-POLICY_YAML = """\
-# Turns the parley questions into a referee action. The policy format arrives in build step 7.
-name: parley
-bands:
-  intent: {act: 0.8, confirm: 0.5}
-composites:
-  goodwill:
-    bribe: 0.6
-    reaction: 0.4
-rules:
-  - when: intent == "fight"
-    action: battle
-  - when: intent == "evade"
-    action: evade
-  - when: intent == "wait"
-    action: wait
-  - when: intent == "parley" and goodwill >= goodwill_threshold
-    action: parley_succeeds
-  - when: intent == "parley"
-    action: parley_fails
-thresholds:
-  goodwill_threshold: 0.6
-  per_target:
-    clef-flash@workers-ai: {goodwill_threshold: 0.55}
-costs:
-  parley_succeeds: {parley_fails: 5, escalate: 1}
-"""
-POLICY = PolicyDetail(
-    name="parley",
-    version=POLICY_VERSION,
-    yaml=POLICY_YAML,
-    actions=["battle", "evade", "wait", "parley_succeeds", "parley_fails", "escalate"],
-    thresholds=[
-        PolicyThreshold(name="intent.act", value=0.8, per_target={}),
-        PolicyThreshold(name="intent.confirm", value=0.5, per_target={}),
-        PolicyThreshold(name="goodwill_threshold", value=0.6, per_target={WORKERS: 0.55}),
-    ],
-    suites=["parley"],
-)
-
-
-def sweep() -> SweepResult:
-    points: list[SweepPoint] = []
-    for step in range(11):
-        value = step / 10
-        decided = max(0.0, 1.0 - value * 0.6)
-        points.append(
-            SweepPoint(
-                value=value,
-                decided_share=round(decided, 4),
-                error_rate=round(max(0.0, 0.3 - value * 0.3), 4),
-                cost=round(max(0.0, 6.0 - value * 5.0), 4),
-            )
-        )
-    return SweepResult(
-        policy="parley", run_id=RUN, target=FOUNDRY, threshold="goodwill_threshold", current=0.6, points=points
-    )
-
 
 def error(code: Any, message: str, field: str | None = None, details: list[ErrorDetail] | None = None) -> ApiError:
     return ApiError(error=ApiErrorBody(code=code, message=message, field=field, details=details or []))
@@ -664,21 +634,6 @@ def build(root: Path) -> dict[str, BaseModel | str]:
         "get_runs_{id}.404.json": error("not_found", "No run 0999"),
         "get_runs_{id}_probes.json": probe_report(),
         "post_probes.json": RunCreated(id="0003"),
-        "get_policies.json": PolicyList(
-            policies=[PolicySummary(name="parley", version=POLICY_VERSION, actions=POLICY.actions, suites=["parley"])]
-        ),
-        "get_policies_{name}.json": POLICY,
-        "put_policies_{name}.json": POLICY,
-        "put_policies_{name}.422.json": error(
-            "invalid_request",
-            "rules.3.action: unknown action parley_succeds",
-            "rules.3.action",
-            [
-                ErrorDetail(field="rules.3.action", message="Unknown action parley_succeds"),
-                ErrorDetail(field="thresholds.goodwill_threshold", message="Input should be a valid number"),
-            ],
-        ),
-        "post_policies_{name}_sweep.json": sweep(),
     }
 
 

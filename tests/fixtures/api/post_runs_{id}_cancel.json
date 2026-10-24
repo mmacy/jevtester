@@ -4,8 +4,8 @@
   "suite": "parley",
   "question_set": "parley",
   "question_set_version": "95e251b70a75ea722a0c62ce89024a58c6bdb1a3ebde485db30bba925ffc0cb6",
-  "policy": null,
-  "policy_version": null,
+  "policy": "parley",
+  "policy_version": "bc95cc4f4030850fa5ba4383e3beabd1dd1a513e0b01e7d2ecd4c64d4009485e",
   "targets": [
     "decision-1@foundry",
     "clef-flash@workers-ai",

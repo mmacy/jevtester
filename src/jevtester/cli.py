@@ -27,6 +27,7 @@ from jevtester.schemas import (
     RunComparison,
     RunCreate,
     RunSummary,
+    SweepBody,
     TargetList,
     TargetSkippedEvent,
 )
@@ -130,6 +131,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check.add_argument("suite", help="The suite's name, or the path of its YAML file.")
     add_format(check)
+
+    policy = commands.add_parser("policy", help="Work with decision policies.")
+    policy_commands = policy.add_subparsers(dest="policy_command", metavar="<command>", required=True)
+    sweep = policy_commands.add_parser(
+        "sweep",
+        help="Sweep a policy threshold over a finished run and print the trade-off points.",
+        description="Measure a target's decisions in a finished run as one of the policy's thresholds moves.",
+    )
+    sweep.add_argument("policy", help="The policy's name.")
+    sweep.add_argument("--run", required=True, help="The run's id.")
+    sweep.add_argument("--target", required=True, help="A target the run ran.")
+    sweep.add_argument("--threshold", required=True, help="The threshold to move.")
+    sweep.add_argument("--start", type=float, default=0.0, help="The first value. Defaults to 0.")
+    sweep.add_argument("--stop", type=float, default=1.0, help="The last value. Defaults to 1.")
+    sweep.add_argument("--step", type=float, default=0.05, help="The step. Defaults to 0.05.")
+    add_format(sweep)
 
     serve = commands.add_parser("serve", help="Start the API and the web UI on 127.0.0.1.")
     serve.add_argument("--port", type=int, default=None, help="The port. Defaults to 8640.")
@@ -412,6 +429,37 @@ def _suite_check(args: argparse.Namespace) -> int:
     return EXIT_OK if result.valid else EXIT_INVALID
 
 
+def _policy_sweep(args: argparse.Namespace) -> int:
+    try:
+        body = SweepBody(
+            run_id=args.run,
+            target=args.target,
+            threshold=args.threshold,
+            start=args.start,
+            stop=args.stop,
+            step=args.step,
+        )
+    except ValidationError as error:
+        _fail(f"The sweep is invalid:\n{_describe_validation(error)}")
+    service = _load_service(args.config)
+    try:
+        result = service.sweep_policy(args.policy, body)
+    except ServiceError as error:
+        _fail(str(error))
+    if args.format == "json":
+        _print_json(result)
+        return EXIT_OK
+
+    def show(value: float | None) -> str:
+        return "" if value is None else f"{value:.3f}"
+
+    print(f"{result.policy} {result.threshold} on {result.target}, run {result.run_id} (now {show(result.current)})")
+    print("value   decided  error rate  cost")
+    for point in result.points:
+        print(f"{point.value:<7g} {show(point.decided_share):<8} {show(point.error_rate):<11} {show(point.cost)}")
+    return EXIT_OK
+
+
 def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -446,6 +494,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _report(args)
         case "suite":
             return _suite_check(args)
+        case "policy":
+            return _policy_sweep(args)
         case "serve":
             return _serve(args)
         case _:

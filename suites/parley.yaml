@@ -1,5 +1,9 @@
 name: parley
 question_set: parley
+policy: parley
+targets:
+- decision-1@foundry
+- clef-flash@workers-ai
 cases:
 - id: goblin-bribe
   state:
@@ -65,6 +69,3 @@ cases:
   expected_action: wait
   tags:
   - wait
-targets:
-- decision-1@foundry
-- clef-flash@workers-ai
