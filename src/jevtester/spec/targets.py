@@ -79,6 +79,8 @@ class Defaults(Model):
     targets: list[str] = Field(default_factory=list[str])
     timeout_s: float = Field(default=60.0, gt=0)
     repeats: int = Field(default=1, ge=1)
+    max_drop: float = Field(default=0.05, ge=0)
+    """The largest drop in a metric that `jevtester compare` allows before it reports a regression and exits 1."""
 
 
 class Paths(Model):

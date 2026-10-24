@@ -1,6 +1,6 @@
 {
-  "run_id": "0142",
-  "baseline": "0141",
+  "run_id": "0002",
+  "baseline": "0001",
   "changes": [
     {
       "case_id": "gnoll-watch",
@@ -8,7 +8,7 @@
       "question": "intent",
       "expected": "wait",
       "baseline_answer": "evade",
-      "baseline_probability": 0.712,
+      "baseline_probability": 0.8703703703703703,
       "answer": "wait",
       "probability": 0.892,
       "status": "fixed"
@@ -19,7 +19,7 @@
       "question": "intent",
       "expected": "evade",
       "baseline_answer": "evade",
-      "baseline_probability": 0.874,
+      "baseline_probability": 0.8862967157417893,
       "answer": "wait",
       "probability": 0.5585,
       "status": "broken"
@@ -30,7 +30,7 @@
       "question": "intent",
       "expected": "wait",
       "baseline_answer": "evade",
-      "baseline_probability": 0.655,
+      "baseline_probability": 0.836223506743738,
       "answer": "wait",
       "probability": 0.8443,
       "status": "fixed"

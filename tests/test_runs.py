@@ -113,11 +113,11 @@ def test_a_suite_file_must_match_its_name(tmp_path: Path) -> None:
 def test_run_ids_count_up(tmp_path: Path) -> None:
     store = RunStore(tmp_path / "runs.sqlite")
     assert store.next_run_id() == "0001"
-    summary = api_fixtures.BASELINE
+    summary = api_fixtures.CANCELLED_RUN
     store.save_run(summary)
-    assert store.next_run_id() == "0142"
+    assert store.next_run_id() == "0005"
     reopened = RunStore(tmp_path / "runs.sqlite")
-    assert reopened.get_run("0141") == summary
+    assert reopened.get_run("0004") == summary
 
 
 def test_versions_are_found_by_prefix() -> None:

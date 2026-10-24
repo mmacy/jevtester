@@ -12,7 +12,7 @@ Every route returns a fixture from [`tests/fixtures/api/`](../tests/fixtures/api
 |---|---|
 | `decide`, `targets` | Live for every target except Claude |
 | `suites`, `question-sets`, `runs`, run events, `cancel` | Live. Wording checks (`checks`) are empty until step 6. |
-| `metrics`, `confusion`, `calibration`, `changes`, `cases`, `report` | Step 6 |
+| `metrics`, `confusion`, `calibration`, `changes`, `compare`, `cases`, `report`, suite `check` | Live |
 | `policies`, `sweep` | Step 7 |
 | `probes` | Step 8 |
 
@@ -80,6 +80,7 @@ A target that fails during `decide` or a run isn't an HTTP error. Its result has
 | `GET /api/runs/{id}/confusion?question=&target=` | | `ConfusionMatrix` |
 | `GET /api/runs/{id}/calibration?question=&target=&bins=` | | `Calibration` |
 | `GET /api/runs/{id}/changes?baseline=` | | `RunChanges` |
+| `GET /api/runs/{id}/compare?baseline=&max_drop=` | | `RunComparison` |
 | `GET /api/runs/{id}/cases/{case_id}` | | `RunCase` |
 | `GET /api/runs/{id}/report` | | `RunReport` |
 | `GET /api/runs/{id}/probes` | | `ProbeReport` |
@@ -89,7 +90,7 @@ A target that fails during `decide` or a run isn't an HTTP error. Its result has
 | `PUT /api/policies/{name}` | `PolicyBody` | `PolicyDetail` |
 | `POST /api/policies/{name}/sweep` | `SweepBody` | `SweepResult` |
 
-Each CLI command maps to these routes: `decide` to `POST /api/decide`, `targets list` and `targets check` to the targets routes, `run` to `POST /api/runs` and its events, `compare` to `changes` and `metrics`, `report` to `report`, `probe` to `POST /api/probes`, `case add` to `POST /api/suites/{name}/cases`, and `suite check` to `GET /api/suites/{name}/check`.
+Each CLI command maps to these routes: `decide` to `POST /api/decide`, `targets list` and `targets check` to the targets routes, `run` to `POST /api/runs` and its events, `compare` to `compare`, `report` to `report`, `probe` to `POST /api/probes`, `case add` to `POST /api/suites/{name}/cases`, and `suite check` to `GET /api/suites/{name}/check`.
 
 ## Targets
 
@@ -189,11 +190,11 @@ Before it sends anything, a run checks the health of each of its targets. A targ
 ```text
 event: progress
 id: 0
-data: {"type":"progress","run_id":"0142","status":"running","counts":{...}}
+data: {"type":"progress","run_id":"0002","status":"running","counts":{...}}
 
 event: result
 id: 2
-data: {"type":"result","run_id":"0142","case_id":"goblin-bribe","target":"decision-1@foundry","repeat":0,"variant":null,"cached":false,"result":{...},"counts":{...}}
+data: {"type":"result","run_id":"0002","case_id":"goblin-bribe","target":"decision-1@foundry","repeat":0,"variant":null,"cached":false,"result":{...},"counts":{...}}
 ```
 
 | `event` | Sent when | Carries |
@@ -208,6 +209,25 @@ data: {"type":"result","run_id":"0142","case_id":"goblin-bribe","target":"decisi
 Every event carries `counts`, so a client can draw progress from any one event. A `result` event's `TargetResult` has `request_body` and `raw` set to `null`, to keep the stream small. `GET /api/runs/{id}/cases/{case_id}` returns them.
 
 The stream ends after `finished`, `cancelled`, or `error`. A client that reconnects gets a fresh `progress` event and then the events that follow, so it needs no history. A run that has already ended sends `progress` and its final event. A browser's `EventSource` reconnects when the server closes the stream, so close it on the final event.
+
+## Evaluation
+
+The metrics, the confusion matrix, the calibration table, the changes, and a run's cases all score each answer the same way:
+
+- A noul's answer is yes when the probability of yes is 0.5 or more.
+- A choice's answer is its `choice`.
+- A score's answer is its `level`. `accuracy` counts exact levels. `within_tolerance` allows each case's `tolerance` in levels, and so do the `correct` marks, the changes, and the regression check. `mae` uses `score`.
+- An answer matches when it equals the expected answer or one of the `acceptable` ones. A missing answer is wrong. A question the case expects nothing for isn't scored.
+
+A run keeps a copy of the cases it ran, so editing the suite afterward doesn't change how the run is scored. Only original cases count, not probe variants.
+
+`abstention_rate` counts how often a choice question's abstention option was chosen. jevtester finds that option by its name: `abstain`, `cannot_tell`, `cant_tell`, `unclear`, `unknown`, or `unsure`. Without one, the rate is `null`, and the wording checks report `no_abstention`.
+
+Calibration uses targets that return probabilities. For a noul, the prediction is the probability of yes. For a choice, it's the probability of the chosen option, against whether the choice was right. `ece` is the count-weighted mean gap between each bin's mean prediction and its observed rate, over 10 equal bins unless `bins` says otherwise.
+
+`changes` compares the first repeat of each case on the targets both runs ran. `mcnemar_p` is McNemar's exact two-sided test on the fixed and broken pairs. `compare` adds both runs' metrics and the regressions: each target and question whose accuracy (`within_tolerance`, for a score) dropped by more than `max_drop`, which defaults to the config's `defaults.max_drop` of 0.05. `jevtester compare` exits with 1 when there's a regression.
+
+The wording checks are heuristics, each a prompt to look at a question: `multiple_dimensions` (more than one question mark), `degree_words` (criteria like "very" or "somewhat"), `bare_number_levels` (score levels that are only numbers), `no_abstention`, and `duplicate_options`.
 
 ## Fixtures
 
