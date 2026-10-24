@@ -134,6 +134,7 @@ def test_normalizes_the_foundry_response(parley_request: DecisionRequest) -> Non
     assert isinstance(reaction, ScoreAnswer)
     assert reaction.score == pytest.approx(2.20874314700501)
     assert reaction.probabilities == pytest.approx([0.0332013, 0.1910604, 0.4583301, 0.1686102, 0.1487980], abs=1e-6)
+    assert reaction.level == 2
     assert reaction.legend[0] == "Attack at once"
     assert len(reaction.legend) == 5
     assert reaction.confidence is None
@@ -170,7 +171,7 @@ def test_normalize_flags_a_mismatched_type(parley_request: DecisionRequest) -> N
     assert "bribe" not in answers
 
 
-def test_normalize_fills_missing_score_levels_with_zero(parley_request: DecisionRequest) -> None:
+def test_normalize_marks_missing_score_levels(parley_request: DecisionRequest) -> None:
     body = load_fixture("parley_response_foundry.json")
     answers_body = body["answers"]
     assert isinstance(answers_body, dict)
@@ -178,7 +179,8 @@ def test_normalize_fills_missing_score_levels_with_zero(parley_request: Decision
     answers, warnings = normalize(parley_request.questions, body)
     reaction = answers["reaction"]
     assert isinstance(reaction, ScoreAnswer)
-    assert reaction.probabilities[4] == 0.0
+    assert reaction.probabilities[4] is None
+    assert reaction.level == 2
     assert [w.code for w in warnings] == ["missing_probability"]
 
 
@@ -268,3 +270,30 @@ def test_every_capability_field_serializes() -> None:
     dumped = Capabilities().model_dump(mode="json")
     assert set(dumped) == set(Capabilities.model_fields)
     assert dumped["context_window"] is None
+
+
+def test_score_level_ties_go_to_the_lower_level() -> None:
+    question = ScoreQuestion(instructions="?", criteria=["low", "mid", "high"])
+    body = {"answers": {"q": {"type": "score", "score": 1.0, "probabilities": {"0": 0.1, "1": 0.45, "2": 0.45}}}}
+    answers, _ = normalize({"q": question}, body)
+    answer = answers["q"]
+    assert isinstance(answer, ScoreAnswer)
+    assert answer.level == 1
+
+
+def test_unexpected_answers_keep_the_response_order(parley_request: DecisionRequest) -> None:
+    body = load_fixture("parley_response_foundry.json")
+    extra = {"type": "noul", "noul": 0.5}
+    body["answers"] = {"zeta": extra, **body["answers"], "alpha": extra, "mid": extra}
+    _, warnings = normalize(parley_request.questions, body)
+    assert [w.question for w in warnings] == ["zeta", "alpha", "mid"]
+
+
+def test_unknown_choice_probability_is_kept(parley_request: DecisionRequest) -> None:
+    body = load_fixture("parley_response_foundry.json")
+    body["answers"]["intent"]["probabilities"]["dance"] = 0.2
+    answers, _ = normalize(parley_request.questions, body)
+    intent = answers["intent"]
+    assert isinstance(intent, ChoiceAnswer)
+    assert intent.unknown_probabilities == {"dance": 0.2}
+    assert "dance" not in intent.probabilities

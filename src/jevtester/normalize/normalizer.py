@@ -134,7 +134,7 @@ def normalize(
             continue
         answers[key] = answer
         warnings.extend(answer_warnings)
-    for key in raw_by_id.keys() - questions.keys():
+    for key in (key for key in raw_by_id if key not in questions):
         warnings.append(
             ResultWarning(code="unexpected_answer", message="The response answers a question not asked.", question=key)
         )
@@ -193,6 +193,9 @@ def _normalize_choice(key: str, question: ChoiceQuestion, raw: Any) -> tuple[Cho
     answer = ChoiceAnswer(
         choice=wire.choice,
         probabilities=probabilities,
+        unknown_probabilities={
+            option: wire.probabilities[option] for option in wire.probabilities if option not in options
+        },
         confidence=choice_confidence(probabilities, len(options)),
         server_confidence=wire.confidence,
     )
@@ -217,9 +220,13 @@ def _normalize_score(key: str, question: ScoreQuestion, raw: Any) -> tuple[Score
                 code="unknown_option", message=f"The question has no level {', '.join(unknown)}.", question=key
             )
         )
+    probabilities = [wire.probabilities.get(level) for level in levels]
+    known = [(p, index) for index, p in enumerate(probabilities) if p is not None]
     answer = ScoreAnswer(
         score=wire.score,
-        probabilities=[wire.probabilities.get(level, 0.0) for level in levels],
+        # The highest probability wins, and the lower level breaks a tie.
+        level=max(known, key=lambda pair: (pair[0], -pair[1]))[1] if known else None,
+        probabilities=probabilities,
         legend=list(question.criteria),
         server_confidence=wire.confidence,
     )
