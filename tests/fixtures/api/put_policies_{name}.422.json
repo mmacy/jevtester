@@ -1,16 +1,16 @@
 {
   "error": {
     "code": "invalid_request",
-    "message": "rules.3.action: unknown action parley_succeds",
-    "field": "rules.3.action",
+    "message": "thresholds.goodwill: Input should be a valid number, unable to parse string as a number",
+    "field": "thresholds.goodwill",
     "details": [
       {
-        "field": "rules.3.action",
-        "message": "Unknown action parley_succeds"
+        "field": "thresholds.goodwill",
+        "message": "Input should be a valid number, unable to parse string as a number"
       },
       {
-        "field": "thresholds.goodwill_threshold",
-        "message": "Input should be a valid number"
+        "field": "rules.0.action",
+        "message": "String should have at least 1 character"
       }
     ]
   }

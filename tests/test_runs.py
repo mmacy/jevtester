@@ -45,6 +45,7 @@ def make_service(tmp_path: Path, providers: dict[str, DecisionProvider] | None =
     files = SuiteFiles(tmp_path / "suites")
     files.save_question_set(api_fixtures.QUESTION_SET)
     files.save_suite(SuiteFiles(ROOT / "suites").load_suite("parley"))
+    files.save_policy("parley", (ROOT / "suites" / "policies" / "parley.yaml").read_text())
     store = RunStore(tmp_path / "runs.sqlite")
     fakes = providers if providers is not None else {FOUNDRY.name: FakeProvider(FOUNDRY, respond_ok)}
     return Service(CONFIG, fakes, files=files, store=store, clock=lambda: NOW)

@@ -1,7 +1,7 @@
 """The jevtester HTTP API.
 
-The routes call `service.py`, except the probe and policy routes, which answer from fixtures in `tests/fixtures/api/`
-until steps 7 and 8 make them real. The routes, their models, and `docs/openapi.json` are the contract either way.
+The routes call `service.py`, except the probe routes, which answer from fixtures in `tests/fixtures/api/` until
+step 8 makes them real. The routes, their models, and `docs/openapi.json` are the contract either way.
 """
 
 import json
@@ -131,7 +131,7 @@ _SERVICE_STATUS: dict[ApiErrorCode, int] = {
 async def _handle_service_error(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ServiceError)
     # An error about one field lists it in details too, so a form shows every such error the same way.
-    details = [ErrorDetail(field=exc.field, message=str(exc))] if exc.field is not None else []
+    details = exc.details or ([ErrorDetail(field=exc.field, message=str(exc))] if exc.field is not None else [])
     body = ApiErrorBody(code=exc.code, message=str(exc), field=exc.field, details=details)
     return _error_response(_SERVICE_STATUS[exc.code], body)
 
@@ -397,27 +397,27 @@ async def start_probe(body: ProbeCreate) -> RunCreated:
 
 
 @router.get("/policies", tags=["policies"])
-async def list_policies() -> PolicyList:
+async def list_policies(service: ServiceDep) -> PolicyList:
     """List the policies under `suites/`."""
-    return _fixture("get_policies", PolicyList)
+    return service.list_policies()
 
 
 @router.get("/policies/{name}", tags=["policies"])
-async def get_policy(name: str) -> PolicyDetail:
+async def get_policy(name: str, service: ServiceDep) -> PolicyDetail:
     """Return a policy's YAML text and what it defines."""
-    return _fixture("get_policies_{name}", PolicyDetail)
+    return service.get_policy(name)
 
 
 @router.put("/policies/{name}", tags=["policies"])
-async def save_policy(name: str, body: PolicyBody) -> PolicyDetail:
+async def save_policy(name: str, body: PolicyBody, service: ServiceDep) -> PolicyDetail:
     """Validate and save a policy's YAML text. An invalid policy returns 422 with every error in `details`."""
-    return _fixture("put_policies_{name}", PolicyDetail)
+    return service.save_policy(name, body)
 
 
 @router.post("/policies/{name}/sweep", tags=["policies"])
-async def sweep_policy(name: str, body: SweepBody) -> SweepResult:
+async def sweep_policy(name: str, body: SweepBody, service: ServiceDep) -> SweepResult:
     """Sweep one threshold over a finished run's answers and return the trade-off points."""
-    return _fixture("post_policies_{name}_sweep", SweepResult)
+    return service.sweep_policy(name, body)
 
 
 _EVENTS_PATH = "/api/runs/{id}/events"

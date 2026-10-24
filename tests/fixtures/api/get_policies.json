@@ -2,14 +2,14 @@
   "policies": [
     {
       "name": "parley",
-      "version": "6c1f0a9e5b7d4c3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a",
+      "version": "bc95cc4f4030850fa5ba4383e3beabd1dd1a513e0b01e7d2ecd4c64d4009485e",
       "actions": [
         "battle",
         "evade",
         "wait",
+        "escalate",
         "parley_succeeds",
-        "parley_fails",
-        "escalate"
+        "parley_fails"
       ],
       "suites": [
         "parley"
