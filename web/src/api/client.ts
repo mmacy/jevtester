@@ -20,6 +20,8 @@ export class ApiError extends Error {
   }
 }
 
+const GATEWAY_STATUSES = new Set([502, 503, 504])
+
 export class ServerUnreachableError extends Error {
   constructor(cause: unknown) {
     super("Can't reach the jevtester server", { cause })
@@ -52,13 +54,31 @@ async function request<T>(
     useServer.getState().setUnreachable(true)
     throw new ServerUnreachableError(error)
   }
-  useServer.getState().setUnreachable(false)
-  const parsed: unknown = await response.json().catch(() => null)
+  const parsed: unknown = await response.json().catch(() => undefined)
   if (!response.ok) {
-    if (isErrorEnvelope(parsed)) throw new ApiError(response.status, parsed.error)
+    if (isErrorEnvelope(parsed)) {
+      useServer.getState().setUnreachable(false)
+      throw new ApiError(response.status, parsed.error)
+    }
+    // The API never sends these. In development they're the Vite proxy
+    // saying nothing answers at 127.0.0.1:8640.
+    if (GATEWAY_STATUSES.has(response.status)) {
+      useServer.getState().setUnreachable(true)
+      throw new ServerUnreachableError(`${method} /api${path} returned ${response.status}`)
+    }
+    useServer.getState().setUnreachable(false)
     throw new ApiError(response.status, {
       code: 'internal',
       message: `${method} /api${path} returned ${response.status}`,
+      field: null,
+      details: [],
+    })
+  }
+  useServer.getState().setUnreachable(false)
+  if (parsed === undefined) {
+    throw new ApiError(response.status, {
+      code: 'internal',
+      message: `${method} /api${path} returned a body that isn't JSON`,
       field: null,
       details: [],
     })
