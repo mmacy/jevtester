@@ -11,7 +11,7 @@ import argparse
 import asyncio
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, NoReturn, cast
 
@@ -37,7 +37,7 @@ from jevtester.schemas import (
     TargetSkippedEvent,
 )
 from jevtester.service import Service
-from jevtester.spec import Case
+from jevtester.spec import Case, ChoiceQuestion, NoulQuestion, Question, ScoreQuestion
 
 EXIT_OK = 0
 EXIT_CHECK_FAILED = 1
@@ -563,16 +563,27 @@ def _policy_sweep(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _answer_value(text: str) -> AnswerValue:
+def _answer_value(key: str, text: str, question: Question | None) -> AnswerValue:
+    # The question's type says how to read the answer, so a choice option named "yes" or "2" stays a name.
     lowered = text.strip().lower()
-    if lowered in ("true", "yes"):
-        return True
-    if lowered in ("false", "no"):
-        return False
-    try:
-        return int(text)
-    except ValueError:
-        return text
+    match question:
+        case ChoiceQuestion():
+            return text
+        case NoulQuestion():
+            if lowered in ("true", "yes"):
+                return True
+            if lowered in ("false", "no"):
+                return False
+            raise _InputError(f"{key} is a yes/no question, so --expect needs true or false, got {text!r}.")
+        case ScoreQuestion():
+            try:
+                return int(text)
+            except ValueError as error:
+                raise _InputError(
+                    f"{key} is a score question, so --expect needs a level number, got {text!r}."
+                ) from error
+        case None:
+            raise _InputError(f"The suite's question set has no question {key}.")
 
 
 def _pairs(values: list[str], flag: str) -> dict[str, str]:
@@ -585,7 +596,7 @@ def _pairs(values: list[str], flag: str) -> dict[str, str]:
     return pairs
 
 
-def _case_from_args(args: argparse.Namespace) -> Case:
+def _case_from_args(args: argparse.Namespace, questions: Mapping[str, Question]) -> Case:
     if bool(args.state) == bool(args.from_decide):
         raise _InputError("Give --state or --from-decide.")
     expected: dict[str, dict[str, Any]] = {}
@@ -610,7 +621,7 @@ def _case_from_args(args: argparse.Namespace) -> Case:
             raise _InputError("--expect-from needs --from-decide.")
         state = _read_state(args.state)
     for key, value in _pairs(args.expect, "--expect").items():
-        expected[key] = {**expected.get(key, {}), "answer": _answer_value(value)}
+        expected[key] = {**expected.get(key, {}), "answer": _answer_value(key, value, questions.get(key))}
     for key, value in _pairs(args.tolerance, "--tolerance").items():
         try:
             expected.setdefault(key, {})["tolerance"] = int(value)
@@ -628,15 +639,16 @@ def _case_from_args(args: argparse.Namespace) -> Case:
 
 
 def _case_add(args: argparse.Namespace) -> int:
+    service = _load_service(args.config)
+    name = _suite_name(args.suite)
     try:
-        case = _case_from_args(args)
+        questions = service.get_suite(name).question_set.questions
+        case = _case_from_args(args, questions)
+        created = service.add_case(name, case)
     except _InputError as error:
         _fail(str(error))
     except ValidationError as error:
         _fail(f"The case is invalid:\n{_describe_validation(error)}")
-    service = _load_service(args.config)
-    try:
-        created = service.add_case(_suite_name(args.suite), case)
     except ServiceError as error:
         _fail(str(error))
     if args.format == "json":

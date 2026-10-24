@@ -8,8 +8,9 @@ from fastapi.routing import APIRoute
 import api_fixtures
 from jevtester import cli
 from jevtester.api import HOST, PORT, router
-from jevtester.schemas import CaseCreated
+from jevtester.schemas import CaseCreated, QuestionSetBody
 from jevtester.service import Service
+from jevtester.spec import ChoiceQuestion
 
 # Each CLI command, a command line that parses, and the route that does the same thing, as docs/api.md lists them.
 COMMANDS: dict[str, tuple[list[str], tuple[str, str]]] = {
@@ -115,6 +116,9 @@ def test_case_add_promotes_a_decide_call(service: Service, tmp_path: Path, capsy
         ["--state", "s", "--expect", "nameless"],
         ["--state", "s", "--tolerance", "reaction=lots"],
         ["--id", "goblin-bribe", "--state", "s"],
+        ["--state", "s", "--expect", "bribe=maybe"],
+        ["--state", "s", "--expect", "reaction=high"],
+        ["--state", "s", "--expect", "mood=calm"],
     ],
 )
 def test_case_add_rejects_bad_input(service: Service, extra: list[str]) -> None:
@@ -122,3 +126,17 @@ def test_case_add_rejects_bad_input(service: Service, extra: list[str]) -> None:
     with pytest.raises(SystemExit) as exit_info:
         cli.main(argv)
     assert exit_info.value.code == 2
+
+
+def test_case_add_reads_each_answer_by_its_question_type(service: Service) -> None:
+    questions = service.get_question_set("parley").question_set.questions
+    intent = questions["intent"]
+    assert isinstance(intent, ChoiceQuestion)
+    renamed = {**questions, "intent": intent.model_copy(update={"criteria": {"yes": "Talk", "2": "Fight"}})}
+    service.save_question_set("parley", QuestionSetBody(questions=renamed))
+    argv = ["case", "add", "parley", "--id", "named", "--state", "s", "--expect", "intent=yes"]
+    assert cli.main([*argv, "--expect", "bribe=no", "--expect", "reaction=1"]) == 0
+    case = service.files.load_suite("parley").cases[-1]
+    assert {key: e.answer for key, e in case.expected.items()} == {"intent": "yes", "bribe": False, "reaction": 1}
+    assert cli.main(["case", "add", "parley", "--id", "digit", "--state", "s", "--expect", "intent=2"]) == 0
+    assert service.files.load_suite("parley").cases[-1].expected["intent"].answer == "2"
