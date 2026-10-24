@@ -1,7 +1,13 @@
 // The answers matrix as data: one column per target, and rows for each
 // question's options or levels, its confidence, and the speed and cost of
 // each request. The component only draws what this returns.
-import type { Answer, DecisionRequest, QuestionOutput, TargetResult } from '../api/types'
+import type {
+  Answer,
+  AnswerValue,
+  DecisionRequest,
+  QuestionOutput,
+  TargetResult,
+} from '../api/types'
 import { formatCount, formatUsd } from './format'
 
 export type ColumnState = 'pending' | 'ok' | 'failed'
@@ -24,6 +30,9 @@ export type MatrixRow =
   | {
       kind: 'heat'
       key: string
+      /** The question this row answers, and the answer it stands for, for marking it expected. */
+      question: string
+      value: AnswerValue | null
       label: string
       sub: string | null
       digits: number
@@ -68,13 +77,15 @@ function answerOf<T extends Answer['type']>(
 }
 
 function heatRow(
+  mark: { question: string; value: AnswerValue | null },
   key: string,
   label: string,
   sub: string | null,
   digits: number,
   cells: HeatValue[],
 ): MatrixRow {
-  return { kind: 'heat', key, label, sub, digits, cells, spread: spread(cells.map((c) => c.value)) }
+  const values = cells.map((c) => c.value)
+  return { kind: 'heat', ...mark, key, label, sub, digits, cells, spread: spread(values) }
 }
 
 function plainRow(
@@ -97,6 +108,7 @@ function choiceRows(
   for (const [option, description] of options) {
     rows.push(
       heatRow(
+        { question: id, value: option },
         `${id}:${option}`,
         option,
         description,
@@ -118,6 +130,7 @@ function choiceRows(
   for (const option of unknown) {
     rows.push(
       heatRow(
+        { question: id, value: null },
         `${id}:unknown:${option}`,
         option,
         'Not an option',
@@ -139,10 +152,11 @@ function choiceRows(
   return rows
 }
 
-function noulRows(id: string, columns: MatrixColumn[]) {
+function noulRows(id: string, columns: MatrixColumn[], marking: boolean) {
   const answers = columns.map((c) => answerOf(c, id, 'noul'))
-  return [
+  const rows: MatrixRow[] = [
     heatRow(
+      { question: id, value: true },
       `${id}:yes`,
       'Yes',
       'Probability of yes',
@@ -152,12 +166,31 @@ function noulRows(id: string, columns: MatrixColumn[]) {
         picked: a !== null && a.probability >= 0.5,
       })),
     ),
+  ]
+  // While marking, a no row lets the person expect no.
+  if (marking) {
+    rows.push(
+      heatRow(
+        { question: id, value: false },
+        `${id}:no`,
+        'No',
+        'Probability of no',
+        4,
+        answers.map((a) => ({
+          value: a ? 1 - a.probability : null,
+          picked: a !== null && a.probability < 0.5,
+        })),
+      ),
+    )
+  }
+  rows.push(
     plainRow(
       `${id}:confidence`,
       'Confidence',
       answers.map((a) => a?.confidence.toFixed(4) ?? null),
     ),
-  ]
+  )
+  return rows
 }
 
 function scoreRows(
@@ -168,6 +201,7 @@ function scoreRows(
   const answers = columns.map((c) => answerOf(c, id, 'score'))
   const rows: MatrixRow[] = question.criteria.map((level, i) =>
     heatRow(
+      { question: id, value: i },
       `${id}:${i}`,
       String(i),
       level,
@@ -233,6 +267,7 @@ export function buildMatrix(
   request: DecisionRequest,
   columns: MatrixColumn[],
   isLocal: (target: string) => boolean = () => false,
+  marking = false,
 ): MatrixRow[] {
   const rows: MatrixRow[] = []
   for (const [id, question] of Object.entries(request.questions)) {
@@ -248,7 +283,7 @@ export function buildMatrix(
         rows.push(...choiceRows(id, question, columns))
         break
       case 'noul':
-        rows.push(...noulRows(id, columns))
+        rows.push(...noulRows(id, columns, marking))
         break
       case 'score':
         rows.push(...scoreRows(id, question, columns))

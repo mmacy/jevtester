@@ -77,6 +77,30 @@ describe('buildMatrix', () => {
     expect(cost.cells).toEqual(['Unknown', formatUsd(workers.cost_usd ?? 0), null])
   })
 
+  it('names the answer each row stands for, for marking it expected', () => {
+    const parley = find(rows, 'intent:parley')
+    const level = find(rows, 'reaction:2')
+    const yes = find(rows, 'bribe:yes')
+    expect(
+      [parley, level, yes].map((r) => (r.kind === 'heat' ? [r.question, r.value] : null)),
+    ).toEqual([
+      ['intent', 'parley'],
+      ['reaction', 2],
+      ['bribe', true],
+    ])
+    expect(rows.some((r) => r.key === 'bribe:no')).toBe(false)
+  })
+
+  it('adds a no row to a yes-or-no question while marking', () => {
+    const marked = buildMatrix(partial.request, columns, () => false, true)
+    const no = find(marked, 'bribe:no')
+    if (no.kind !== 'heat') throw new Error('expected a heat row')
+    expect(no.value).toBe(false)
+    expect(no.cells[0].value).toBeCloseTo(
+      1 - (partial.results[0].answers.bribe as { probability: number }).probability,
+    )
+  })
+
   it('adds a row for an option the question does not have', () => {
     const result = structuredClone(partial.results[0])
     const intent = result.answers.intent
