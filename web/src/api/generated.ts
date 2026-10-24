@@ -1765,6 +1765,8 @@ export interface components {
         TargetList: {
             /** Targets */
             targets: components["schemas"]["TargetInfo"][];
+            /** Default Targets */
+            default_targets: string[];
             /** Checked At */
             checked_at: string | null;
         };

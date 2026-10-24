@@ -14,8 +14,11 @@
 // post_decide.partial.json or post_decide.422.json. A request gets a variant
 // only when its X-Fixture header names it. A numeric variant is served with
 // that HTTP status.
+//
+// A decide that names targets gets each target's result from any decide
+// fixture, since the UI sends one decide per target.
 import { readdirSync, readFileSync } from 'node:fs'
-import type { ServerResponse } from 'node:http'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { join } from 'node:path'
 
 import type { Plugin } from 'vite'
@@ -96,7 +99,72 @@ export function splitEvents(text: string): string[] {
 function sendError(res: ServerResponse, status: number, code: string, message: string) {
   res.statusCode = status
   res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify({ error: { code, message } }))
+  res.end(JSON.stringify({ error: { code, message, field: null, details: [] } }))
+}
+
+interface DecideFixture {
+  results: { target: string }[]
+}
+
+function missingResult(target: string) {
+  return {
+    target,
+    ok: false,
+    latency_ms: null,
+    usage: { input_tokens: null, output_tokens: null },
+    cost_usd: null,
+    warnings: [],
+    error: { code: 'not_ready', message: `No fixture result for ${target}`, status: null },
+    answers: {},
+    request_body: null,
+    raw: null,
+  }
+}
+
+/**
+ * Answers a decide with each requested target's result from any decide
+ * fixture, since the UI sends one decide per target. With no targets named,
+ * the fixture is served as it is.
+ */
+export function pickDecideResults<T extends DecideFixture>(
+  fixture: T,
+  pool: readonly DecideFixture[],
+  targets: readonly string[],
+): T {
+  if (targets.length === 0) return fixture
+  const all = [fixture, ...pool].flatMap((f) => f.results)
+  return {
+    ...fixture,
+    results: targets.map((t) => all.find((r) => r.target === t) ?? missingResult(t)),
+  }
+}
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')))
+    req.on('error', reject)
+  })
+}
+
+async function sendDecide(
+  req: IncomingMessage,
+  res: ServerResponse,
+  dir: string,
+  file: string,
+  files: string[],
+) {
+  const fixture = JSON.parse(readFileSync(join(dir, file), 'utf8')) as DecideFixture
+  const pool = files
+    .filter((f) => f !== file && f.startsWith('post_decide') && fixtureStatus(f) === 200)
+    .map((f) => JSON.parse(readFileSync(join(dir, f), 'utf8')) as DecideFixture)
+  const targets = await readBody(req)
+    .then((text) => (JSON.parse(text) as { targets?: string[] }).targets ?? [])
+    .catch(() => [])
+  res.statusCode = 200
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify(pickDecideResults(fixture, pool, targets)))
 }
 
 async function replayEvents(res: ServerResponse, text: string, delayMs: number) {
@@ -131,6 +199,14 @@ export function fixtureServer(dir: string, sseDelayMs = 150): Plugin {
         if (!file) {
           const named = variant ? ` with variant ${variant}` : ''
           sendError(res, 404, 'not_found', `No fixture for ${req.method} ${url.pathname}${named}`)
+          return
+        }
+        if (
+          req.method === 'POST' &&
+          url.pathname === '/api/decide' &&
+          fixtureStatus(file) === 200
+        ) {
+          void sendDecide(req, res, dir, file, files)
           return
         }
         const body = readFileSync(join(dir, file), 'utf8')

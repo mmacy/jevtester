@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { fixtureStatus, matchFixture, parseFixtureName, splitEvents } from './fixture-server.ts'
+import {
+  fixtureStatus,
+  matchFixture,
+  parseFixtureName,
+  pickDecideResults,
+  splitEvents,
+} from './fixture-server.ts'
 
 const FILES = [
   'get_targets.json',
@@ -97,5 +103,33 @@ describe('splitEvents', () => {
       'event: progress\ndata: {"sent": 1}',
       'event: finished\ndata: {}',
     ])
+  })
+})
+
+describe('pickDecideResults', () => {
+  const single = { asked_at: 'x', results: [{ target: 'a', ok: true }] }
+  const partial = {
+    asked_at: 'y',
+    results: [
+      { target: 'a', ok: true },
+      { target: 'b', ok: true },
+    ],
+  }
+
+  it('serves the fixture as it is when no targets are named', () => {
+    expect(pickDecideResults(single, [partial], [])).toBe(single)
+  })
+
+  it('answers each named target from any decide fixture', () => {
+    expect(pickDecideResults(single, [partial], ['b']).results).toEqual([{ target: 'b', ok: true }])
+    expect(pickDecideResults(single, [partial], ['b']).asked_at).toBe('x')
+  })
+
+  it('fails a target no fixture has', () => {
+    expect(pickDecideResults(single, [partial], ['c']).results[0]).toMatchObject({
+      target: 'c',
+      ok: false,
+      error: { code: 'not_ready' },
+    })
   })
 })

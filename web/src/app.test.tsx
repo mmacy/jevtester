@@ -36,7 +36,7 @@ describe('App', () => {
 
   it('opens Compare from the root', () => {
     renderAt('/')
-    expect(screen.getByRole('heading', { name: 'Compare' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Request' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Compare' })).toHaveAttribute('aria-current', 'page')
   })
 
@@ -59,6 +59,6 @@ describe('App', () => {
 
   it('sends an unknown path to Compare', () => {
     renderAt('/no-such-view')
-    expect(screen.getByRole('heading', { name: 'Compare' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Compare' })).toHaveAttribute('aria-current', 'page')
   })
 })
