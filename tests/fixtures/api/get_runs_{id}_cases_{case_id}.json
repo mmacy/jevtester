@@ -1,0 +1,361 @@
+{
+  "run_id": "0142",
+  "case": {
+    "id": "goblin-bribe",
+    "state": {
+      "party": "Three adventurers, torches lit",
+      "monsters": "Six goblins, weapons drawn, 40 feet away",
+      "player_says": "We come in peace. Take this sack of silver and let us pass to the stairs."
+    },
+    "images": [],
+    "expected": {
+      "intent": {
+        "answer": "parley",
+        "acceptable": null,
+        "tolerance": 0
+      },
+      "bribe": {
+        "answer": true,
+        "acceptable": null,
+        "tolerance": 0
+      },
+      "reaction": {
+        "answer": 3,
+        "acceptable": null,
+        "tolerance": 1
+      }
+    },
+    "expected_action": "parley_succeeds",
+    "tags": [
+      "bribe"
+    ],
+    "provenance": "human"
+  },
+  "questions": {
+    "intent": {
+      "type": "choice",
+      "instructions": "What is the player trying to do?",
+      "criteria": {
+        "parley": "Talk, bargain, bribe, or negotiate",
+        "evade": "Run away or avoid the monsters",
+        "fight": "Attack the monsters",
+        "wait": "Hold position and watch"
+      }
+    },
+    "bribe": {
+      "type": "noul",
+      "instructions": "Does the player offer the monsters something of value?",
+      "criteria": null
+    },
+    "reaction": {
+      "type": "score",
+      "instructions": "How are goblins likely to react to this offer?",
+      "criteria": [
+        "Attack at once",
+        "Hostile, may attack",
+        "Uncertain, hold and posture",
+        "Indifferent, may let them pass",
+        "Friendly, accept the offer"
+      ]
+    }
+  },
+  "results": [
+    {
+      "target": "decision-1@foundry",
+      "repeat": 0,
+      "variant": null,
+      "cached": false,
+      "correct": {
+        "intent": true,
+        "bribe": true,
+        "reaction": true
+      },
+      "result": {
+        "target": "decision-1@foundry",
+        "ok": true,
+        "latency_ms": 1550.0,
+        "usage": {
+          "input_tokens": 185,
+          "output_tokens": 3
+        },
+        "cost_usd": null,
+        "warnings": [],
+        "error": null,
+        "answers": {
+          "intent": {
+            "type": "choice",
+            "choice": "parley",
+            "probabilities": {
+              "parley": 0.9996146903453894,
+              "evade": 0.0001794909415287629,
+              "fight": 6.603102726493733e-05,
+              "wait": 0.00013978768581682428
+            },
+            "unknown_probabilities": {},
+            "confidence": 0.9994862537938526,
+            "server_confidence": 0.9994862537938526
+          },
+          "bribe": {
+            "type": "noul",
+            "probability": 0.9988304895647238,
+            "confidence": 0.9976609791294475,
+            "server_confidence": null
+          },
+          "reaction": {
+            "type": "score",
+            "score": 2.20874314700501,
+            "level": 2,
+            "probabilities": [
+              0.03320131848053559,
+              0.1910603961750086,
+              0.4583300913583954,
+              0.16861020783103078,
+              0.14879798615502957
+            ],
+            "legend": [
+              "Attack at once",
+              "Hostile, may attack",
+              "Uncertain, hold and posture",
+              "Indifferent, may let them pass",
+              "Friendly, accept the offer"
+            ],
+            "confidence": null,
+            "server_confidence": 0.32291261419799433
+          }
+        },
+        "request_body": {
+          "model": "decision-1",
+          "state": {
+            "party": "Three adventurers, torches lit",
+            "monsters": "Six goblins, weapons drawn, 40 feet away",
+            "player_says": "We come in peace. Take this sack of silver and let us pass to the stairs."
+          },
+          "questions": {
+            "intent": {
+              "type": "choice",
+              "instructions": "What is the player trying to do?",
+              "criteria": {
+                "parley": "Talk, bargain, bribe, or negotiate",
+                "evade": "Run away or avoid the monsters",
+                "fight": "Attack the monsters",
+                "wait": "Hold position and watch"
+              }
+            },
+            "bribe": {
+              "type": "noul",
+              "instructions": "Does the player offer the monsters something of value?"
+            },
+            "reaction": {
+              "type": "score",
+              "instructions": "How are goblins likely to react to this offer?",
+              "criteria": [
+                "Attack at once",
+                "Hostile, may attack",
+                "Uncertain, hold and posture",
+                "Indifferent, may let them pass",
+                "Friendly, accept the offer"
+              ]
+            }
+          }
+        },
+        "raw": {
+          "model": "microsoft-decision-1",
+          "answers": {
+            "bribe": {
+              "noul": 0.9988304895647238,
+              "type": "noul"
+            },
+            "intent": {
+              "choice": "parley",
+              "confidence": 0.9994862537938526,
+              "probabilities": {
+                "evade": 0.0001794909415287629,
+                "fight": 6.603102726493733e-05,
+                "parley": 0.9996146903453894,
+                "wait": 0.00013978768581682428
+              },
+              "type": "choice"
+            },
+            "reaction": {
+              "confidence": 0.32291261419799433,
+              "legend": {
+                "0": "Attack at once",
+                "1": "Hostile, may attack",
+                "2": "Uncertain, hold and posture",
+                "3": "Indifferent, may let them pass",
+                "4": "Friendly, accept the offer"
+              },
+              "probabilities": {
+                "0": 0.03320131848053559,
+                "1": 0.1910603961750086,
+                "2": 0.4583300913583954,
+                "3": 0.16861020783103078,
+                "4": 0.14879798615502957
+              },
+              "score": 2.20874314700501,
+              "type": "score"
+            }
+          },
+          "usage": {
+            "input_tokens": 185,
+            "output_tokens": 3
+          }
+        }
+      }
+    },
+    {
+      "target": "clef-flash@workers-ai",
+      "repeat": 0,
+      "variant": null,
+      "cached": true,
+      "correct": {
+        "intent": true,
+        "bribe": true,
+        "reaction": true
+      },
+      "result": {
+        "target": "clef-flash@workers-ai",
+        "ok": true,
+        "latency_ms": 912.0,
+        "usage": {
+          "input_tokens": 185,
+          "output_tokens": 0
+        },
+        "cost_usd": 7.0300000000000005e-06,
+        "warnings": [
+          {
+            "code": "state_may_truncate",
+            "message": "Workers AI cuts the state to fit 24,576 tokens",
+            "question": null
+          }
+        ],
+        "error": null,
+        "answers": {
+          "intent": {
+            "type": "choice",
+            "choice": "parley",
+            "probabilities": {
+              "parley": 0.9871,
+              "evade": 0.0042,
+              "fight": 0.0019,
+              "wait": 0.0068
+            },
+            "unknown_probabilities": {},
+            "confidence": 0.9828,
+            "server_confidence": 0.9828
+          },
+          "bribe": {
+            "type": "noul",
+            "probability": 0.9912,
+            "confidence": 0.9823999999999999,
+            "server_confidence": null
+          },
+          "reaction": {
+            "type": "score",
+            "score": 2.1679,
+            "level": 2,
+            "probabilities": [
+              0.0512,
+              0.2143,
+              0.4021,
+              0.1802,
+              0.1522
+            ],
+            "legend": [
+              "Attack at once",
+              "Hostile, may attack",
+              "Uncertain, hold and posture",
+              "Indifferent, may let them pass",
+              "Friendly, accept the offer"
+            ],
+            "confidence": null,
+            "server_confidence": 0.31
+          }
+        },
+        "request_body": {
+          "model": "clef-flash",
+          "state": {
+            "party": "Three adventurers, torches lit",
+            "monsters": "Six goblins, weapons drawn, 40 feet away",
+            "player_says": "We come in peace. Take this sack of silver and let us pass to the stairs."
+          },
+          "questions": {
+            "intent": {
+              "type": "choice",
+              "instructions": "What is the player trying to do?",
+              "criteria": {
+                "parley": "Talk, bargain, bribe, or negotiate",
+                "evade": "Run away or avoid the monsters",
+                "fight": "Attack the monsters",
+                "wait": "Hold position and watch"
+              }
+            },
+            "bribe": {
+              "type": "noul",
+              "instructions": "Does the player offer the monsters something of value?"
+            },
+            "reaction": {
+              "type": "score",
+              "instructions": "How are goblins likely to react to this offer?",
+              "criteria": [
+                "Attack at once",
+                "Hostile, may attack",
+                "Uncertain, hold and posture",
+                "Indifferent, may let them pass",
+                "Friendly, accept the offer"
+              ]
+            }
+          }
+        },
+        "raw": {
+          "result": {
+            "model": "clef-flash",
+            "answers": {
+              "intent": {
+                "type": "choice",
+                "choice": "parley",
+                "confidence": 0.9828,
+                "probabilities": {
+                  "parley": 0.9871,
+                  "evade": 0.0042,
+                  "fight": 0.0019,
+                  "wait": 0.0068
+                }
+              },
+              "bribe": {
+                "type": "noul",
+                "noul": 0.9912
+              },
+              "reaction": {
+                "type": "score",
+                "score": 2.1679,
+                "confidence": 0.31,
+                "legend": {
+                  "0": "Attack at once",
+                  "1": "Hostile, may attack",
+                  "2": "Uncertain, hold and posture",
+                  "3": "Indifferent, may let them pass",
+                  "4": "Friendly, accept the offer"
+                },
+                "probabilities": {
+                  "0": 0.0512,
+                  "1": 0.2143,
+                  "2": 0.4021,
+                  "3": 0.1802,
+                  "4": 0.1522
+                }
+              }
+            },
+            "usage": {
+              "input_tokens": 185,
+              "output_tokens": 0
+            }
+          },
+          "success": true,
+          "errors": [],
+          "messages": []
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "name": "parley",
+  "version": "6c1f0a9e5b7d4c3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a",
+  "yaml": "# Turns the parley questions into a referee action. The policy format arrives in build step 7.\nname: parley\nbands:\n  intent: {act: 0.8, confirm: 0.5}\ncomposites:\n  goodwill:\n    bribe: 0.6\n    reaction: 0.4\nrules:\n  - when: intent == \"fight\"\n    action: battle\n  - when: intent == \"evade\"\n    action: evade\n  - when: intent == \"wait\"\n    action: wait\n  - when: intent == \"parley\" and goodwill >= goodwill_threshold\n    action: parley_succeeds\n  - when: intent == \"parley\"\n    action: parley_fails\nthresholds:\n  goodwill_threshold: 0.6\n  per_target:\n    clef-flash@workers-ai: {goodwill_threshold: 0.55}\ncosts:\n  parley_succeeds: {parley_fails: 5, escalate: 1}\n",
+  "actions": [
+    "battle",
+    "evade",
+    "wait",
+    "parley_succeeds",
+    "parley_fails",
+    "escalate"
+  ],
+  "thresholds": [
+    {
+      "name": "intent.act",
+      "value": 0.8,
+      "per_target": {}
+    },
+    {
+      "name": "intent.confirm",
+      "value": 0.5,
+      "per_target": {}
+    },
+    {
+      "name": "goodwill_threshold",
+      "value": 0.6,
+      "per_target": {
+        "clef-flash@workers-ai": 0.55
+      }
+    }
+  ],
+  "suites": [
+    "parley"
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "error": {
+    "code": "conflict",
+    "message": "The suite already has a case goblin-bribe",
+    "field": "id",
+    "details": [
+      {
+        "field": "id",
+        "message": "Taken"
+      }
+    ]
+  }
+}

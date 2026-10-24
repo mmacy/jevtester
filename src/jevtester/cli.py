@@ -18,7 +18,20 @@ def build_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(prog="jevtester", description=__doc__)
     parser.add_argument("--version", action="version", version=f"jevtester {__version__}")
+    commands = parser.add_subparsers(dest="command", metavar="<command>")
+
+    serve = commands.add_parser("serve", help="Start the API and the web UI on 127.0.0.1.")
+    serve.add_argument("--port", type=int, default=None, help="The port. Defaults to 8640.")
     return parser
+
+
+def _serve(port: int | None) -> int:
+    import uvicorn
+
+    from jevtester.api import HOST, PORT, create_app
+
+    uvicorn.run(create_app(), host=HOST, port=port or PORT)
+    return 0
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -31,6 +44,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         The process exit code.
     """
     parser = build_parser()
-    parser.parse_args(argv)
-    parser.print_help()
-    return 0
+    args = parser.parse_args(argv)
+    match args.command:
+        case "serve":
+            return _serve(args.port)
+        case _:
+            parser.print_help()
+            return 0

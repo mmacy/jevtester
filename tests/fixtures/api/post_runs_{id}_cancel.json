@@ -1,0 +1,62 @@
+{
+  "id": "0144",
+  "kind": "suite",
+  "suite": "parley",
+  "question_set": "parley",
+  "question_set_version": "95e251b70a75ea722a0c62ce89024a58c6bdb1a3ebde485db30bba925ffc0cb6",
+  "policy": "parley",
+  "policy_version": "6c1f0a9e5b7d4c3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a",
+  "targets": [
+    "decision-1@foundry",
+    "clef-flash@workers-ai",
+    "clef-flash@ollama"
+  ],
+  "repeats": 1,
+  "variants": [],
+  "no_cache": false,
+  "baseline": null,
+  "status": "cancelled",
+  "case_count": 4,
+  "counts": {
+    "jobs": 12,
+    "done": 8,
+    "sent": 2,
+    "cached": 2,
+    "failed": 0,
+    "skipped": 4,
+    "targets": [
+      {
+        "target": "decision-1@foundry",
+        "jobs": 4,
+        "sent": 2,
+        "cached": 0,
+        "failed": 0,
+        "skipped": 0,
+        "skip_reason": null
+      },
+      {
+        "target": "clef-flash@workers-ai",
+        "jobs": 4,
+        "sent": 0,
+        "cached": 2,
+        "failed": 0,
+        "skipped": 0,
+        "skip_reason": null
+      },
+      {
+        "target": "clef-flash@ollama",
+        "jobs": 4,
+        "sent": 0,
+        "cached": 0,
+        "failed": 0,
+        "skipped": 4,
+        "skip_reason": "clef-flash isn't pulled"
+      }
+    ]
+  },
+  "cost_usd": null,
+  "created_at": "2026-10-24T14:30:00Z",
+  "started_at": "2026-10-24T14:30:00Z",
+  "finished_at": "2026-10-24T14:30:06Z",
+  "error": null
+}

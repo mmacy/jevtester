@@ -2,19 +2,17 @@
 
 import hashlib
 import json
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field
+from pydantic import Field, JsonValue, computed_field, model_validator
+
+from jevtester.model import Model
 
 type State = str | dict[str, JsonValue] | list[JsonValue]
 """What a decision model reads: text, a JSON object, or a JSON array."""
 
 
-class _Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class NoulCriteria(_Strict):
+class NoulCriteria(Model):
     """Optional descriptions of the yes and no outcomes of a noul question."""
 
     true: str | None = None
@@ -23,7 +21,7 @@ class NoulCriteria(_Strict):
     """What counts as no."""
 
 
-class NoulQuestion(_Strict):
+class NoulQuestion(Model):
     """A yes/no question. Its answer is the probability of yes."""
 
     type: Literal["noul"] = "noul"
@@ -33,7 +31,7 @@ class NoulQuestion(_Strict):
     """Descriptions of yes and no. Not every server accepts them."""
 
 
-class ChoiceQuestion(_Strict):
+class ChoiceQuestion(Model):
     """A question that picks one option from a map of option names to descriptions."""
 
     type: Literal["choice"] = "choice"
@@ -43,7 +41,7 @@ class ChoiceQuestion(_Strict):
     """Option names mapped to descriptions, in the order sent to the model."""
 
 
-class ScoreQuestion(_Strict):
+class ScoreQuestion(Model):
     """A question that places the state on an ordered list of levels, lowest first."""
 
     type: Literal["score"] = "score"
@@ -64,12 +62,22 @@ def _questions_body(questions: dict[str, Question]) -> dict[str, Any]:
     return {key: question.model_dump(mode="json", exclude_none=True) for key, question in questions.items()}
 
 
-class QuestionSet(_Strict):
+class QuestionSet(Model):
     """A named set of questions. Its content hash identifies a version."""
 
     name: str
     questions: dict[str, Question] = Field(min_length=1)
     """Questions keyed by the id each answer comes back under."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_version(cls, data: Any) -> Any:
+        # A saved question set may carry the `version` it was written with. The hash is always recomputed.
+        if not isinstance(data, dict):
+            return data
+        fields = dict(cast(dict[str, Any], data))
+        fields.pop("version", None)
+        return fields
 
     @computed_field
     @property
@@ -79,7 +87,7 @@ class QuestionSet(_Strict):
         return hashlib.sha256(encoded.encode()).hexdigest()
 
 
-class DecisionRequest(_Strict):
+class DecisionRequest(Model):
     """One request to a decision model, before a target adds its model name and settings."""
 
     state: State
