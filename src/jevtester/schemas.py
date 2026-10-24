@@ -618,8 +618,8 @@ class Regression(Model):
 class RunComparison(Model):
     """The result of `jevtester compare`: both runs' metrics, the changed answers, and any regressions."""
 
-    run: RunMetrics
-    baseline: RunMetrics
+    run_metrics: RunMetrics
+    baseline_metrics: RunMetrics
     changes: RunChanges
     max_drop: float
     """The largest drop allowed in accuracy, or in within-tolerance accuracy for a score question."""

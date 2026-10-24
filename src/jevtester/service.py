@@ -869,8 +869,8 @@ class Service:
                         )
                     )
         return RunComparison(
-            run=now,
-            baseline=before,
+            run_metrics=now,
+            baseline_metrics=before,
             changes=self.run_changes(run_id, baseline),
             max_drop=allowed,
             regressions=regressions,
