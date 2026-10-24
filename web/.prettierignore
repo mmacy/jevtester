@@ -1,0 +1,7 @@
+# Generated from docs/openapi.json; nobody edits it.
+src/api/generated.ts
+
+dist/
+package-lock.json
+test-results/
+playwright-report/

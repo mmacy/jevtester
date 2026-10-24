@@ -1,0 +1,85 @@
+@import 'tailwindcss';
+
+/* The heat matrix palette, from mockups/3-matrix.html. The UI is dark only, as
+   the mockup is. One ramp means "more" everywhere; gold marks a chosen answer. */
+@theme {
+  --color-bg: #102029;
+  --color-surface: #152a35;
+  --color-raise: #1b3442;
+  --color-line: #234051;
+  --color-line-soft: #1c3644;
+  --color-text: #dbe8ef;
+  --color-dim: #8ea7b6;
+  --color-faint: #5e7a8b;
+  --color-pick: #f3c979;
+  --color-pick-ink: #23200f;
+  --color-warn: #f0b45b;
+  --color-err: #ef7a6b;
+  --color-ok: #8fd3b0;
+  --color-warn-bg: #3a3420;
+  --color-warn-ink: #f6dcb0;
+  --color-err-bg: #3b2626;
+  --color-err-ink: #f8c8c0;
+  --color-ok-bg: #1d4033;
+  --color-fixed-bg: #1f4537;
+  --color-broken-bg: #4a2a28;
+
+  --font-sans: 'Noto Sans Variable', system-ui, sans-serif;
+  --font-display: 'Noto Sans Display Variable', 'Noto Sans Variable', sans-serif;
+  --font-mono: 'Noto Sans Mono', ui-monospace, monospace;
+
+  --text-xs: 11.5px;
+  --text-sm: 12.5px;
+  --text-base: 14px;
+
+  --spacing-topbar: 56px;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font: 14px/1.45 var(--font-sans);
+    font-variant-numeric: tabular-nums;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-pick);
+    outline-offset: 2px;
+  }
+}
+
+@utility font-cond {
+  font-family: var(--font-display);
+  font-stretch: 72%;
+}
+
+/* A target that can't run keeps its cell, hatched. */
+@utility hatch {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--color-surface) 0 6px,
+    var(--color-bg) 6px 12px
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
