@@ -1,0 +1,63 @@
+[project]
+name = "jevtester"
+version = "0.1.0"
+description = "Test decision models, the questions written for them, and the decisions built on their answers."
+readme = "README.md"
+authors = [{ name = "Marsh Macy" }]
+requires-python = ">=3.14"
+dependencies = [
+    "azure-identity>=1.26.0",
+    "fastapi>=0.162.0",
+    "httpx2>=2.16.0",
+    "pydantic>=2.14.1",
+    "pyyaml>=6.0.3",
+    "typesafe-sdk>=0.7.5,<0.8",
+    "uvicorn>=0.54.0",
+]
+
+[project.scripts]
+jevtester = "jevtester.cli:main"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.411",
+    "pytest>=9.1.1",
+    "ruff>=0.11",
+    "types-pyyaml>=6",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.22,<0.9.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "jevtester"
+
+[tool.ruff]
+line-length = 120
+src = ["src", "tests"]
+# The plan and handoff are prose, not code under this gate.
+extend-exclude = ["*.md"]
+
+[tool.ruff.lint]
+select = ["B", "D", "E", "F", "I", "RUF", "SIM", "UP", "W"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["jevtester"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+include = ["src", "tests"]
+typeCheckingMode = "standard"
+strict = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -m 'not live'"
+markers = ["live: calls a hosted or local target; run with `-m live`"]
