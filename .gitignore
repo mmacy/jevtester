@@ -1,0 +1,13 @@
+.DS_Store
+.env
+.env.*
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+node_modules/
+.jevtester/
+src/jevtester/static/
+web/test-results/
+web/playwright-report/
+.playwright-cli/
