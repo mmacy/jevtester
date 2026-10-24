@@ -1,0 +1,195 @@
+{
+  "suite": {
+    "name": "parley",
+    "question_set": "parley",
+    "cases": [
+      {
+        "id": "goblin-bribe",
+        "state": {
+          "party": "Three adventurers, torches lit",
+          "monsters": "Six goblins, weapons drawn, 40 feet away",
+          "player_says": "We come in peace. Take this sack of silver and let us pass to the stairs."
+        },
+        "images": [],
+        "expected": {
+          "intent": {
+            "answer": "parley",
+            "acceptable": null,
+            "tolerance": 0
+          },
+          "bribe": {
+            "answer": true,
+            "acceptable": null,
+            "tolerance": 0
+          },
+          "reaction": {
+            "answer": 3,
+            "acceptable": null,
+            "tolerance": 1
+          }
+        },
+        "expected_action": "parley_succeeds",
+        "tags": [
+          "bribe"
+        ],
+        "provenance": "human"
+      },
+      {
+        "id": "orc-charge",
+        "state": {
+          "party": "Four adventurers in a narrow corridor",
+          "monsters": "Five orcs, shields up, 30 feet away",
+          "player_says": "Charge them! Swords out!"
+        },
+        "images": [],
+        "expected": {
+          "intent": {
+            "answer": "fight",
+            "acceptable": null,
+            "tolerance": 0
+          },
+          "bribe": {
+            "answer": false,
+            "acceptable": null,
+            "tolerance": 0
+          },
+          "reaction": {
+            "answer": 0,
+            "acceptable": null,
+            "tolerance": 1
+          }
+        },
+        "expected_action": "battle",
+        "tags": [
+          "combat"
+        ],
+        "provenance": "human"
+      },
+      {
+        "id": "kobold-retreat",
+        "state": {
+          "party": "Two adventurers, one wounded",
+          "monsters": "Eight kobolds with spears, 60 feet away",
+          "player_says": "Back away slowly toward the door we came in by."
+        },
+        "images": [],
+        "expected": {
+          "intent": {
+            "answer": "evade",
+            "acceptable": null,
+            "tolerance": 0
+          },
+          "bribe": {
+            "answer": false,
+            "acceptable": null,
+            "tolerance": 0
+          },
+          "reaction": {
+            "answer": 1,
+            "acceptable": null,
+            "tolerance": 1
+          }
+        },
+        "expected_action": "evade",
+        "tags": [
+          "evade"
+        ],
+        "provenance": "human"
+      },
+      {
+        "id": "gnoll-watch",
+        "state": {
+          "party": "Three adventurers behind a pillar",
+          "monsters": "Four gnolls arguing over a carcass, 50 feet away",
+          "player_says": "We stay still and watch what they do."
+        },
+        "images": [],
+        "expected": {
+          "intent": {
+            "answer": "wait",
+            "acceptable": null,
+            "tolerance": 0
+          },
+          "bribe": {
+            "answer": false,
+            "acceptable": null,
+            "tolerance": 0
+          },
+          "reaction": {
+            "answer": 2,
+            "acceptable": null,
+            "tolerance": 1
+          }
+        },
+        "expected_action": "wait",
+        "tags": [
+          "wait"
+        ],
+        "provenance": "human"
+      },
+      {
+        "id": "hobgoblin-gold",
+        "state": {
+          "party": "Three adventurers, one holding a coin purse",
+          "monsters": "Six hobgoblins guarding a bridge",
+          "player_says": "Here is gold for safe passage."
+        },
+        "images": [],
+        "expected": {
+          "intent": {
+            "answer": "parley",
+            "acceptable": null,
+            "tolerance": 0
+          },
+          "bribe": {
+            "answer": true,
+            "acceptable": null,
+            "tolerance": 0
+          }
+        },
+        "expected_action": "parley_succeeds",
+        "tags": [
+          "bribe"
+        ],
+        "provenance": "claude-draft"
+      }
+    ],
+    "policy": "parley",
+    "targets": [
+      "decision-1@foundry",
+      "clef-flash@workers-ai"
+    ]
+  },
+  "question_set": {
+    "name": "parley",
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "What is the player trying to do?",
+        "criteria": {
+          "parley": "Talk, bargain, bribe, or negotiate",
+          "evade": "Run away or avoid the monsters",
+          "fight": "Attack the monsters",
+          "wait": "Hold position and watch"
+        }
+      },
+      "bribe": {
+        "type": "noul",
+        "instructions": "Does the player offer the monsters something of value?",
+        "criteria": null
+      },
+      "reaction": {
+        "type": "score",
+        "instructions": "How are goblins likely to react to this offer?",
+        "criteria": [
+          "Attack at once",
+          "Hostile, may attack",
+          "Uncertain, hold and posture",
+          "Indifferent, may let them pass",
+          "Friendly, accept the offer"
+        ]
+      }
+    },
+    "version": "95e251b70a75ea722a0c62ce89024a58c6bdb1a3ebde485db30bba925ffc0cb6"
+  }
+}

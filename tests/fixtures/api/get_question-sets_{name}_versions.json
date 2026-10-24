@@ -1,0 +1,19 @@
+{
+  "name": "parley",
+  "versions": [
+    {
+      "version": "95e251b70a75ea722a0c62ce89024a58c6bdb1a3ebde485db30bba925ffc0cb6",
+      "first_seen": "2026-10-24T14:05:00Z",
+      "question_count": 3,
+      "run_count": 2,
+      "current": true
+    },
+    {
+      "version": "2566eb4afe018185cb31f7b51fae00002a89c1a890b4d9f5b4ca4b65ffa235a3",
+      "first_seen": "2026-10-24T13:20:00Z",
+      "question_count": 3,
+      "run_count": 1,
+      "current": false
+    }
+  ]
+}

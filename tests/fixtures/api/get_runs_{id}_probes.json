@@ -1,0 +1,163 @@
+{
+  "run_id": "0143",
+  "variants": [
+    "option_order",
+    "key_order"
+  ],
+  "cells": [
+    {
+      "case_id": "goblin-bribe",
+      "target": "decision-1@foundry",
+      "variant": "option_order",
+      "instances": 3,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "goblin-bribe",
+      "target": "decision-1@foundry",
+      "variant": "key_order",
+      "instances": 1,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "orc-charge",
+      "target": "decision-1@foundry",
+      "variant": "option_order",
+      "instances": 3,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "orc-charge",
+      "target": "decision-1@foundry",
+      "variant": "key_order",
+      "instances": 1,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "kobold-retreat",
+      "target": "decision-1@foundry",
+      "variant": "option_order",
+      "instances": 3,
+      "changed": 1,
+      "change_rate": 0.3333333333333333
+    },
+    {
+      "case_id": "kobold-retreat",
+      "target": "decision-1@foundry",
+      "variant": "key_order",
+      "instances": 1,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "gnoll-watch",
+      "target": "decision-1@foundry",
+      "variant": "option_order",
+      "instances": 3,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "gnoll-watch",
+      "target": "decision-1@foundry",
+      "variant": "key_order",
+      "instances": 1,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "goblin-bribe",
+      "target": "clef-flash@workers-ai",
+      "variant": "option_order",
+      "instances": 3,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "goblin-bribe",
+      "target": "clef-flash@workers-ai",
+      "variant": "key_order",
+      "instances": 1,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "orc-charge",
+      "target": "clef-flash@workers-ai",
+      "variant": "option_order",
+      "instances": 3,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "orc-charge",
+      "target": "clef-flash@workers-ai",
+      "variant": "key_order",
+      "instances": 1,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "kobold-retreat",
+      "target": "clef-flash@workers-ai",
+      "variant": "option_order",
+      "instances": 3,
+      "changed": 2,
+      "change_rate": 0.6666666666666666
+    },
+    {
+      "case_id": "kobold-retreat",
+      "target": "clef-flash@workers-ai",
+      "variant": "key_order",
+      "instances": 1,
+      "changed": 0,
+      "change_rate": 0.0
+    },
+    {
+      "case_id": "gnoll-watch",
+      "target": "clef-flash@workers-ai",
+      "variant": "option_order",
+      "instances": 3,
+      "changed": 1,
+      "change_rate": 0.3333333333333333
+    },
+    {
+      "case_id": "gnoll-watch",
+      "target": "clef-flash@workers-ai",
+      "variant": "key_order",
+      "instances": 1,
+      "changed": 0,
+      "change_rate": 0.0
+    }
+  ],
+  "summary": [
+    {
+      "target": "decision-1@foundry",
+      "variant": "option_order",
+      "cases": 4,
+      "change_rate": 0.08333333333333333
+    },
+    {
+      "target": "decision-1@foundry",
+      "variant": "key_order",
+      "cases": 4,
+      "change_rate": 0.0
+    },
+    {
+      "target": "clef-flash@workers-ai",
+      "variant": "option_order",
+      "cases": 4,
+      "change_rate": 0.25
+    },
+    {
+      "target": "clef-flash@workers-ai",
+      "variant": "key_order",
+      "cases": 4,
+      "change_rate": 0.0
+    }
+  ]
+}

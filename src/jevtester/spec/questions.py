@@ -2,9 +2,9 @@
 
 import hashlib
 import json
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue, computed_field, model_validator
 
 type State = str | dict[str, JsonValue] | list[JsonValue]
 """What a decision model reads: text, a JSON object, or a JSON array."""
@@ -70,6 +70,16 @@ class QuestionSet(_Strict):
     name: str
     questions: dict[str, Question] = Field(min_length=1)
     """Questions keyed by the id each answer comes back under."""
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_version(cls, data: Any) -> Any:
+        # A saved question set may carry the `version` it was written with. The hash is always recomputed.
+        if not isinstance(data, dict):
+            return data
+        fields = dict(cast(dict[str, Any], data))
+        fields.pop("version", None)
+        return fields
 
     @computed_field
     @property

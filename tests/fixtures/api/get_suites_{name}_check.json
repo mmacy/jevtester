@@ -1,0 +1,12 @@
+{
+  "suite": "parley",
+  "valid": true,
+  "errors": [],
+  "checks": [
+    {
+      "question": "intent",
+      "code": "no_abstention",
+      "message": "No option for a player whose intent can't be told"
+    }
+  ]
+}

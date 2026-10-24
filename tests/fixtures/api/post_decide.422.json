@@ -1,0 +1,13 @@
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "Unknown target: clef@nowhere",
+    "field": "targets.0",
+    "details": [
+      {
+        "field": "targets.0",
+        "message": "Unknown target: clef@nowhere"
+      }
+    ]
+  }
+}
