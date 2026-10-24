@@ -86,3 +86,18 @@ test('a run with a policy shows its decisions', async ({ page }) => {
   await expect(page.getByRole('row', { name: /^Action/ })).toBeVisible()
   await expect(page.getByRole('row', { name: /^Band/ })).toBeVisible()
 })
+
+test('a run decided with an earlier policy version says so', async ({ page }) => {
+  const runs = fixture<{
+    runs: { id: string; kind: string; status: string; policy_version: string | null }[]
+  }>('get_runs.json').runs
+  await page.route('**/api/runs', (route) =>
+    route.fulfill({
+      json: { runs: runs.map((r) => ({ ...r, policy_version: '0123456789abcdef' })) },
+    }),
+  )
+  await page.goto(`/policies/${policy.name}`)
+  await expect(page.getByRole('region', { name: 'Sweep' })).toContainText(
+    'used policy version 0123456789ab',
+  )
+})
