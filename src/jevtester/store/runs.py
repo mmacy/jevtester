@@ -1,0 +1,262 @@
+"""Runs, results, the result cache, and question set versions in SQLite.
+
+The database lives at `.jevtester/runs.sqlite`, which git ignores. Each row keeps its model as JSON, so the schema
+changes with the models and not with SQL migrations.
+"""
+
+import sqlite3
+import threading
+from datetime import datetime
+from pathlib import Path
+
+from jevtester.model import Model
+from jevtester.normalize import TargetResult
+from jevtester.schemas import RunSummary
+from jevtester.spec import QuestionSet
+
+_SCHEMA = """
+create table if not exists runs (
+    id text primary key,
+    created_at text not null,
+    summary text not null
+);
+create table if not exists results (
+    run_id text not null,
+    seq integer not null,
+    case_id text not null,
+    target text not null,
+    repeat integer not null,
+    variant text not null,
+    cached integer not null,
+    result text not null,
+    primary key (run_id, case_id, target, repeat, variant)
+);
+create table if not exists cache (
+    key text primary key,
+    target text not null,
+    created_at text not null,
+    result text not null
+);
+create table if not exists question_set_versions (
+    name text not null,
+    version text not null,
+    first_seen text not null,
+    question_set text not null,
+    primary key (name, version)
+);
+"""
+
+
+class StoredResult(Model):
+    """One job's result in a run."""
+
+    case_id: str
+    target: str
+    repeat: int
+    variant: str | None = None
+    cached: bool
+    result: TargetResult
+
+
+class StoredVersion(Model):
+    """A question set version, and when jevtester first saw it."""
+
+    question_set: QuestionSet
+    first_seen: datetime
+
+
+class RunStore:
+    """The SQLite database for one jevtester directory."""
+
+    def __init__(self, path: Path) -> None:
+        """Open the database, creating it and its tables if needed.
+
+        Args:
+            path: The database file. `:memory:` keeps it in memory, for tests.
+        """
+        if str(path) != ":memory:":
+            path.parent.mkdir(parents=True, exist_ok=True)
+        self._db = sqlite3.connect(path, check_same_thread=False)
+        self._lock = threading.Lock()
+        with self._lock, self._db:
+            self._db.executescript(_SCHEMA)
+
+    def close(self) -> None:
+        """Close the database."""
+        self._db.close()
+
+    # Runs
+
+    def next_run_id(self) -> str:
+        """Return the next run id: the largest id plus one, as four or more digits."""
+        with self._lock:
+            row = self._db.execute("select max(cast(id as integer)) from runs").fetchone()
+        return f"{(row[0] or 0) + 1:04d}"
+
+    def save_run(self, summary: RunSummary) -> None:
+        """Insert or replace a run's summary.
+
+        Args:
+            summary: The run.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                "insert or replace into runs (id, created_at, summary) values (?, ?, ?)",
+                (summary.id, summary.created_at.isoformat(), summary.model_dump_json()),
+            )
+
+    def get_run(self, run_id: str) -> RunSummary | None:
+        """Read a run's summary.
+
+        Args:
+            run_id: The run's id.
+
+        Returns:
+            The summary, or `None` when there's no such run.
+        """
+        with self._lock:
+            row = self._db.execute("select summary from runs where id = ?", (run_id,)).fetchone()
+        return RunSummary.model_validate_json(row[0]) if row else None
+
+    def list_runs(self) -> list[RunSummary]:
+        """Read every run's summary.
+
+        Returns:
+            The runs, newest first.
+        """
+        with self._lock:
+            rows = self._db.execute("select summary from runs order by created_at desc, id desc").fetchall()
+        return [RunSummary.model_validate_json(row[0]) for row in rows]
+
+    # Results
+
+    def save_result(self, run_id: str, stored: StoredResult) -> None:
+        """Save one job's result, in the order results arrive.
+
+        Args:
+            run_id: The run's id.
+            stored: The job and its result.
+        """
+        with self._lock, self._db:
+            seq = self._db.execute("select count(*) from results where run_id = ?", (run_id,)).fetchone()[0]
+            self._db.execute(
+                "insert or replace into results values (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    run_id,
+                    seq,
+                    stored.case_id,
+                    stored.target,
+                    stored.repeat,
+                    stored.variant or "",
+                    int(stored.cached),
+                    stored.result.model_dump_json(),
+                ),
+            )
+
+    def results(self, run_id: str) -> list[StoredResult]:
+        """Read a run's results.
+
+        Args:
+            run_id: The run's id.
+
+        Returns:
+            The results, in the order they arrived.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                "select case_id, target, repeat, variant, cached, result from results where run_id = ? order by seq",
+                (run_id,),
+            ).fetchall()
+        return [
+            StoredResult(
+                case_id=case_id,
+                target=target,
+                repeat=repeat,
+                variant=variant or None,
+                cached=bool(cached),
+                result=TargetResult.model_validate_json(result),
+            )
+            for case_id, target, repeat, variant, cached, result in rows
+        ]
+
+    # The cache
+
+    def cache_get(self, key: str) -> TargetResult | None:
+        """Look up a cached result.
+
+        Args:
+            key: The job's cache key.
+
+        Returns:
+            The result, or `None` on a miss.
+        """
+        with self._lock:
+            row = self._db.execute("select result from cache where key = ?", (key,)).fetchone()
+        return TargetResult.model_validate_json(row[0]) if row else None
+
+    def cache_put(self, key: str, result: TargetResult, at: datetime) -> None:
+        """Cache a result.
+
+        Args:
+            key: The job's cache key.
+            result: The result.
+            at: When it was made.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                "insert or replace into cache values (?, ?, ?, ?)",
+                (key, result.target, at.isoformat(), result.model_dump_json()),
+            )
+
+    # Question set versions
+
+    def record_version(self, question_set: QuestionSet, at: datetime) -> None:
+        """Record a question set version the first time it's seen.
+
+        Args:
+            question_set: The question set.
+            at: When it was seen.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                "insert or ignore into question_set_versions values (?, ?, ?, ?)",
+                (question_set.name, question_set.version, at.isoformat(), question_set.model_dump_json()),
+            )
+
+    def versions(self, name: str) -> list[StoredVersion]:
+        """Read every recorded version of a question set.
+
+        Args:
+            name: The question set's name.
+
+        Returns:
+            The versions, newest first.
+        """
+        with self._lock:
+            rows = self._db.execute(
+                "select question_set, first_seen from question_set_versions where name = ? "
+                "order by first_seen desc, rowid desc",
+                (name,),
+            ).fetchall()
+        return [
+            StoredVersion(
+                question_set=QuestionSet.model_validate_json(question_set),
+                first_seen=datetime.fromisoformat(first_seen),
+            )
+            for question_set, first_seen in rows
+        ]
+
+    def get_version(self, name: str, version: str) -> StoredVersion | None:
+        """Read one version of a question set.
+
+        Args:
+            name: The question set's name.
+            version: The version hash, or a prefix of it at least 8 characters long.
+
+        Returns:
+            The version, or `None` when there's no such version or the prefix matches more than one.
+        """
+        if len(version) < 8:
+            return None
+        matches = [stored for stored in self.versions(name) if stored.question_set.version.startswith(version)]
+        return matches[0] if len(matches) == 1 else None

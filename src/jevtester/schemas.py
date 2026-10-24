@@ -358,7 +358,8 @@ class RunSummary(Model):
     case_count: int
     counts: RunCounts
     cost_usd: float | None
-    """The total cost of sent requests. Cached results cost nothing. `None` when every target's price is unknown."""
+    """The total cost of sent requests. Cached results cost nothing. `None` until a result arrives from the cache or
+    from a target whose price is known."""
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None

@@ -21,6 +21,7 @@ from pydantic import BaseModel, TypeAdapter
 from starlette.exceptions import HTTPException
 
 from jevtester import __version__
+from jevtester.errors import ServiceError
 from jevtester.schemas import (
     ApiError,
     ApiErrorBody,
@@ -57,7 +58,7 @@ from jevtester.schemas import (
     SweepResult,
     TargetList,
 )
-from jevtester.service import Service, UnknownTargetError
+from jevtester.service import Service
 from jevtester.spec import Case, QuestionSet
 
 HOST = "127.0.0.1"
@@ -118,6 +119,22 @@ async def _handle_api_exception(request: Request, exc: Exception) -> JSONRespons
     return _error_response(exc.status_code, exc.body)
 
 
+_SERVICE_STATUS: dict[ApiErrorCode, int] = {
+    "invalid_request": status.HTTP_422_UNPROCESSABLE_CONTENT,
+    "not_found": status.HTTP_404_NOT_FOUND,
+    "conflict": status.HTTP_409_CONFLICT,
+    "not_ready": status.HTTP_409_CONFLICT,
+    "internal": status.HTTP_500_INTERNAL_SERVER_ERROR,
+}
+
+
+async def _handle_service_error(request: Request, exc: Exception) -> JSONResponse:
+    assert isinstance(exc, ServiceError)
+    details = [ErrorDetail(field=exc.field, message=str(exc))] if exc.code == "invalid_request" else []
+    body = ApiErrorBody(code=exc.code, message=str(exc), field=exc.field, details=details)
+    return _error_response(_SERVICE_STATUS[exc.code], body)
+
+
 async def _handle_http_exception(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, HTTPException)
     code = _STATUS_CODES.get(exc.status_code, "internal")
@@ -175,6 +192,22 @@ def _service(request: Request) -> Service:
 
 type ServiceDep = Annotated[Service, Depends(_service)]
 
+
+def _run(id: str, service: ServiceDep) -> RunSummary:
+    # A dependency, so an unknown run is a 404 before the event stream starts.
+    return service.get_run(id)
+
+
+type RunDep = Annotated[RunSummary, Depends(_run)]
+
+
+async def _numbered[T](items: AsyncIterator[T]) -> AsyncIterator[tuple[int, T]]:
+    index = 0
+    async for item in items:
+        yield index, item
+        index += 1
+
+
 router = APIRouter(prefix="/api", responses=_ERRORS)
 
 
@@ -197,24 +230,19 @@ async def decide(body: DecideBody, service: ServiceDep) -> DecideResponse:
     A target that can't take the request, because it isn't ready or a preflight check fails, still has a result,
     with `ok: false` and an error.
     """
-    try:
-        return await service.decide(body)
-    except UnknownTargetError as error:
-        raise ApiException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_request", str(error), field=error.field
-        ) from error
+    return await service.decide(body)
 
 
 @router.get("/suites", tags=["suites"])
-async def list_suites() -> SuiteList:
+async def list_suites(service: ServiceDep) -> SuiteList:
     """List the suites under `suites/`."""
-    return _fixture("get_suites", SuiteList)
+    return service.list_suites()
 
 
 @router.get("/suites/{name}", tags=["suites"])
-async def get_suite(name: str) -> SuiteDetail:
+async def get_suite(name: str, service: ServiceDep) -> SuiteDetail:
     """Return a suite with its cases and its question set's current version."""
-    return _fixture("get_suites_{name}", SuiteDetail)
+    return service.get_suite(name)
 
 
 @router.get("/suites/{name}/check", tags=["suites"])
@@ -224,39 +252,39 @@ async def check_suite(name: str) -> SuiteCheck:
 
 
 @router.post("/suites/{name}/cases", status_code=status.HTTP_201_CREATED, tags=["suites"], responses=_CONFLICT)
-async def add_case(name: str, case: Case) -> CaseCreated:
+async def add_case(name: str, case: Case, service: ServiceDep) -> CaseCreated:
     """Add a case to a suite's YAML file. A case id the suite already has is a conflict."""
-    return _fixture("post_suites_{name}_cases", CaseCreated)
+    return service.add_case(name, case)
 
 
 @router.get("/question-sets", tags=["question sets"])
-async def list_question_sets() -> QuestionSetList:
+async def list_question_sets(service: ServiceDep) -> QuestionSetList:
     """List the question sets under `suites/`."""
-    return _fixture("get_question-sets", QuestionSetList)
+    return service.list_question_sets()
 
 
 @router.get("/question-sets/{name}", tags=["question sets"])
-async def get_question_set(name: str) -> QuestionSetDetail:
+async def get_question_set(name: str, service: ServiceDep) -> QuestionSetDetail:
     """Return a question set's current version, the suites that use it, and its wording checks."""
-    return _fixture("get_question-sets_{name}", QuestionSetDetail)
+    return service.get_question_set(name)
 
 
 @router.put("/question-sets/{name}", tags=["question sets"])
-async def save_question_set(name: str, body: QuestionSetBody) -> QuestionSetDetail:
+async def save_question_set(name: str, body: QuestionSetBody, service: ServiceDep) -> QuestionSetDetail:
     """Save new questions to a question set's YAML file, which makes a new version. Creates the set if it's new."""
-    return _fixture("put_question-sets_{name}", QuestionSetDetail)
+    return service.save_question_set(name, body)
 
 
 @router.get("/question-sets/{name}/versions", tags=["question sets"])
-async def list_question_set_versions(name: str) -> QuestionSetVersions:
+async def list_question_set_versions(name: str, service: ServiceDep) -> QuestionSetVersions:
     """List a question set's versions by hash, newest first."""
-    return _fixture("get_question-sets_{name}_versions", QuestionSetVersions)
+    return service.question_set_versions(name)
 
 
 @router.get("/question-sets/{name}/versions/{version}", tags=["question sets"])
-async def get_question_set_version(name: str, version: str) -> QuestionSet:
+async def get_question_set_version(name: str, version: str, service: ServiceDep) -> QuestionSet:
     """Return one version of a question set."""
-    return _fixture("get_question-sets_{name}_versions_{version}", QuestionSet)
+    return service.question_set_version(name, version)
 
 
 @router.get("/question-sets/{name}/diff", tags=["question sets"])
@@ -264,31 +292,32 @@ async def diff_question_set(
     name: str,
     from_version: Annotated[str, Query(alias="from")],
     to_version: Annotated[str, Query(alias="to")],
+    service: ServiceDep,
 ) -> QuestionSetDiff:
     """Compare two versions of a question set."""
-    return _fixture("get_question-sets_{name}_diff", QuestionSetDiff)
+    return service.diff_question_set(name, from_version, to_version)
 
 
 @router.post("/runs", status_code=status.HTTP_202_ACCEPTED, tags=["runs"])
-async def start_run(body: RunCreate) -> RunCreated:
+async def start_run(body: RunCreate, service: ServiceDep) -> RunCreated:
     """Start a run of a suite on the chosen targets. Follow it with `GET /api/runs/{id}/events`."""
-    return _fixture("post_runs", RunCreated)
+    return await service.start_run(body)
 
 
 @router.get("/runs", tags=["runs"])
-async def list_runs() -> RunList:
+async def list_runs(service: ServiceDep) -> RunList:
     """List runs, newest first."""
-    return _fixture("get_runs", RunList)
+    return service.list_runs()
 
 
 @router.get("/runs/{id}", tags=["runs"])
-async def get_run(id: str) -> RunSummary:
+async def get_run(id: str, service: ServiceDep) -> RunSummary:
     """Return a run's settings, status, and counts."""
-    return _fixture("get_runs_{id}", RunSummary)
+    return service.get_run(id)
 
 
 @router.get("/runs/{id}/events", response_class=EventSourceResponse, tags=["runs"])
-async def run_events(id: str) -> AsyncIterator[ServerSentEvent]:
+async def run_events(run: RunDep, service: ServiceDep) -> AsyncIterator[ServerSentEvent]:
     """Stream a run's progress as server-sent events.
 
     Each event's SSE `event` field is its `type`, and its `data` is a [`RunEvent`][jevtester.schemas.RunEvent] as
@@ -296,15 +325,14 @@ async def run_events(id: str) -> AsyncIterator[ServerSentEvent]:
     history. A run that has ended sends `progress` and then its final event. The stream ends after `finished`,
     `cancelled`, or `error`.
     """
-    path = FIXTURES / "get_runs_{id}_events.sse"
-    for event in parse_sse(path.read_text()):
-        yield event
+    async for index, event in _numbered(service.run_events(run.id)):
+        yield ServerSentEvent(event=event.type, id=str(index), raw_data=event.model_dump_json())
 
 
 @router.post("/runs/{id}/cancel", tags=["runs"])
-async def cancel_run(id: str) -> RunSummary:
+async def cancel_run(id: str, service: ServiceDep) -> RunSummary:
     """Cancel a queued or running run. Cancelling a run that has ended returns it unchanged."""
-    return _fixture("post_runs_{id}_cancel", RunSummary)
+    return await service.cancel_run(id)
 
 
 @router.get("/runs/{id}/metrics", tags=["runs"])
@@ -457,6 +485,7 @@ def create_app(service: Service | None = None, static: Path | None = STATIC) -> 
     app.state.service = _ServiceHolder(service)
     app.add_middleware(CORSMiddleware, allow_origins=DEV_ORIGINS, allow_methods=["*"], allow_headers=["*"])
     app.add_exception_handler(ApiException, _handle_api_exception)
+    app.add_exception_handler(ServiceError, _handle_service_error)
     app.add_exception_handler(HTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.include_router(router)
