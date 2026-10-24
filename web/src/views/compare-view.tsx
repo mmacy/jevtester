@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import type { TargetInfo } from '../api/types'
 
@@ -8,10 +8,12 @@ import { Button } from '../components/button'
 import { FieldErrors, FieldLabel, TextArea, TextInput } from '../components/fields'
 import { HeatKey } from '../components/heat-key'
 import { PanelHeading } from '../components/panel-heading'
+import { SaveCaseDialog } from '../components/save-case-dialog'
 import { QuestionCard } from '../components/question-card'
 import { Segmented } from '../components/segmented'
 import { EmptyState } from '../components/states'
 import { TargetPicker } from '../components/target-picker'
+import { cliCommand } from '../lib/cli-command'
 import { formatClock } from '../lib/format'
 import { buildMatrix } from '../lib/matrix'
 import {
@@ -23,7 +25,7 @@ import {
   type DraftErrors,
   type StateMode,
 } from '../lib/request'
-import { useCompare } from '../store/compare'
+import { useCompare, type Asked } from '../store/compare'
 import { useTargets } from '../store/targets'
 
 const NO_TARGETS: readonly TargetInfo[] = []
@@ -161,8 +163,34 @@ function FullForm({ errors, onAsk }: { errors: DraftErrors | null; onAsk: () => 
   )
 }
 
+function CopyCommand({ asked }: { asked: Asked }) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(timer)
+  }, [copied])
+  const copy = async () => {
+    await navigator.clipboard.writeText(cliCommand(asked.body, asked.targets))
+    setCopied(true)
+  }
+  return <Button onClick={() => void copy()}>{copied ? 'Copied' : 'Copy as CLI command'}</Button>
+}
+
 export function CompareView() {
-  const { mode, draft, asked, askError, ask } = useCompare()
+  const {
+    mode,
+    draft,
+    asked,
+    askError,
+    ask,
+    marking,
+    setMarking,
+    expected,
+    tolerance,
+    setExpected,
+  } = useCompare()
+  const [saving, setSaving] = useState(false)
   const targets = useTargets((s) => s.targets) ?? NO_TARGETS
   const [showErrors, setShowErrors] = useState(false)
   const errors = useMemo(() => validateDraft(draft), [draft])
@@ -175,8 +203,8 @@ export function CompareView() {
 
   const local = useMemo(() => new Set(targets.filter((t) => t.local).map((t) => t.name)), [targets])
   const rows = useMemo(
-    () => (asked ? buildMatrix(asked.request, asked.columns, (t) => local.has(t)) : []),
-    [asked, local],
+    () => (asked ? buildMatrix(asked.request, asked.columns, (t) => local.has(t), marking) : []),
+    [asked, local, marking],
   )
   const shown = showErrors ? errors : null
 
@@ -209,10 +237,35 @@ export function CompareView() {
           </div>
         ) : null}
         {asked ? (
-          <AnswerMatrix columns={asked.columns} rows={rows} targets={targets} />
+          <>
+            <AnswerMatrix
+              columns={asked.columns}
+              rows={rows}
+              targets={targets}
+              expected={expected}
+              onMark={marking ? setExpected : undefined}
+            />
+            <div className="mt-[22px] flex flex-wrap items-center gap-2.5">
+              <Button primary onClick={() => setSaving(true)}>
+                Save as case
+              </Button>
+              <Button aria-pressed={marking} onClick={() => setMarking(!marking)}>
+                {marking ? 'Done marking' : 'Mark expected answers'}
+              </Button>
+              <CopyCommand asked={asked} />
+            </div>
+          </>
         ) : (
           <EmptyState label="No answers" />
         )}
+        {saving && asked ? (
+          <SaveCaseDialog
+            asked={asked}
+            expected={expected}
+            tolerance={tolerance}
+            onClose={() => setSaving(false)}
+          />
+        ) : null}
       </section>
     </div>
   )

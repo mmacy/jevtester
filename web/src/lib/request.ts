@@ -115,11 +115,14 @@ function toQuestion(draft: QuestionDraft): QuestionInput {
   }
 }
 
-/** The state and questions to send. Call only on a draft with no errors. */
-export function toRequest(draft: RequestDraft): {
+/** The state and questions of a decide body. */
+export interface RequestBody {
   state: State
   questions: Record<string, QuestionInput>
-} {
+}
+
+/** The state and questions to send. Call only on a draft with no errors. */
+export function toRequest(draft: RequestDraft): RequestBody {
   const parsed = parseState(draft.stateMode, draft.stateText)
   if ('error' in parsed) throw new Error(parsed.error)
   return {
@@ -129,7 +132,7 @@ export function toRequest(draft: RequestDraft): {
 }
 
 /** The request as the API echoes it, to label the matrix before any answer arrives. */
-export function asEchoed(request: ReturnType<typeof toRequest>): DecisionRequest {
+export function asEchoed(request: RequestBody): DecisionRequest {
   const questions: Record<string, QuestionOutput> = {}
   for (const [id, q] of Object.entries(request.questions)) {
     questions[id] =

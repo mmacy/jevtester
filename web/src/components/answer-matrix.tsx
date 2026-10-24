@@ -1,4 +1,4 @@
-import type { TargetInfo } from '../api/types'
+import type { AnswerValue, TargetInfo } from '../api/types'
 import { codeLabel, ERROR_LABELS, WARNING_LABELS } from '../lib/codes'
 
 import { SPREAD_ALERT, type MatrixColumn, type MatrixRow } from '../lib/matrix'
@@ -9,6 +9,63 @@ interface AnswerMatrixProps {
   columns: MatrixColumn[]
   rows: MatrixRow[]
   targets: readonly TargetInfo[]
+  /** Expected answers, keyed by question id. A row that matches shows a tag. */
+  expected?: Readonly<Record<string, AnswerValue>>
+  /** When set, each answer row's label marks or clears it as the expected answer. */
+  onMark?: (question: string, answer: AnswerValue | null) => void
+}
+
+/** The tag on a row whose answer is expected. */
+function expectedTag(
+  row: Extract<MatrixRow, { kind: 'heat' }>,
+  answer: AnswerValue | undefined,
+  marking: boolean,
+): string | null {
+  if (row.value !== null && answer === row.value) return 'Expected'
+  // Outside marking there's no no row, so the yes row carries an expected no.
+  if (!marking && row.value === true && answer === false) return 'Expected no'
+  return null
+}
+
+function RowLabel({
+  row,
+  expected,
+  tag,
+  onMark,
+}: {
+  row: Extract<MatrixRow, { kind: 'heat' }>
+  expected: boolean
+  tag: string | null
+  onMark?: (question: string, answer: AnswerValue | null) => void
+}) {
+  const text = (
+    <>
+      <b className="flex items-center gap-1.5 text-[13.5px] font-semibold">
+        {row.label}
+        {tag ? (
+          <span className="rounded-[2px] bg-ok-bg px-1 text-xs font-medium text-ok">{tag}</span>
+        ) : null}
+      </b>
+      {row.sub ? (
+        <small className="block truncate text-xs text-faint" title={row.sub}>
+          {row.sub}
+        </small>
+      ) : null}
+    </>
+  )
+  if (!onMark || row.value === null) return text
+  const value = row.value
+  return (
+    <button
+      type="button"
+      aria-pressed={expected}
+      aria-label={`Expect ${row.label} for ${row.question}`}
+      onClick={() => onMark(row.question, expected ? null : value)}
+      className="block w-full cursor-pointer rounded-[2px] border border-dashed border-faint px-1 text-left hover:border-pick aria-pressed:border-solid aria-pressed:border-ok"
+    >
+      {text}
+    </button>
+  )
 }
 
 function ColumnStatus({ column }: { column: MatrixColumn }) {
@@ -94,7 +151,7 @@ function ScoreCell({ score, levels }: { score: number; levels: number }) {
 }
 
 /** The answers grid: targets as columns, options and levels as rows, color for probability. */
-export function AnswerMatrix({ columns, rows, targets }: AnswerMatrixProps) {
+export function AnswerMatrix({ columns, rows, targets, expected = {}, onMark }: AnswerMatrixProps) {
   const labels = new Map(targets.map((t) => [t.name, t.label]))
   const span = columns.length + 2
   return (
@@ -165,12 +222,12 @@ export function AnswerMatrix({ columns, rows, targets }: AnswerMatrixProps) {
                 return (
                   <tr key={row.key}>
                     <th scope="row" className="h-[38px] px-2 text-left leading-tight font-normal">
-                      <b className="block text-[13.5px] font-semibold">{row.label}</b>
-                      {row.sub ? (
-                        <small className="block truncate text-xs text-faint" title={row.sub}>
-                          {row.sub}
-                        </small>
-                      ) : null}
+                      <RowLabel
+                        row={row}
+                        expected={row.value !== null && expected[row.question] === row.value}
+                        tag={expectedTag(row, expected[row.question], onMark !== undefined)}
+                        onMark={onMark}
+                      />
                     </th>
                     {columns.map((column, i) => {
                       const cell = row.cells[i]
