@@ -420,6 +420,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs/{id}/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Compare Runs
+         * @description Compare a run with a baseline: both runs' metrics, the changed answers, and any regressions.
+         *
+         *     A regression is a target and question whose accuracy, or within-tolerance accuracy for a score, dropped by more
+         *     than `max_drop`. Without `max_drop`, the config's `defaults.max_drop` applies.
+         */
+        get: operations["compare_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{id}/cases/{case_id}": {
         parameters: {
             query?: never;
@@ -1350,6 +1373,27 @@ export interface components {
         /** @enum {string} */
         QuestionType: "noul" | "choice" | "score";
         /**
+         * Regression
+         * @description A metric that dropped by more than the allowed amount from the baseline.
+         */
+        Regression: {
+            /** Target */
+            target: string;
+            /** Question */
+            question: string;
+            /**
+             * Metric
+             * @enum {string}
+             */
+            metric: "accuracy" | "within_tolerance";
+            /** Baseline */
+            baseline: number;
+            /** Value */
+            value: number;
+            /** Drop */
+            drop: number;
+        };
+        /**
          * ResultError
          * @description Why a target returned no answers.
          */
@@ -1399,6 +1443,19 @@ export interface components {
             changes: components["schemas"]["AnswerChange"][];
             /** Summary */
             summary: components["schemas"]["ChangeSummary"][];
+        };
+        /**
+         * RunComparison
+         * @description The result of `jevtester compare`: both runs' metrics, the changed answers, and any regressions.
+         */
+        RunComparison: {
+            run_metrics: components["schemas"]["RunMetrics"];
+            baseline_metrics: components["schemas"]["RunMetrics"];
+            changes: components["schemas"]["RunChanges"];
+            /** Max Drop */
+            max_drop: number;
+            /** Regressions */
+            regressions: components["schemas"]["Regression"][];
         };
         /**
          * RunCounts
@@ -3036,6 +3093,58 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunChanges"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Invalid request */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiError"];
+                };
+            };
+        };
+    };
+    compare_runs: {
+        parameters: {
+            query: {
+                baseline: string;
+                max_drop?: number | null;
+            };
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunComparison"];
                 };
             };
             /** @description Not found */
