@@ -12,12 +12,27 @@ function targetFlags(targets: readonly string[]): string[] {
 }
 
 /**
+ * Whether flags can carry a request. The CLI reads `--state @path` as a file
+ * and `--state -` as stdin, and splits `--option` at its first `=`.
+ */
+function fitsFlags(body: RequestBody): body is RequestBody & { state: string } {
+  const entries = Object.values(body.questions)
+  if (typeof body.state !== 'string' || entries.length !== 1) return false
+  if (body.state.startsWith('@') || body.state === '-') return false
+  const question = entries[0]
+  return (
+    question.type !== 'choice' ||
+    Object.keys(question.criteria).every((name) => !name.includes('='))
+  )
+}
+
+/**
  * The command for a request. A text state with one question uses flags.
  * Anything else sends the request as JSON on stdin.
  */
 export function cliCommand(body: RequestBody, targets: readonly string[]): string {
   const entries = Object.entries(body.questions)
-  if (typeof body.state === 'string' && entries.length === 1) {
+  if (fitsFlags(body)) {
     const [id, question] = entries[0]
     const flags = [
       `--state ${shellQuote(body.state)}`,
