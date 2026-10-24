@@ -11,11 +11,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from jevtester.credentials import AzureCliToken
+from jevtester.credentials import AzureCliToken, WranglerToken
 from jevtester.normalize import ResultError, ResultWarning, TargetResult
 from jevtester.preflight import preflight, target_warnings
 from jevtester.providers import DecisionProvider, Health, RawResult, target_result
 from jevtester.providers.systemone import SystemOneProvider
+from jevtester.providers.workers_ai import WorkersAIProvider
 from jevtester.schemas import DecideBody, DecideResponse, TargetInfo, TargetList, TargetStatus
 from jevtester.spec import Config, DecisionRequest, QuestionSet, Target, load_config
 
@@ -60,11 +61,17 @@ def build_providers(config: Config) -> dict[str, DecisionProvider]:
         Providers keyed by target name. Targets whose provider isn't built yet are left out.
     """
     azure = AzureCliToken()
+    wrangler = WranglerToken()
     providers: dict[str, DecisionProvider] = {}
     for target in config.targets.values():
-        if target.provider == "systemone":
-            credential = azure if target.auth == "azure-cli" else None
-            providers[target.name] = SystemOneProvider(target, credential)
+        match target.provider:
+            case "systemone":
+                credential = azure if target.auth == "azure-cli" else None
+                providers[target.name] = SystemOneProvider(target, credential)
+            case "workers-ai":
+                providers[target.name] = WorkersAIProvider(target, config.cloudflare.account_id, wrangler)
+            case "claude":
+                pass
     return providers
 
 

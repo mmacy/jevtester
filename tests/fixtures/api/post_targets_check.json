@@ -252,7 +252,7 @@
       "warnings": [
         {
           "code": "state_may_truncate",
-          "message": "Cuts the state to fit its context window",
+          "message": "Cuts the state to fit its 65,536-token window",
           "question": null
         }
       ],
@@ -264,12 +264,12 @@
           "choice",
           "score"
         ],
-        "images": false,
+        "images": true,
         "max_images": null,
         "max_image_bytes": null,
         "max_total_image_bytes": null,
         "image_formats": [],
-        "context_window": null,
+        "context_window": 65536,
         "truncates_state": true,
         "max_questions": null,
         "min_options": null,
@@ -279,7 +279,7 @@
         "concurrency_group": null,
         "requests_per_minute": null,
         "tokens_per_minute": null,
-        "input_cost_per_mtok_usd": null
+        "input_cost_per_mtok_usd": 0.24
       }
     },
     {
@@ -296,7 +296,7 @@
       "warnings": [
         {
           "code": "state_may_truncate",
-          "message": "Cuts the state to fit its context window",
+          "message": "Cuts the state to fit its 65,536-token window",
           "question": null
         }
       ],
@@ -308,12 +308,12 @@
           "choice",
           "score"
         ],
-        "images": false,
+        "images": true,
         "max_images": null,
         "max_image_bytes": null,
         "max_total_image_bytes": null,
         "image_formats": [],
-        "context_window": null,
+        "context_window": 65536,
         "truncates_state": true,
         "max_questions": null,
         "min_options": null,
@@ -323,7 +323,7 @@
         "concurrency_group": null,
         "requests_per_minute": null,
         "tokens_per_minute": null,
-        "input_cost_per_mtok_usd": null
+        "input_cost_per_mtok_usd": 0.15
       }
     }
   ],

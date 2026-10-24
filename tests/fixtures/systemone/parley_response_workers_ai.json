@@ -1,0 +1,48 @@
+{
+  "result": {
+    "model": "clef-flash",
+    "answers": {
+      "intent": {
+        "type": "choice",
+        "choice": "parley",
+        "probabilities": {
+          "parley": 0.9806,
+          "evade": 0.0074,
+          "fight": 0.005,
+          "wait": 0.007
+        },
+        "confidence": 0.9488
+      },
+      "bribe": {
+        "type": "noul",
+        "noul": 0.9453
+      },
+      "reaction": {
+        "type": "score",
+        "score": 1.81,
+        "legend": {
+          "0": "Attack at once",
+          "1": "Hostile, may attack",
+          "2": "Uncertain, hold and posture",
+          "3": "Indifferent, may let them pass",
+          "4": "Friendly, accept the offer"
+        },
+        "probabilities": {
+          "0": 0.1118,
+          "1": 0.3417,
+          "2": 0.271,
+          "3": 0.1755,
+          "4": 0.1
+        },
+        "confidence": 0.0544
+      }
+    },
+    "usage": {
+      "input_tokens": 452,
+      "output_tokens": 0
+    }
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}

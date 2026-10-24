@@ -10,7 +10,7 @@ Every route returns a fixture from [`tests/fixtures/api/`](../tests/fixtures/api
 
 | Routes | Live in |
 |---|---|
-| `decide`, `targets` | Live for `decision-1@foundry` and the System One targets. Workers AI comes in step 4. |
+| `decide`, `targets` | Live for every target except Claude |
 | `suites`, `question-sets`, `runs`, run events, `cancel` | Step 5 |
 | `metrics`, `confusion`, `calibration`, `changes`, `cases`, `report` | Step 6 |
 | `policies`, `sweep` | Step 7 |
@@ -101,6 +101,17 @@ A target's `status` follows from its last health check:
 | `down` | The last check gave a `reason`, like `clef-flash isn't pulled`. `detail` says what to do. |
 | `warning` | The target is ready, and `warnings` isn't empty. |
 | `ready` | The target is ready, with no warnings. |
+
+Each runtime has its own health check:
+
+| Runtime | Ready when |
+|---|---|
+| Foundry | A token can be read from the `az` sign-in. `credential` says when it refreshes. |
+| Ollama | Ollama answers, is 0.35.1 or later, and has the model pulled. `detail` gives the version. |
+| MLX | The MLX server answers and has the target's model loaded. The server serves one model, so at most one MLX target is ready at a time. |
+| Workers AI | A token can be read from `CLOUDFLARE_API_TOKEN` or the Wrangler sign-in, and the account's Workers AI catalog lists the model. |
+
+The MLX server answers with whatever model it has loaded, whatever the request names. So a `decide` on an MLX target checks the loaded model first, and returns `not_ready` if it's another model.
 
 A target's `warnings` come from its config, not from the check:
 
