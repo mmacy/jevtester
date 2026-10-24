@@ -1,0 +1,106 @@
+{
+  "name": "parley",
+  "from_version": "2566eb4afe018185cb31f7b51fae00002a89c1a890b4d9f5b4ca4b65ffa235a3",
+  "to_version": "95e251b70a75ea722a0c62ce89024a58c6bdb1a3ebde485db30bba925ffc0cb6",
+  "questions": [
+    {
+      "id": "intent",
+      "status": "changed",
+      "before": {
+        "type": "choice",
+        "instructions": "What is the player trying to do?",
+        "criteria": {
+          "parley": "Talk, bargain, bribe, or negotiate",
+          "evade": "Run away or avoid the monsters",
+          "fight": "Attack the monsters"
+        }
+      },
+      "after": {
+        "type": "choice",
+        "instructions": "What is the player trying to do?",
+        "criteria": {
+          "parley": "Talk, bargain, bribe, or negotiate",
+          "evade": "Run away or avoid the monsters",
+          "fight": "Attack the monsters",
+          "wait": "Hold position and watch"
+        }
+      },
+      "changed_fields": [
+        "criteria"
+      ],
+      "options": [
+        {
+          "key": "parley",
+          "status": "unchanged",
+          "before": "Talk, bargain, bribe, or negotiate",
+          "after": "Talk, bargain, bribe, or negotiate"
+        },
+        {
+          "key": "evade",
+          "status": "unchanged",
+          "before": "Run away or avoid the monsters",
+          "after": "Run away or avoid the monsters"
+        },
+        {
+          "key": "fight",
+          "status": "unchanged",
+          "before": "Attack the monsters",
+          "after": "Attack the monsters"
+        },
+        {
+          "key": "wait",
+          "status": "added",
+          "before": null,
+          "after": "Hold position and watch"
+        }
+      ],
+      "order_changed": false
+    },
+    {
+      "id": "bribe",
+      "status": "unchanged",
+      "before": {
+        "type": "noul",
+        "instructions": "Does the player offer the monsters something of value?",
+        "criteria": null
+      },
+      "after": {
+        "type": "noul",
+        "instructions": "Does the player offer the monsters something of value?",
+        "criteria": null
+      },
+      "changed_fields": [],
+      "options": [],
+      "order_changed": false
+    },
+    {
+      "id": "reaction",
+      "status": "unchanged",
+      "before": {
+        "type": "score",
+        "instructions": "How are goblins likely to react to this offer?",
+        "criteria": [
+          "Attack at once",
+          "Hostile, may attack",
+          "Uncertain, hold and posture",
+          "Indifferent, may let them pass",
+          "Friendly, accept the offer"
+        ]
+      },
+      "after": {
+        "type": "score",
+        "instructions": "How are goblins likely to react to this offer?",
+        "criteria": [
+          "Attack at once",
+          "Hostile, may attack",
+          "Uncertain, hold and posture",
+          "Indifferent, may let them pass",
+          "Friendly, accept the offer"
+        ]
+      },
+      "changed_fields": [],
+      "options": [],
+      "order_changed": false
+    }
+  ]
+}

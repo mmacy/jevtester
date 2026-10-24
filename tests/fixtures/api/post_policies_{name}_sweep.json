@@ -1,0 +1,75 @@
+{
+  "policy": "parley",
+  "run_id": "0142",
+  "target": "decision-1@foundry",
+  "threshold": "goodwill_threshold",
+  "current": 0.6,
+  "points": [
+    {
+      "value": 0.0,
+      "decided_share": 1.0,
+      "error_rate": 0.3,
+      "cost": 6.0
+    },
+    {
+      "value": 0.1,
+      "decided_share": 0.94,
+      "error_rate": 0.27,
+      "cost": 5.5
+    },
+    {
+      "value": 0.2,
+      "decided_share": 0.88,
+      "error_rate": 0.24,
+      "cost": 5.0
+    },
+    {
+      "value": 0.3,
+      "decided_share": 0.82,
+      "error_rate": 0.21,
+      "cost": 4.5
+    },
+    {
+      "value": 0.4,
+      "decided_share": 0.76,
+      "error_rate": 0.18,
+      "cost": 4.0
+    },
+    {
+      "value": 0.5,
+      "decided_share": 0.7,
+      "error_rate": 0.15,
+      "cost": 3.5
+    },
+    {
+      "value": 0.6,
+      "decided_share": 0.64,
+      "error_rate": 0.12,
+      "cost": 3.0
+    },
+    {
+      "value": 0.7,
+      "decided_share": 0.58,
+      "error_rate": 0.09,
+      "cost": 2.5
+    },
+    {
+      "value": 0.8,
+      "decided_share": 0.52,
+      "error_rate": 0.06,
+      "cost": 2.0
+    },
+    {
+      "value": 0.9,
+      "decided_share": 0.46,
+      "error_rate": 0.03,
+      "cost": 1.5
+    },
+    {
+      "value": 1.0,
+      "decided_share": 0.4,
+      "error_rate": 0.0,
+      "cost": 1.0
+    }
+  ]
+}

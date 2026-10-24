@@ -1,0 +1,79 @@
+{
+  "run_id": "0142",
+  "target": "decision-1@foundry",
+  "question": "bribe",
+  "bins": [
+    {
+      "lower": 0.0,
+      "upper": 0.1,
+      "count": 3,
+      "mean_predicted": 0.008,
+      "observed_rate": 0.0
+    },
+    {
+      "lower": 0.1,
+      "upper": 0.2,
+      "count": 0,
+      "mean_predicted": null,
+      "observed_rate": null
+    },
+    {
+      "lower": 0.2,
+      "upper": 0.3,
+      "count": 0,
+      "mean_predicted": null,
+      "observed_rate": null
+    },
+    {
+      "lower": 0.3,
+      "upper": 0.4,
+      "count": 0,
+      "mean_predicted": null,
+      "observed_rate": null
+    },
+    {
+      "lower": 0.4,
+      "upper": 0.5,
+      "count": 0,
+      "mean_predicted": null,
+      "observed_rate": null
+    },
+    {
+      "lower": 0.5,
+      "upper": 0.6,
+      "count": 0,
+      "mean_predicted": null,
+      "observed_rate": null
+    },
+    {
+      "lower": 0.6,
+      "upper": 0.7,
+      "count": 0,
+      "mean_predicted": null,
+      "observed_rate": null
+    },
+    {
+      "lower": 0.7,
+      "upper": 0.8,
+      "count": 0,
+      "mean_predicted": null,
+      "observed_rate": null
+    },
+    {
+      "lower": 0.8,
+      "upper": 0.9,
+      "count": 0,
+      "mean_predicted": null,
+      "observed_rate": null
+    },
+    {
+      "lower": 0.9,
+      "upper": 1.0,
+      "count": 1,
+      "mean_predicted": 0.9988304895647238,
+      "observed_rate": 1.0
+    }
+  ],
+  "ece": 0.006292377608819061,
+  "n": 4
+}

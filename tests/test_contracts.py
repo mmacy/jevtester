@@ -297,3 +297,11 @@ def test_unknown_choice_probability_is_kept(parley_request: DecisionRequest) -> 
     assert isinstance(intent, ChoiceAnswer)
     assert intent.unknown_probabilities == {"dance": 0.2}
     assert "dance" not in intent.probabilities
+
+
+def test_question_set_round_trips_with_its_version(parley_request: DecisionRequest) -> None:
+    saved = QuestionSet(name="parley", questions=parley_request.questions)
+    loaded = QuestionSet.model_validate_json(saved.model_dump_json())
+    assert loaded == saved
+    stale = {**saved.model_dump(mode="json"), "version": "stale"}
+    assert QuestionSet.model_validate(stale).version == saved.version

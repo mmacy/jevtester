@@ -2,16 +2,13 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from jevtester.model import Model
 from jevtester.spec.questions import State
 
 
-class _Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class Expectation(_Strict):
+class Expectation(Model):
     """The answer a case expects to one question."""
 
     answer: bool | str | int | None = None
@@ -26,7 +23,7 @@ type Provenance = Literal["human", "claude-draft"]
 """Who wrote a case. Evaluation ignores `claude-draft` cases until a person approves them."""
 
 
-class Case(_Strict):
+class Case(Model):
     """One state, with the answers and action it expects."""
 
     id: str = Field(min_length=1)
@@ -41,7 +38,7 @@ class Case(_Strict):
     provenance: Provenance = "human"
 
 
-class Suite(_Strict):
+class Suite(Model):
     """Cases, the question set they're asked, an optional policy, and default targets."""
 
     name: str

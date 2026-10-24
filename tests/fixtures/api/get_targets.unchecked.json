@@ -1,0 +1,331 @@
+{
+  "targets": [
+    {
+      "name": "decision-1@foundry",
+      "label": "Microsoft-Decision-1, Azure Foundry",
+      "provider": "systemone",
+      "model": "decision-1",
+      "base_url": "https://goldbox-resource.services.ai.azure.com/providers/microsoft",
+      "local": false,
+      "status": "unchecked",
+      "reason": null,
+      "detail": null,
+      "credential": null,
+      "warnings": [],
+      "checked_at": null,
+      "capabilities": {
+        "probabilities": true,
+        "question_types": [
+          "noul",
+          "choice",
+          "score"
+        ],
+        "images": false,
+        "max_images": null,
+        "max_image_bytes": null,
+        "max_total_image_bytes": null,
+        "image_formats": [],
+        "context_window": null,
+        "truncates_state": false,
+        "max_questions": 64,
+        "min_options": null,
+        "max_options": null,
+        "max_request_bytes": null,
+        "concurrency": 8,
+        "concurrency_group": null,
+        "requests_per_minute": 100,
+        "tokens_per_minute": 100000,
+        "input_cost_per_mtok_usd": null
+      }
+    },
+    {
+      "name": "clef-flash@ollama",
+      "label": "Clef-flash, Ollama",
+      "provider": "systemone",
+      "model": "clef-flash",
+      "base_url": "http://localhost:11434",
+      "local": true,
+      "status": "unchecked",
+      "reason": null,
+      "detail": null,
+      "credential": null,
+      "warnings": [],
+      "checked_at": null,
+      "capabilities": {
+        "probabilities": true,
+        "question_types": [
+          "noul",
+          "choice",
+          "score"
+        ],
+        "images": false,
+        "max_images": null,
+        "max_image_bytes": null,
+        "max_total_image_bytes": null,
+        "image_formats": [],
+        "context_window": null,
+        "truncates_state": false,
+        "max_questions": 64,
+        "min_options": 2,
+        "max_options": 26,
+        "max_request_bytes": 65536,
+        "concurrency": 1,
+        "concurrency_group": null,
+        "requests_per_minute": null,
+        "tokens_per_minute": null,
+        "input_cost_per_mtok_usd": null
+      }
+    },
+    {
+      "name": "clef-flash-4bit@mlx",
+      "label": "Clef-flash 4-bit, MLX",
+      "provider": "systemone",
+      "model": "clef-flash-4bit",
+      "base_url": "http://127.0.0.1:8000",
+      "local": true,
+      "status": "unchecked",
+      "reason": null,
+      "detail": null,
+      "credential": null,
+      "warnings": [],
+      "checked_at": null,
+      "capabilities": {
+        "probabilities": true,
+        "question_types": [
+          "noul",
+          "choice",
+          "score"
+        ],
+        "images": false,
+        "max_images": null,
+        "max_image_bytes": null,
+        "max_total_image_bytes": null,
+        "image_formats": [],
+        "context_window": 16384,
+        "truncates_state": false,
+        "max_questions": null,
+        "min_options": null,
+        "max_options": null,
+        "max_request_bytes": null,
+        "concurrency": 1,
+        "concurrency_group": "mlx",
+        "requests_per_minute": null,
+        "tokens_per_minute": null,
+        "input_cost_per_mtok_usd": null
+      }
+    },
+    {
+      "name": "clef-flash-8bit@mlx",
+      "label": "Clef-flash 8-bit, MLX",
+      "provider": "systemone",
+      "model": "clef-flash-8bit",
+      "base_url": "http://127.0.0.1:8000",
+      "local": true,
+      "status": "unchecked",
+      "reason": null,
+      "detail": null,
+      "credential": null,
+      "warnings": [],
+      "checked_at": null,
+      "capabilities": {
+        "probabilities": true,
+        "question_types": [
+          "noul",
+          "choice",
+          "score"
+        ],
+        "images": false,
+        "max_images": null,
+        "max_image_bytes": null,
+        "max_total_image_bytes": null,
+        "image_formats": [],
+        "context_window": 16384,
+        "truncates_state": false,
+        "max_questions": null,
+        "min_options": null,
+        "max_options": null,
+        "max_request_bytes": null,
+        "concurrency": 1,
+        "concurrency_group": "mlx",
+        "requests_per_minute": null,
+        "tokens_per_minute": null,
+        "input_cost_per_mtok_usd": null
+      }
+    },
+    {
+      "name": "clef-8bit@mlx",
+      "label": "Clef 8-bit, MLX",
+      "provider": "systemone",
+      "model": "clef-8bit",
+      "base_url": "http://127.0.0.1:8000",
+      "local": true,
+      "status": "unchecked",
+      "reason": null,
+      "detail": null,
+      "credential": null,
+      "warnings": [],
+      "checked_at": null,
+      "capabilities": {
+        "probabilities": true,
+        "question_types": [
+          "noul",
+          "choice",
+          "score"
+        ],
+        "images": false,
+        "max_images": null,
+        "max_image_bytes": null,
+        "max_total_image_bytes": null,
+        "image_formats": [],
+        "context_window": 16384,
+        "truncates_state": false,
+        "max_questions": null,
+        "min_options": null,
+        "max_options": null,
+        "max_request_bytes": null,
+        "concurrency": 1,
+        "concurrency_group": "mlx",
+        "requests_per_minute": null,
+        "tokens_per_minute": null,
+        "input_cost_per_mtok_usd": null
+      }
+    },
+    {
+      "name": "clef-flash@workers-ai",
+      "label": "Clef-flash, Workers AI",
+      "provider": "workers-ai",
+      "model": "clef-flash",
+      "base_url": null,
+      "local": false,
+      "status": "unchecked",
+      "reason": null,
+      "detail": null,
+      "credential": null,
+      "warnings": [
+        {
+          "code": "state_may_truncate",
+          "message": "Workers AI cuts the state to fit its context window",
+          "question": null
+        }
+      ],
+      "checked_at": null,
+      "capabilities": {
+        "probabilities": true,
+        "question_types": [
+          "noul",
+          "choice",
+          "score"
+        ],
+        "images": true,
+        "max_images": 4,
+        "max_image_bytes": 4194304,
+        "max_total_image_bytes": 8388608,
+        "image_formats": [
+          "png",
+          "jpeg",
+          "webp"
+        ],
+        "context_window": 24576,
+        "truncates_state": true,
+        "max_questions": null,
+        "min_options": null,
+        "max_options": null,
+        "max_request_bytes": null,
+        "concurrency": 4,
+        "concurrency_group": null,
+        "requests_per_minute": null,
+        "tokens_per_minute": null,
+        "input_cost_per_mtok_usd": 0.038
+      }
+    },
+    {
+      "name": "clef@workers-ai",
+      "label": "Clef, Workers AI",
+      "provider": "workers-ai",
+      "model": "clef",
+      "base_url": null,
+      "local": false,
+      "status": "unchecked",
+      "reason": null,
+      "detail": null,
+      "credential": null,
+      "warnings": [
+        {
+          "code": "state_may_truncate",
+          "message": "Workers AI cuts the state to fit its context window",
+          "question": null
+        }
+      ],
+      "checked_at": null,
+      "capabilities": {
+        "probabilities": true,
+        "question_types": [
+          "noul",
+          "choice",
+          "score"
+        ],
+        "images": false,
+        "max_images": null,
+        "max_image_bytes": null,
+        "max_total_image_bytes": null,
+        "image_formats": [],
+        "context_window": null,
+        "truncates_state": true,
+        "max_questions": null,
+        "min_options": null,
+        "max_options": null,
+        "max_request_bytes": null,
+        "concurrency": 4,
+        "concurrency_group": null,
+        "requests_per_minute": null,
+        "tokens_per_minute": null,
+        "input_cost_per_mtok_usd": null
+      }
+    },
+    {
+      "name": "clef-omni@workers-ai",
+      "label": "Clef-omni, Workers AI",
+      "provider": "workers-ai",
+      "model": "clef-omni",
+      "base_url": null,
+      "local": false,
+      "status": "unchecked",
+      "reason": null,
+      "detail": null,
+      "credential": null,
+      "warnings": [
+        {
+          "code": "state_may_truncate",
+          "message": "Workers AI cuts the state to fit its context window",
+          "question": null
+        }
+      ],
+      "checked_at": null,
+      "capabilities": {
+        "probabilities": true,
+        "question_types": [
+          "noul",
+          "choice",
+          "score"
+        ],
+        "images": false,
+        "max_images": null,
+        "max_image_bytes": null,
+        "max_total_image_bytes": null,
+        "image_formats": [],
+        "context_window": null,
+        "truncates_state": true,
+        "max_questions": null,
+        "min_options": null,
+        "max_options": null,
+        "max_request_bytes": null,
+        "concurrency": 4,
+        "concurrency_group": null,
+        "requests_per_minute": null,
+        "tokens_per_minute": null,
+        "input_cost_per_mtok_usd": null
+      }
+    }
+  ],
+  "checked_at": null
+}

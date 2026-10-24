@@ -1,0 +1,55 @@
+{
+  "run_id": "0142",
+  "baseline": "0141",
+  "changes": [
+    {
+      "case_id": "gnoll-watch",
+      "target": "decision-1@foundry",
+      "question": "intent",
+      "expected": "wait",
+      "baseline_answer": "evade",
+      "baseline_probability": 0.712,
+      "answer": "wait",
+      "probability": 0.892,
+      "status": "fixed"
+    },
+    {
+      "case_id": "kobold-retreat",
+      "target": "clef-flash@workers-ai",
+      "question": "intent",
+      "expected": "evade",
+      "baseline_answer": "evade",
+      "baseline_probability": 0.874,
+      "answer": "wait",
+      "probability": 0.5585,
+      "status": "broken"
+    },
+    {
+      "case_id": "gnoll-watch",
+      "target": "clef-flash@workers-ai",
+      "question": "intent",
+      "expected": "wait",
+      "baseline_answer": "evade",
+      "baseline_probability": 0.655,
+      "answer": "wait",
+      "probability": 0.8443,
+      "status": "fixed"
+    }
+  ],
+  "summary": [
+    {
+      "target": "decision-1@foundry",
+      "fixed": 1,
+      "broken": 0,
+      "changed": 0,
+      "mcnemar_p": 1.0
+    },
+    {
+      "target": "clef-flash@workers-ai",
+      "fixed": 1,
+      "broken": 1,
+      "changed": 0,
+      "mcnemar_p": 1.0
+    }
+  ]
+}

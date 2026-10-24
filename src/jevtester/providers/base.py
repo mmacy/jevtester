@@ -2,8 +2,9 @@
 
 from typing import Any, Protocol
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import Field, JsonValue
 
+from jevtester.model import Model
 from jevtester.normalize import (
     InvalidResponseError,
     ResultError,
@@ -16,7 +17,7 @@ from jevtester.normalize import (
 from jevtester.spec import Capabilities, DecisionRequest
 
 
-class RawResult(BaseModel):
+class RawResult(Model):
     """What a provider got back from one request, before normalization."""
 
     request_body: JsonValue
@@ -34,7 +35,7 @@ class RawResult(BaseModel):
     """Warnings the provider found, like a strict SDK parse that failed."""
 
 
-class Health(BaseModel):
+class Health(Model):
     """A target's health check result."""
 
     reason: str | None = None
