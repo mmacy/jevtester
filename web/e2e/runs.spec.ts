@@ -44,10 +44,11 @@ test('a finished run shows its metrics, confusion matrix, calibration, and chang
   await expect(page.getByRole('button', { name: 'Rerun without cache' })).toBeVisible()
 
   const metrics = page.getByRole('region', { name: 'Metrics' })
-  await expect(metrics.getByRole('columnheader', { name: 'Accuracy' })).toBeVisible()
-  await expect(metrics.getByRole('row', { name: /^decision-1@foundry/ })).toBeVisible()
+  const grid = metrics.getByRole('table').first()
+  await expect(grid.getByRole('columnheader', { name: 'Accuracy', exact: true })).toBeVisible()
+  await expect(grid.getByRole('row', { name: /^decision-1@foundry/ })).toBeVisible()
   await metrics.getByRole('button', { name: 'bribe' }).click()
-  await expect(metrics.getByRole('columnheader', { name: 'Brier score' })).toBeVisible()
+  await expect(grid.getByRole('columnheader', { name: 'Brier score' })).toBeVisible()
 
   const confusion = page.getByRole('region', { name: 'Confusion matrix' })
   await expect(confusion).toContainText('correct')
