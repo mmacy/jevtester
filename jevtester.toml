@@ -1,0 +1,114 @@
+# Targets and defaults for jevtester.
+#
+# A target is one model on one runtime. Credentials never go in this file: Foundry uses the `az` sign-in, and
+# Workers AI uses the Wrangler sign-in or CLOUDFLARE_API_TOKEN.
+
+[defaults]
+targets = ["decision-1@foundry"]
+timeout_s = 60.0
+repeats = 1
+
+[cloudflare]
+account_id = "<your Cloudflare account ID>"
+
+[targets."decision-1@foundry"]
+label = "Microsoft-Decision-1, Azure Foundry"
+provider = "systemone"
+model = "decision-1"
+base_url = "https://example-resource.services.ai.azure.com/providers/microsoft"
+auth = "azure-cli"
+
+[targets."decision-1@foundry".capabilities]
+probabilities = true
+max_questions = 64
+concurrency = 8
+requests_per_minute = 100
+tokens_per_minute = 100_000
+
+[targets."clef-flash@ollama"]
+label = "Clef-flash, Ollama"
+provider = "systemone"
+model = "clef-flash"
+base_url = "http://localhost:11434"
+
+[targets."clef-flash@ollama".capabilities]
+probabilities = true
+max_questions = 64
+min_options = 2
+max_options = 26
+max_request_bytes = 65_536
+concurrency = 1
+
+[targets."clef-flash-4bit@mlx"]
+label = "Clef-flash 4-bit, MLX"
+provider = "systemone"
+model = "clef-flash-4bit"
+base_url = "http://127.0.0.1:8000"
+truncate = false
+
+[targets."clef-flash-4bit@mlx".capabilities]
+probabilities = true
+context_window = 16_384
+concurrency = 1
+
+[targets."clef-flash-8bit@mlx"]
+label = "Clef-flash 8-bit, MLX"
+provider = "systemone"
+model = "clef-flash-8bit"
+base_url = "http://127.0.0.1:8000"
+truncate = false
+
+[targets."clef-flash-8bit@mlx".capabilities]
+probabilities = true
+context_window = 16_384
+concurrency = 1
+
+[targets."clef-8bit@mlx"]
+label = "Clef 8-bit, MLX"
+provider = "systemone"
+model = "clef-8bit"
+base_url = "http://127.0.0.1:8000"
+truncate = false
+
+[targets."clef-8bit@mlx".capabilities]
+probabilities = true
+context_window = 16_384
+concurrency = 1
+
+[targets."clef-flash@workers-ai"]
+label = "Clef-flash, Workers AI"
+provider = "workers-ai"
+model = "clef-flash"
+
+[targets."clef-flash@workers-ai".capabilities]
+probabilities = true
+images = true
+max_images = 4
+max_image_bytes = 4_194_304
+max_total_image_bytes = 8_388_608
+image_formats = ["png", "jpeg", "webp"]
+# The model page lists 24,576 tokens, and the launch changelog says 64K. Use the smaller figure.
+context_window = 24_576
+truncates_state = true
+concurrency = 4
+input_cost_per_mtok_usd = 0.038
+
+[targets."clef@workers-ai"]
+label = "Clef, Workers AI"
+provider = "workers-ai"
+model = "clef"
+
+[targets."clef@workers-ai".capabilities]
+probabilities = true
+truncates_state = true
+concurrency = 4
+
+[targets."clef-omni@workers-ai"]
+label = "Clef-omni, Workers AI"
+provider = "workers-ai"
+model = "clef-omni"
+
+[targets."clef-omni@workers-ai".capabilities]
+probabilities = true
+truncates_state = true
+concurrency = 4
