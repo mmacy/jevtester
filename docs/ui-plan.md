@@ -2,7 +2,7 @@
 
 This plan covers the web UI that the frontend session (`JEVTESTER-FRONTEND`) builds. It follows [the plan](plan.md#what-the-ui-must-show), the [handoff notes](handoff.md#frontend-session), and the heat matrix mockup in [`mockups/3-matrix.html`](../mockups/3-matrix.html). It lists the views, the components, each component's states, and the API calls each view makes.
 
-Endpoint names come from the handoff's [starting endpoints](handoff.md#starting-endpoints). Where the UI needs something that list doesn't have, the endpoint is marked *requested*. The backend session has the list of requested changes, and this plan changes to match the contract it publishes.
+Endpoint names come from the handoff's [starting endpoints](handoff.md#starting-endpoints). The backend session added the endpoints the UI needs that the list didn't have: `GET /api/question-sets`, `PUT /api/question-sets/{name}`, `GET /api/policies`, `GET /api/runs/{id}/calibration`, and `GET /api/runs/{id}/cases/{case_id}`. This plan changes to match the contract it publishes.
 
 ## Principles
 
@@ -62,7 +62,7 @@ A sticky top bar holds the jevtester mark, the view tabs, and the target health 
 
 Tabs: **Compare**, **Suites**, **Runs**, **Question sets**, **Policies**, **Probes**, and **Targets**. A tab for Claude drafts comes later, with the assist features.
 
-The health strip shows one block per target, colored ready, warning, or down, with a count such as "4 of 5 targets ready". Selecting it opens Targets.
+The health strip shows one block per target, colored ready, warning, or down, or gray for a target not checked yet, with a count such as "4 of 5 targets ready". The server doesn't check targets until asked, so before the first check the strip reads "Targets not checked". Selecting it opens Targets.
 
 ## Views
 
@@ -130,34 +130,34 @@ A run's page, from the mockup's second view:
 
 The page follows live progress over SSE while the run is running, and reconnects if the stream drops.
 
-API calls: `GET /api/runs`, `GET /api/runs/{id}`, `GET /api/runs/{id}/events`, `POST /api/runs/{id}/cancel`, `GET /api/runs/{id}/metrics`, `GET /api/runs/{id}/confusion`, `GET /api/runs/{id}/changes`, `POST /api/runs` (rerun), and *requested* `GET /api/runs/{id}/calibration`.
+API calls: `GET /api/runs`, `GET /api/runs/{id}`, `GET /api/runs/{id}/events`, `POST /api/runs/{id}/cancel`, `GET /api/runs/{id}/metrics`, `GET /api/runs/{id}/confusion`, `GET /api/runs/{id}/changes`, `POST /api/runs` (rerun), and `GET /api/runs/{id}/calibration`.
 
 ### Case stepper
 
 Route: `/runs/:id/changes/:case`. Shows one changed case: its state, and the answers matrix with the baseline and this run as columns for each target. **Previous** and **Next** move through the changed cases, and the arrow keys do too.
 
-API calls: *requested* `GET /api/runs/{id}/cases/{case_id}`, for this run and the baseline.
+API calls: `GET /api/runs/{id}/cases/{case_id}`, for this run and the baseline.
 
 ### Question sets
 
 Routes: `/question-sets`, `/question-sets/:name`, and `/question-sets/:name/diff?from=&to=`.
 
 - The list shows each question set, its latest version hash, and the suites that use it.
-- A question set's page lists its versions by hash and date. The editor holds the same question cards as Compare's full request. **Save version** saves a new version, and the version list shows its hash.
+- A question set's page lists its versions by hash and the time jevtester first saw each one. The editor holds the same question cards as Compare's full request. **Save version** sends the question set as YAML and saves a new version, and the version list shows its hash. A validation error shows on its question.
 - The wording checks from `suite check` show beside each question: one dimension per question, concrete criteria, bare-number levels, and a missing abstention option.
 - **Diff** picks two versions and shows each question side by side: added, removed, and changed questions, and changed options and levels, marked word by word.
 
-API calls: *requested* `GET /api/question-sets`, `GET /api/question-sets/{name}/versions`, `GET /api/question-sets/{name}/diff`, *requested* `PUT /api/question-sets/{name}`.
+API calls: `GET /api/question-sets`, `GET /api/question-sets/{name}/versions`, `GET /api/question-sets/{name}/diff`, `PUT /api/question-sets/{name}`.
 
 ### Policies
 
 Routes: `/policies` and `/policies/:name`.
 
-- The policy editor is a YAML text editor with a validation error list, and **Save**.
+- The policy editor is a YAML text editor with **Save**. Each validation error from the API's `details` list shows in a list under the editor, with its field.
 - **Sweep.** Pick a run, a question, a target, and a threshold range. The result is a line chart with the threshold on the x axis, and the share decided and the error rate on the y axis, with the current threshold marked. A table below lists each point. If the policy has a cost matrix, the chart adds total cost.
 - Decision accuracy, the share decided, and the error rate among decided cases show for the selected run.
 
-API calls: *requested* `GET /api/policies`, `GET /api/policies/{name}`, `PUT /api/policies/{name}`, `POST /api/policies/{name}/sweep`.
+API calls: `GET /api/policies`, `GET /api/policies/{name}`, `PUT /api/policies/{name}`, `POST /api/policies/{name}/sweep`.
 
 ### Probes
 
@@ -175,7 +175,7 @@ API calls: `GET /api/suites`, `GET /api/targets`, `POST /api/probes` (returns a 
 
 Route: `/targets`. From the mockup's third view.
 
-A capability grid: one column per target, and rows for status, credentials, probabilities, images, context window, questions per request, options or levels, concurrency, and input cost per 1 million tokens. The status row is colored ready, warning, or down, and a down target's cell gives the reason and what to do, as the health check returns it. The header shows when the targets were last checked and how many are ready. **Check all targets** runs the health checks.
+A capability grid: one column per target, and rows for status, credentials, probabilities, images, context window, questions per request, options or levels, concurrency, and input cost per 1 million tokens. The status row is colored ready, warning, or down, and a down target's cell gives the reason and what to do, as the health check returns it. A target not checked yet reads "Not checked". The header shows when the targets were last checked and how many are ready. **Check all targets** runs the health checks.
 
 API calls: `GET /api/targets`, `POST /api/targets/check`.
 
@@ -213,14 +213,14 @@ Every view and every data component handles four states.
 |---|---|
 | Loading | The grid's frame with its headers and gray placeholder cells, so the layout doesn't jump. A request that takes more than 10 seconds shows the elapsed time. |
 | Empty | A label and the action that fills it: "No runs" with **Start run** from a suite, "No cases" with **Open in compare**, "No changed answers". |
-| Error | The error code and message from the API, and **Retry**. If the API can't be reached at all, a bar under the top bar reads "Can't reach the jevtester server at 127.0.0.1:8640" with **Retry**. |
+| Error | The error code and message from the API, and **Retry**. A validation error lists each entry in `details` next to its field. If the API can't be reached at all, a bar under the top bar reads "Can't reach the jevtester server at 127.0.0.1:8640" with **Retry**. |
 | Target not ready | The target's column or row stays, hatched, with the reason from its last health check. Its checkbox is turned off in pickers. In a run, its jobs count as skipped, with the reason. |
 
 Some views have more:
 
-- Compare: a request that's waiting shows a spinner in each target's header, and each column fills in when its result arrives if the API returns results one by one. A preflight rejection shows on the target's column, with its code and message, before anything is sent.
+- Compare: **Ask** sends one `POST /api/decide` per target, in parallel, so each column fills in when its result arrives. A waiting column shows a spinner in its header. A preflight rejection comes back as that target's result, with `ok: false` and error code `preflight`, and shows like any other failed target.
 - Runs: running, finished, cancelled, and failed. A dropped event stream shows "Reconnecting" in the run bar.
-- Save case dialog and policy editor: a validation error from the API shows next to its field.
+- Save case dialog, question set editor, and policy editor: each validation error in the API's `details` list shows next to its field.
 
 ## API client and errors
 
@@ -249,6 +249,6 @@ Each step is one pull request, reviewed by the backend session, and ends with th
 
 ## Open questions
 
-- The plan asks the UI to edit question sets, but the starting endpoints have no way to save one. This plan assumes `PUT /api/question-sets/{name}`.
 - Claude drafts are deferred with the assist features. The Suites cases grid shows a "Draft" tag now, and review and approval come with that work.
 - A light theme isn't planned. The mockup is dark only.
+- A score question's chosen level, the one the matrix outlines, waits on the backend: the most probable level, or the rounded score. The matrix outlines the level the evaluator counts.
