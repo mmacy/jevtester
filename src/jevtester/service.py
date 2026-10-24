@@ -5,6 +5,7 @@ and the API's responses are the same.
 """
 
 import asyncio
+import math
 import os
 from collections.abc import AsyncIterator, Callable, Mapping
 from datetime import UTC, datetime
@@ -16,10 +17,11 @@ from jevtester.credentials import AzureCliToken, WranglerToken
 from jevtester.diff import diff_question_sets
 from jevtester.errors import ConflictError, InvalidRequestError, NotFoundError
 from jevtester.evaluate.checks import case_errors, wording_checks
-from jevtester.evaluate.metrics import calibration, confusion_matrix, run_changes, run_metrics
+from jevtester.evaluate.metrics import calibration, confusion_matrix, originals, run_changes, run_metrics
 from jevtester.evaluate.report import report_markdown
 from jevtester.evaluate.scoring import is_correct
 from jevtester.normalize import ResultError, TargetResult
+from jevtester.policy.engine import decide_result, decision_metrics, sweep
 from jevtester.preflight import target_warnings
 from jevtester.providers import DecisionProvider, Health
 from jevtester.providers.systemone import SystemOneProvider
@@ -35,6 +37,11 @@ from jevtester.schemas import (
     DecideBody,
     DecideResponse,
     ErrorDetail,
+    PolicyBody,
+    PolicyDetail,
+    PolicyList,
+    PolicySummary,
+    PolicyThreshold,
     ProgressEvent,
     QuestionSetBody,
     QuestionSetDetail,
@@ -59,6 +66,8 @@ from jevtester.schemas import (
     SuiteDetail,
     SuiteList,
     SuiteSummary,
+    SweepBody,
+    SweepResult,
     TargetCounts,
     TargetInfo,
     TargetList,
@@ -76,6 +85,7 @@ from jevtester.spec import (
     Target,
     load_config,
 )
+from jevtester.spec.policy import Policy
 from jevtester.store.files import SuiteFiles, check_name
 from jevtester.store.runs import RunStore, StoredResult
 
@@ -84,6 +94,7 @@ CONFIG_ENV = "JEVTESTER_CONFIG"
 HEALTH_CHECK_TIMEOUT_S = 15.0
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 INTERRUPTED = "The server stopped during the run"
+MAX_SWEEP_POINTS = 1000
 
 
 def config_path() -> Path:
@@ -397,6 +408,17 @@ class Service:
                 suite=name, valid=False, errors=[ErrorDetail(field="question_set", message=str(error))], checks=[]
             )
         errors = case_errors(suite, question_set)
+        if suite.policy:
+            try:
+                policy = self.files.load_policy(suite.policy)[0]
+            except (NotFoundError, InvalidRequestError) as error:
+                errors.append(ErrorDetail(field="policy", message=str(error)))
+            else:
+                missing = sorted(policy.questions() - set(question_set.questions))
+                errors += [
+                    ErrorDetail(field="policy", message=f"The policy reads {key}, which the question set doesn't ask")
+                    for key in missing
+                ]
         return SuiteCheck(suite=name, valid=not errors, errors=errors, checks=wording_checks(question_set))
 
     def add_case(self, name: str, case: Case) -> CaseCreated:
@@ -598,6 +620,7 @@ class Service:
             for target in targets
             for repeat in range(repeats)
         ]
+        policy = self.files.load_policy(suite.policy)[0] if suite.policy else None
         now = self._clock()
         summary = RunSummary(
             id=self.store.next_run_id(),
@@ -606,7 +629,7 @@ class Service:
             question_set=question_set.name,
             question_set_version=question_set.version,
             policy=suite.policy,
-            policy_version=None,
+            policy_version=policy.version if policy else None,
             targets=[target.name for target in targets],
             repeats=repeats,
             variants=[],
@@ -622,6 +645,8 @@ class Service:
         )
         self.store.save_run(summary)
         self.store.save_cases(summary.id, cases)
+        if policy is not None:
+            self.store.save_policy(summary.id, policy)
         handle = RunHandle(summary)
         self._handles[summary.id] = handle
         handle.task = asyncio.create_task(self._execute(handle, targets, jobs, no_cache=body.no_cache))
@@ -759,7 +784,13 @@ class Service:
             NotFoundError: There's no such run.
         """
         summary, results, questions, cases = self._context(run_id)
-        return run_metrics(summary, results, questions, cases, self.config.targets)
+        metrics = run_metrics(summary, results, questions, cases, self.config.targets)
+        policy = self.store.policy(run_id)
+        if policy is not None:
+            for target in metrics.targets:
+                if target.results:
+                    target.decision = decision_metrics(policy, questions, originals(results, target.target), cases)
+        return metrics
 
     def run_confusion(self, run_id: str, question: str, target: str) -> ConfusionMatrix:
         """Build the confusion matrix for one choice question and one target.
@@ -890,6 +921,7 @@ class Service:
             NotFoundError: There's no such run, or the run has no such case.
         """
         _, results, questions, cases = self._context(run_id)
+        policy = self.store.policy(run_id)
         case = cases.get(case_id)
         if case is None:
             raise NotFoundError(f"Run {run_id} has no case {case_id}")
@@ -900,6 +932,7 @@ class Service:
                 variant=stored.variant,
                 cached=stored.cached,
                 correct={key: is_correct(case.expected.get(key), stored.result.answers.get(key)) for key in questions},
+                decision=decide_result(policy, questions, stored.result) if policy else None,
                 result=stored.result,
             )
             for stored in results
@@ -923,3 +956,114 @@ class Service:
         metrics = self.run_metrics(run_id)
         changes = self.run_changes(run_id, summary.baseline) if summary.baseline else None
         return RunReport(summary=summary, metrics=metrics, markdown=report_markdown(summary, metrics, changes))
+
+    # Policies
+
+    def _policy_suites(self, name: str) -> list[str]:
+        return [suite.name for suite in self.files.list_suites() if suite.policy == name]
+
+    def _policy_detail(self, policy: Policy, text: str) -> PolicyDetail:
+        thresholds = [
+            PolicyThreshold(
+                name=name,
+                value=value,
+                per_target={target: values[name] for target, values in policy.per_target.items() if name in values},
+            )
+            for name, value in policy.thresholds.items()
+        ]
+        return PolicyDetail(
+            name=policy.name,
+            version=policy.version,
+            yaml=text,
+            actions=policy.actions,
+            thresholds=thresholds,
+            suites=self._policy_suites(policy.name),
+        )
+
+    def list_policies(self) -> PolicyList:
+        """List the policies.
+
+        Returns:
+            Each policy's version, actions, and the suites that use it.
+
+        Raises:
+            InvalidRequestError: A policy file is invalid.
+        """
+        return PolicyList(
+            policies=[
+                PolicySummary(
+                    name=policy.name,
+                    version=policy.version,
+                    actions=policy.actions,
+                    suites=self._policy_suites(policy.name),
+                )
+                for policy, _ in self.files.list_policies()
+            ]
+        )
+
+    def get_policy(self, name: str) -> PolicyDetail:
+        """Read a policy.
+
+        Args:
+            name: The policy's name.
+
+        Returns:
+            Its YAML text, actions, thresholds, and the suites that use it.
+
+        Raises:
+            NotFoundError: There's no such policy.
+        """
+        return self._policy_detail(*self.files.load_policy(name))
+
+    def save_policy(self, name: str, body: PolicyBody) -> PolicyDetail:
+        """Validate and save a policy's YAML text, creating the policy if it's new.
+
+        Args:
+            name: The policy's name.
+            body: The YAML text.
+
+        Returns:
+            The saved policy.
+
+        Raises:
+            InvalidRequestError: The YAML is invalid. `details` lists every error, and nothing is saved.
+        """
+        return self._policy_detail(self.files.save_policy(name, body.yaml), body.yaml)
+
+    def sweep_policy(self, name: str, body: SweepBody) -> SweepResult:
+        """Measure a target's decisions in a finished run as one of the policy's thresholds moves.
+
+        The sweep uses the policy as it is now, so a threshold can be tuned against a run without running it again.
+        Each swept value replaces the threshold for this target, whether the policy gives it a shared value or a
+        `per_target` one. `current` is the target's value now.
+
+        Args:
+            name: The policy's name.
+            body: The run, the target, the threshold, and the range to sweep.
+
+        Returns:
+            The share decided, the error rate, and the cost at each value.
+
+        Raises:
+            NotFoundError: The policy or the run doesn't exist.
+            InvalidRequestError: The threshold isn't the policy's, the run didn't run the target, or the range has
+                more than 1,000 points.
+        """
+        policy, _ = self.files.load_policy(name)
+        if body.threshold not in policy.thresholds:
+            raise InvalidRequestError(f"The policy has no threshold {body.threshold}", field="threshold")
+        summary, results, questions, cases = self._context(body.run_id)
+        target = self._run_target(summary, body.target)
+        count = math.floor((body.stop - body.start) / body.step + 1e-9) + 1
+        if count < 1 or count > MAX_SWEEP_POINTS:
+            raise InvalidRequestError(f"The range gives {count} points; the limit is {MAX_SWEEP_POINTS}", field="step")
+        values = [round(body.start + index * body.step, 10) for index in range(count)]
+        points = sweep(policy, body.threshold, values, questions, originals(results, target), cases)
+        return SweepResult(
+            policy=name,
+            run_id=summary.id,
+            target=target,
+            threshold=body.threshold,
+            current=policy.threshold(body.threshold, target),
+            points=points,
+        )

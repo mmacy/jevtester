@@ -6,7 +6,8 @@
     "details": [
       {
         "field": "questions.reaction.score.criteria",
-        "message": "List should have at least 2 items after validation, not 1"
+        "message": "List should have at least 2 items after validation, not 1",
+        "line": null
       }
     ]
   }

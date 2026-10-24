@@ -6,7 +6,8 @@
     "details": [
       {
         "field": "targets.0",
-        "message": "Unknown target: clef@nowhere"
+        "message": "Unknown target: clef@nowhere",
+        "line": null
       }
     ]
   }

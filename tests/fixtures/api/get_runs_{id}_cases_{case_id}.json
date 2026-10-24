@@ -70,6 +70,16 @@
         "bribe": true,
         "reaction": true
       },
+      "decision": {
+        "action": "parley_succeeds",
+        "band": "act",
+        "escalated": false,
+        "rule": 4,
+        "composites": {
+          "goodwill": 0.7755081381579881
+        },
+        "reason": null
+      },
       "result": {
         "target": "decision-1@foundry",
         "ok": true,
@@ -212,6 +222,16 @@
         "intent": true,
         "bribe": true,
         "reaction": false
+      },
+      "decision": {
+        "action": "parley_succeeds",
+        "band": "act",
+        "escalated": false,
+        "rule": 4,
+        "composites": {
+          "goodwill": 0.6989000000000001
+        },
+        "reason": null
       },
       "result": {
         "target": "clef-flash@workers-ai",

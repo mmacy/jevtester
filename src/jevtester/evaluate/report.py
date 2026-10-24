@@ -72,6 +72,22 @@ def report_markdown(summary: RunSummary, metrics: RunMetrics, changes: RunChange
                 row.ece,
             ]
             lines.append(f"| {target.target} | {row.n} | " + " | ".join(_number(v) for v in values) + " |")
+    decided = [target for target in metrics.targets if target.decision is not None]
+    if decided:
+        lines += [
+            "",
+            f"## Decisions with policy `{summary.policy}`",
+            "",
+            "| Target | n | Accuracy | Decided | Error rate when decided | Cost |",
+            "|---|---|---|---|---|---|",
+        ]
+        for target in decided:
+            d = target.decision
+            assert d is not None
+            lines.append(
+                f"| {target.target} | {d.n} | {_number(d.accuracy)} | {_number(d.decided_share)} "
+                f"| {_number(d.error_rate)} | {_number(d.cost, 1)} |"
+            )
     if changes is not None:
         lines += ["", f"## Changes from run {changes.baseline}", ""]
         if not changes.changes:

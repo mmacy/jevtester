@@ -15,6 +15,7 @@ from jevtester.model import Model
 from jevtester.normalize import TargetResult
 from jevtester.schemas import RunSummary
 from jevtester.spec import Case, QuestionSet
+from jevtester.spec.policy import Policy
 
 _SCHEMA = """
 create table if not exists runs (
@@ -42,6 +43,10 @@ create table if not exists cache (
 create table if not exists run_cases (
     run_id text primary key,
     cases text not null
+);
+create table if not exists run_policies (
+    run_id text primary key,
+    policy text not null
 );
 create table if not exists question_set_versions (
     name text not null,
@@ -161,6 +166,29 @@ class RunStore:
         with self._lock:
             row = self._db.execute("select cases from run_cases where run_id = ?", (run_id,)).fetchone()
         return _CASES.validate_json(row[0]) if row else None
+
+    def save_policy(self, run_id: str, policy: Policy) -> None:
+        """Save the policy a run's suite had when it started, so its decisions are measured with that policy.
+
+        Args:
+            run_id: The run's id.
+            policy: The policy.
+        """
+        with self._lock, self._db:
+            self._db.execute("insert or replace into run_policies values (?, ?)", (run_id, policy.model_dump_json()))
+
+    def policy(self, run_id: str) -> Policy | None:
+        """Read the policy a run was measured with.
+
+        Args:
+            run_id: The run's id.
+
+        Returns:
+            The policy, or `None` when the run's suite had none.
+        """
+        with self._lock:
+            row = self._db.execute("select policy from run_policies where run_id = ?", (run_id,)).fetchone()
+        return Policy.model_validate_json(row[0]) if row else None
 
     # Results
 

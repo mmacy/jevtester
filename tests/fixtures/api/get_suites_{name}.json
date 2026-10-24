@@ -154,7 +154,7 @@
         "provenance": "claude-draft"
       }
     ],
-    "policy": null,
+    "policy": "parley",
     "targets": [
       "decision-1@foundry",
       "clef-flash@workers-ai"
