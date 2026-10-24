@@ -61,6 +61,29 @@ describe('cliCommand', () => {
     expect(score).toContain('--level Attack \\\n  --level Flee')
   })
 
+  it('sends a state the CLI would read as a path or stdin as JSON', () => {
+    for (const state of ['@party.json', '-']) {
+      const command = cliCommand(
+        { state, questions: { q: { type: 'noul', instructions: 'Hostile?' } } },
+        [],
+      )
+      expect(command).toMatch(/^uv run jevtester decide --request - --format json <<'JSON'\n/)
+    }
+  })
+
+  it('sends an option name with = as JSON', () => {
+    const command = cliCommand(
+      {
+        state: 'Goblins',
+        questions: {
+          q: { type: 'choice', instructions: 'Which?', criteria: { 'a=b': 'A', c: 'C' } },
+        },
+      },
+      [],
+    )
+    expect(command).toContain('--request -')
+  })
+
   it('sends anything else as JSON on stdin', () => {
     const body = {
       state: { party: 'Three' },
