@@ -10,6 +10,10 @@ import type {
   ErrorDetail,
   Calibration,
   ConfusionMatrix,
+  QuestionInput,
+  QuestionSetDetail,
+  QuestionSetDiff,
+  QuestionSetList,
   QuestionSetVersions,
   RunCase,
   RunChanges,
@@ -115,6 +119,16 @@ export const api = {
   getSuite: (name: string) => request<SuiteDetail>('GET', `/suites/${encodeURIComponent(name)}`),
   addCase: (suite: string, body: CaseInput) =>
     request<CaseCreated>('POST', `/suites/${encodeURIComponent(suite)}/cases`, body),
+  listQuestionSets: () => request<QuestionSetList>('GET', '/question-sets'),
+  getQuestionSet: (name: string) =>
+    request<QuestionSetDetail>('GET', `/question-sets/${encodeURIComponent(name)}`),
+  saveQuestionSet: (name: string, questions: Record<string, QuestionInput>) =>
+    request<QuestionSetDetail>('PUT', `/question-sets/${encodeURIComponent(name)}`, { questions }),
+  getQuestionSetDiff: (name: string, from: string, to: string) =>
+    request<QuestionSetDiff>(
+      'GET',
+      `/question-sets/${encodeURIComponent(name)}/diff?${query({ from, to })}`,
+    ),
   listVersions: (questionSet: string) =>
     request<QuestionSetVersions>(
       'GET',
