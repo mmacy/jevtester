@@ -1,9 +1,12 @@
 import { NavLink } from 'react-router-dom'
 
-import { VIEWS } from '../views'
+import { useTargets } from '../store/targets'
+import { VIEWS } from '../nav'
+import { HealthStrip } from './health-strip'
 import { Mark } from './mark'
 
 export function TopBar() {
+  const targets = useTargets((s) => s.targets)
   return (
     <header className="sticky top-0 z-10 flex h-topbar items-center gap-7 border-b border-line bg-surface px-6">
       <Mark />
@@ -23,6 +26,7 @@ export function TopBar() {
         ))}
       </nav>
       <div className="flex-1" />
+      {targets ? <HealthStrip targets={targets} /> : null}
     </header>
   )
 }
