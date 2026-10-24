@@ -19,6 +19,7 @@ import {
   validateQuestions,
   type QuestionDraft,
 } from '../lib/request'
+import { serverErrors } from '../lib/server-errors'
 import { wordDiff } from '../lib/word-diff'
 
 const TH = 'px-2 pb-1.5 text-left text-sm font-medium text-dim'
@@ -76,18 +77,6 @@ function QuestionSetList() {
       ) : null}
     </section>
   )
-}
-
-/** Field errors from the API, keyed by question id, from paths like `questions.intent.choice.criteria`. */
-function serverErrors(error: unknown): Record<string, string[]> {
-  const byQuestion: Record<string, string[]> = {}
-  if (!(error instanceof ApiError)) return byQuestion
-  for (const detail of error.details) {
-    const parts = (detail.field ?? '').split('.')
-    const id = parts[0] === 'questions' && parts[1] ? parts[1] : ''
-    ;(byQuestion[id] ??= []).push(detail.message)
-  }
-  return byQuestion
 }
 
 function Versions({ name, version }: { name: string; version: string }) {
@@ -177,7 +166,10 @@ function Editor({
   const errors = useMemo(() => validateQuestions(questions), [questions])
   const sent = useMemo(() => JSON.stringify(toQuestions(draftsFrom(set.questions))), [set])
   const changed = JSON.stringify(toQuestions(questions)) !== sent
-  const fromServer = serverErrors(error)
+  const fromServer = serverErrors(
+    error,
+    questions.map((q) => q.id.trim()),
+  )
 
   const save = async () => {
     setShowErrors(true)
