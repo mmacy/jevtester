@@ -1,0 +1,17 @@
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "rules.3.action: unknown action parley_succeds",
+    "field": "rules.3.action",
+    "details": [
+      {
+        "field": "rules.3.action",
+        "message": "Unknown action parley_succeds"
+      },
+      {
+        "field": "thresholds.goodwill_threshold",
+        "message": "Input should be a valid number"
+      }
+    ]
+  }
+}

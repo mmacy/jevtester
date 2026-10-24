@@ -1,0 +1,45 @@
+{
+  "run_id": "0142",
+  "target": "clef-flash@workers-ai",
+  "question": "intent",
+  "options": [
+    "parley",
+    "evade",
+    "fight",
+    "wait"
+  ],
+  "counts": [
+    [
+      1,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ],
+    [
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      1
+    ]
+  ],
+  "correct": 3,
+  "total": 4,
+  "recall": [
+    1.0,
+    0.0,
+    1.0,
+    1.0
+  ]
+}

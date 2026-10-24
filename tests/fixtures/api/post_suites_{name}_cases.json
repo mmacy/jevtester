@@ -1,0 +1,30 @@
+{
+  "suite": "parley",
+  "case": {
+    "id": "bugbear-toll",
+    "state": {
+      "party": "Three adventurers at a rope bridge",
+      "monsters": "Two bugbears demanding a toll",
+      "player_says": "Fine. Ten silver each, and we cross."
+    },
+    "images": [],
+    "expected": {
+      "intent": {
+        "answer": "parley",
+        "acceptable": null,
+        "tolerance": 0
+      },
+      "bribe": {
+        "answer": true,
+        "acceptable": null,
+        "tolerance": 0
+      }
+    },
+    "expected_action": null,
+    "tags": [
+      "bribe"
+    ],
+    "provenance": "human"
+  },
+  "case_count": 5
+}

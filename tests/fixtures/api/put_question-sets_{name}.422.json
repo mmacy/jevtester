@@ -1,0 +1,13 @@
+{
+  "error": {
+    "code": "invalid_request",
+    "message": "List should have at least 2 items after validation, not 1",
+    "field": "questions.reaction.score.criteria",
+    "details": [
+      {
+        "field": "questions.reaction.score.criteria",
+        "message": "List should have at least 2 items after validation, not 1"
+      }
+    ]
+  }
+}

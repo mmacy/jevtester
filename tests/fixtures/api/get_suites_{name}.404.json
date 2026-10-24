@@ -1,0 +1,8 @@
+{
+  "error": {
+    "code": "not_found",
+    "message": "No suite named reaction",
+    "field": null,
+    "details": []
+  }
+}

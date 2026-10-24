@@ -1,0 +1,44 @@
+{
+  "question_set": {
+    "name": "parley",
+    "questions": {
+      "intent": {
+        "type": "choice",
+        "instructions": "What is the player trying to do?",
+        "criteria": {
+          "parley": "Talk, bargain, bribe, or negotiate",
+          "evade": "Run away or avoid the monsters",
+          "fight": "Attack the monsters",
+          "wait": "Hold position and watch"
+        }
+      },
+      "bribe": {
+        "type": "noul",
+        "instructions": "Does the player offer the monsters something of value?",
+        "criteria": null
+      },
+      "reaction": {
+        "type": "score",
+        "instructions": "How are goblins likely to react to this offer?",
+        "criteria": [
+          "Attack at once",
+          "Hostile, may attack",
+          "Uncertain, hold and posture",
+          "Indifferent, may let them pass",
+          "Friendly, accept the offer"
+        ]
+      }
+    },
+    "version": "95e251b70a75ea722a0c62ce89024a58c6bdb1a3ebde485db30bba925ffc0cb6"
+  },
+  "suites": [
+    "parley"
+  ],
+  "checks": [
+    {
+      "question": "intent",
+      "code": "no_abstention",
+      "message": "No option for a player whose intent can't be told"
+    }
+  ]
+}

@@ -1,0 +1,5694 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "jevtester",
+    "summary": "Test decision models, the questions written for them, and the decisions built on their answers.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/targets": {
+      "get": {
+        "tags": [
+          "targets"
+        ],
+        "summary": "List Targets",
+        "description": "List targets, their capabilities, and their last health check.",
+        "operationId": "list_targets",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TargetList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/targets/check": {
+      "post": {
+        "tags": [
+          "targets"
+        ],
+        "summary": "Check Targets",
+        "description": "Run every target's health check and return the targets with the results.",
+        "operationId": "check_targets",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TargetList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/decide": {
+      "post": {
+        "tags": [
+          "decide"
+        ],
+        "summary": "Decide",
+        "description": "Send one request to each chosen target and return one result per target.\n\nA target that can't take the request, because it isn't ready or a preflight check fails, still has a result,\nwith `ok: false` and an error.",
+        "operationId": "decide",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecideResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/suites": {
+      "get": {
+        "tags": [
+          "suites"
+        ],
+        "summary": "List Suites",
+        "description": "List the suites under `suites/`.",
+        "operationId": "list_suites",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuiteList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/suites/{name}": {
+      "get": {
+        "tags": [
+          "suites"
+        ],
+        "summary": "Get Suite",
+        "description": "Return a suite with its cases and its question set's current version.",
+        "operationId": "get_suite",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuiteDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/suites/{name}/check": {
+      "get": {
+        "tags": [
+          "suites"
+        ],
+        "summary": "Check Suite",
+        "description": "Validate a suite and run the question-wording checks on its question set.",
+        "operationId": "check_suite",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuiteCheck"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/suites/{name}/cases": {
+      "post": {
+        "tags": [
+          "suites"
+        ],
+        "summary": "Add Case",
+        "description": "Add a case to a suite's YAML file. A case id the suite already has is a conflict.",
+        "operationId": "add_case",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Case"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseCreated"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict, or a target that isn't ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/question-sets": {
+      "get": {
+        "tags": [
+          "question sets"
+        ],
+        "summary": "List Question Sets",
+        "description": "List the question sets under `suites/`.",
+        "operationId": "list_question_sets",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionSetList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/question-sets/{name}": {
+      "get": {
+        "tags": [
+          "question sets"
+        ],
+        "summary": "Get Question Set",
+        "description": "Return a question set's current version, the suites that use it, and its wording checks.",
+        "operationId": "get_question_set",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionSetDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "question sets"
+        ],
+        "summary": "Save Question Set",
+        "description": "Save new questions to a question set's YAML file, which makes a new version. Creates the set if it's new.",
+        "operationId": "save_question_set",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionSetBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionSetDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/question-sets/{name}/versions": {
+      "get": {
+        "tags": [
+          "question sets"
+        ],
+        "summary": "List Question Set Versions",
+        "description": "List a question set's versions by hash, newest first.",
+        "operationId": "list_question_set_versions",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionSetVersions"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/question-sets/{name}/versions/{version}": {
+      "get": {
+        "tags": [
+          "question sets"
+        ],
+        "summary": "Get Question Set Version",
+        "description": "Return one version of a question set.",
+        "operationId": "get_question_set_version",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionSet"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/question-sets/{name}/diff": {
+      "get": {
+        "tags": [
+          "question sets"
+        ],
+        "summary": "Diff Question Set",
+        "description": "Compare two versions of a question set.",
+        "operationId": "diff_question_set",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionSetDiff"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "List Runs",
+        "description": "List runs, newest first.",
+        "operationId": "list_runs",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Start Run",
+        "description": "Start a run of a suite on the chosen targets. Follow it with `GET /api/runs/{id}/events`.",
+        "operationId": "start_run",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunCreated"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Get Run",
+        "description": "Return a run's settings, status, and counts.",
+        "operationId": "get_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/events": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Run Events",
+        "description": "Stream a run's progress as server-sent events.\n\nEach event's SSE `event` field is its `type`, and its `data` is a [`RunEvent`][jevtester.schemas.RunEvent] as\nJSON. The first event is always `progress`, with the current counts, so a client that reconnects needs no\nhistory. A run that has ended sends `progress` and then its final event. The stream ends after `finished`,\n`cancelled`, or `error`.",
+        "operationId": "run_events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "itemSchema": {
+                  "type": "object",
+                  "required": [
+                    "event",
+                    "data"
+                  ],
+                  "properties": {
+                    "event": {
+                      "type": "string"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "retry": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "data": {
+                      "type": "string",
+                      "contentMediaType": "application/json",
+                      "contentSchema": {
+                        "$ref": "#/components/schemas/RunEvent"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/cancel": {
+      "post": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Cancel Run",
+        "description": "Cancel a queued or running run. Cancelling a run that has ended returns it unchanged.",
+        "operationId": "cancel_run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunSummary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/metrics": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Get Run Metrics",
+        "description": "Return metrics for each target and question.",
+        "operationId": "get_run_metrics",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunMetrics"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/confusion": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Get Run Confusion",
+        "description": "Return the confusion matrix for one choice question and one target.",
+        "operationId": "get_run_confusion",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "question",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Question"
+            }
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfusionMatrix"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/calibration": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Get Run Calibration",
+        "description": "Return a reliability table for one noul or choice question and one target.",
+        "operationId": "get_run_calibration",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "question",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Question"
+            }
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Target"
+            }
+          },
+          {
+            "name": "bins",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "title": "Bins"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Calibration"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/changes": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Get Run Changes",
+        "description": "Return the answers that changed from a baseline run, with McNemar's test for each target.",
+        "operationId": "get_run_changes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "baseline",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Baseline"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunChanges"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/cases/{case_id}": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Get Run Case",
+        "description": "Return one case in a run, with every target's full result.",
+        "operationId": "get_run_case",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          },
+          {
+            "name": "case_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunCase"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/report": {
+      "get": {
+        "tags": [
+          "runs"
+        ],
+        "summary": "Get Run Report",
+        "description": "Return a run's summary and metrics, and the same report as Markdown.",
+        "operationId": "get_run_report",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{id}/probes": {
+      "get": {
+        "tags": [
+          "probes"
+        ],
+        "summary": "Get Run Probes",
+        "description": "Return how often each case's answers changed under each probe variant.",
+        "operationId": "get_run_probes",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProbeReport"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/probes": {
+      "post": {
+        "tags": [
+          "probes"
+        ],
+        "summary": "Start Probe",
+        "description": "Start a probe run. It streams events like any run, and `GET /api/runs/{id}/probes` returns its results.",
+        "operationId": "start_probe",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProbeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunCreated"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/policies": {
+      "get": {
+        "tags": [
+          "policies"
+        ],
+        "summary": "List Policies",
+        "description": "List the policies under `suites/`.",
+        "operationId": "list_policies",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/policies/{name}": {
+      "get": {
+        "tags": [
+          "policies"
+        ],
+        "summary": "Get Policy",
+        "description": "Return a policy's YAML text and what it defines.",
+        "operationId": "get_policy",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "policies"
+        ],
+        "summary": "Save Policy",
+        "description": "Validate and save a policy's YAML text. An invalid policy returns 422 with every error in `details`.",
+        "operationId": "save_policy",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PolicyDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/policies/{name}/sweep": {
+      "post": {
+        "tags": [
+          "policies"
+        ],
+        "summary": "Sweep Policy",
+        "description": "Sweep one threshold over a finished run's answers and return the trade-off points.",
+        "operationId": "sweep_policy",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SweepBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SweepResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnswerChange": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "expected": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/jevtester__schemas__Answer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseline_answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/jevtester__schemas__Answer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseline_probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Probability"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/jevtester__schemas__Answer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "probability": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probability"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChangeStatus"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "case_id",
+          "target",
+          "question",
+          "expected",
+          "baseline_answer",
+          "baseline_probability",
+          "answer",
+          "probability",
+          "status"
+        ],
+        "title": "AnswerChange",
+        "description": "A case whose answer changed from the baseline run."
+      },
+      "ApiError": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ApiErrorBody"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ApiError",
+        "description": "The body of every 4xx and 5xx response."
+      },
+      "ApiErrorBody": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ApiErrorCode"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            },
+            "type": "array",
+            "title": "Details"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ApiErrorBody",
+        "description": "What went wrong."
+      },
+      "ApiErrorCode": {
+        "type": "string",
+        "enum": [
+          "invalid_request",
+          "not_found",
+          "conflict",
+          "not_ready",
+          "internal"
+        ]
+      },
+      "Calibration": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "bins": {
+            "items": {
+              "$ref": "#/components/schemas/CalibrationBin"
+            },
+            "type": "array",
+            "title": "Bins"
+          },
+          "ece": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ece"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "target",
+          "question",
+          "bins",
+          "ece",
+          "n"
+        ],
+        "title": "Calibration",
+        "description": "A reliability table for one question and one target.\n\nFor a noul question the predicted value is the probability of yes. For a choice question it's the probability of\nthe chosen option, and the observed rate is how often that choice was correct."
+      },
+      "CalibrationBin": {
+        "properties": {
+          "lower": {
+            "type": "number",
+            "title": "Lower"
+          },
+          "upper": {
+            "type": "number",
+            "title": "Upper"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "mean_predicted": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Predicted"
+          },
+          "observed_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observed Rate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lower",
+          "upper",
+          "count",
+          "mean_predicted",
+          "observed_rate"
+        ],
+        "title": "CalibrationBin",
+        "description": "One probability bin of a reliability table."
+      },
+      "Capabilities": {
+        "properties": {
+          "probabilities": {
+            "type": "boolean",
+            "title": "Probabilities",
+            "default": true
+          },
+          "question_types": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionType"
+            },
+            "type": "array",
+            "title": "Question Types"
+          },
+          "images": {
+            "type": "boolean",
+            "title": "Images",
+            "default": false
+          },
+          "max_images": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Images"
+          },
+          "max_image_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Image Bytes"
+          },
+          "max_total_image_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Total Image Bytes"
+          },
+          "image_formats": {
+            "items": {
+              "$ref": "#/components/schemas/ImageFormat"
+            },
+            "type": "array",
+            "title": "Image Formats"
+          },
+          "context_window": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context Window"
+          },
+          "truncates_state": {
+            "type": "boolean",
+            "title": "Truncates State",
+            "default": false
+          },
+          "max_questions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Questions"
+          },
+          "min_options": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Options"
+          },
+          "max_options": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Options"
+          },
+          "max_request_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Request Bytes"
+          },
+          "concurrency": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Concurrency",
+            "default": 1
+          },
+          "concurrency_group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concurrency Group"
+          },
+          "requests_per_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requests Per Minute"
+          },
+          "tokens_per_minute": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokens Per Minute"
+          },
+          "input_cost_per_mtok_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Cost Per Mtok Usd"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Capabilities",
+        "description": "What a target accepts and returns. `None` means the limit is unknown, so preflight doesn't check it."
+      },
+      "Case": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images"
+          },
+          "expected": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Expectation"
+            },
+            "type": "object",
+            "title": "Expected"
+          },
+          "expected_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Action"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance",
+            "default": "human"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "state"
+        ],
+        "title": "Case",
+        "description": "One state, with the answers and action it expects."
+      },
+      "CaseCreated": {
+        "properties": {
+          "suite": {
+            "type": "string",
+            "title": "Suite"
+          },
+          "case": {
+            "$ref": "#/components/schemas/Case"
+          },
+          "case_count": {
+            "type": "integer",
+            "title": "Case Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suite",
+          "case",
+          "case_count"
+        ],
+        "title": "CaseCreated",
+        "description": "A case saved to a suite."
+      },
+      "CaseResult": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "repeat": {
+            "type": "integer",
+            "title": "Repeat"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant"
+          },
+          "cached": {
+            "type": "boolean",
+            "title": "Cached"
+          },
+          "correct": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Correct"
+          },
+          "result": {
+            "$ref": "#/components/schemas/TargetResult"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target",
+          "repeat",
+          "cached",
+          "correct",
+          "result"
+        ],
+        "title": "CaseResult",
+        "description": "One job's result for a case."
+      },
+      "ChangeStatus": {
+        "type": "string",
+        "enum": [
+          "fixed",
+          "broken",
+          "changed"
+        ]
+      },
+      "ChangeSummary": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "fixed": {
+            "type": "integer",
+            "title": "Fixed"
+          },
+          "broken": {
+            "type": "integer",
+            "title": "Broken"
+          },
+          "changed": {
+            "type": "integer",
+            "title": "Changed"
+          },
+          "mcnemar_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mcnemar P"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target",
+          "fixed",
+          "broken",
+          "changed",
+          "mcnemar_p"
+        ],
+        "title": "ChangeSummary",
+        "description": "One target's changes from the baseline, with McNemar's test on the paired results."
+      },
+      "ChoiceAnswer": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "choice",
+            "title": "Type",
+            "default": "choice"
+          },
+          "choice": {
+            "type": "string",
+            "title": "Choice"
+          },
+          "probabilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Probabilities"
+          },
+          "unknown_probabilities": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Unknown Probabilities"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "server_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "choice",
+          "probabilities",
+          "confidence"
+        ],
+        "title": "ChoiceAnswer",
+        "description": "The answer to a choice question."
+      },
+      "ChoiceQuestion": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "choice",
+            "title": "Type",
+            "default": "choice"
+          },
+          "instructions": {
+            "type": "string",
+            "title": "Instructions"
+          },
+          "criteria": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "minProperties": 2,
+            "title": "Criteria"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "instructions",
+          "criteria"
+        ],
+        "title": "ChoiceQuestion",
+        "description": "A question that picks one option from a map of option names to descriptions."
+      },
+      "ConfusionMatrix": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "counts": {
+            "items": {
+              "items": {
+                "type": "integer"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Counts"
+          },
+          "correct": {
+            "type": "integer",
+            "title": "Correct"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "recall": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Recall"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "target",
+          "question",
+          "options",
+          "counts",
+          "correct",
+          "total",
+          "recall"
+        ],
+        "title": "ConfusionMatrix",
+        "description": "Expected options against answered options, for one choice question and one target."
+      },
+      "DecideBody": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "questions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Question"
+            },
+            "type": "object",
+            "minProperties": 1,
+            "title": "Questions"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Targets"
+          },
+          "timeout_s": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout S"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "state",
+          "questions"
+        ],
+        "title": "DecideBody",
+        "description": "One request to send to one or more targets."
+      },
+      "DecideResponse": {
+        "properties": {
+          "request": {
+            "$ref": "#/components/schemas/DecisionRequest"
+          },
+          "question_set_version": {
+            "type": "string",
+            "title": "Question Set Version"
+          },
+          "asked_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Asked At"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/TargetResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "request",
+          "question_set_version",
+          "asked_at",
+          "results"
+        ],
+        "title": "DecideResponse",
+        "description": "One result per target, in the order the targets were named."
+      },
+      "DecisionMetrics": {
+        "properties": {
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy"
+          },
+          "decided_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided Share"
+          },
+          "error_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Rate"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "n",
+          "accuracy",
+          "decided_share",
+          "error_rate",
+          "cost"
+        ],
+        "title": "DecisionMetrics",
+        "description": "One target's decision metrics, for a suite with a policy."
+      },
+      "DecisionRequest": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/State"
+          },
+          "questions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Question"
+            },
+            "type": "object",
+            "minProperties": 1,
+            "title": "Questions"
+          },
+          "images": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Images"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "state",
+          "questions"
+        ],
+        "title": "DecisionRequest",
+        "description": "One request to a decision model, before a target adds its model name and settings."
+      },
+      "DiffStatus": {
+        "type": "string",
+        "enum": [
+          "added",
+          "removed",
+          "changed",
+          "unchanged"
+        ]
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "not_ready",
+          "preflight",
+          "auth",
+          "rate_limited",
+          "bad_request",
+          "request_too_large",
+          "server_error",
+          "timeout",
+          "connection",
+          "invalid_response",
+          "cancelled"
+        ]
+      },
+      "ErrorDetail": {
+        "properties": {
+          "field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ErrorDetail",
+        "description": "One validation error."
+      },
+      "Expectation": {
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "acceptable": {
+            "anyOf": [
+              {
+                "items": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acceptable"
+          },
+          "tolerance": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Tolerance",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Expectation",
+        "description": "The answer a case expects to one question."
+      },
+      "ImageFormat": {
+        "type": "string",
+        "enum": [
+          "png",
+          "jpeg",
+          "webp"
+        ]
+      },
+      "JsonValue": {},
+      "NoulAnswer": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "noul",
+            "title": "Type",
+            "default": "noul"
+          },
+          "probability": {
+            "type": "number",
+            "title": "Probability"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "server_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "probability",
+          "confidence"
+        ],
+        "title": "NoulAnswer",
+        "description": "The answer to a yes/no question."
+      },
+      "NoulCriteria": {
+        "properties": {
+          "true": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "True"
+          },
+          "false": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "False"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "NoulCriteria",
+        "description": "Optional descriptions of the yes and no outcomes of a noul question."
+      },
+      "NoulQuestion": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "noul",
+            "title": "Type",
+            "default": "noul"
+          },
+          "instructions": {
+            "type": "string",
+            "title": "Instructions"
+          },
+          "criteria": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoulCriteria"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "instructions"
+        ],
+        "title": "NoulQuestion",
+        "description": "A yes/no question. Its answer is the probability of yes."
+      },
+      "OptionDiff": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DiffStatus"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "status",
+          "before",
+          "after"
+        ],
+        "title": "OptionDiff",
+        "description": "How one option or level changed."
+      },
+      "PolicyBody": {
+        "properties": {
+          "yaml": {
+            "type": "string",
+            "title": "Yaml"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "yaml"
+        ],
+        "title": "PolicyBody",
+        "description": "A policy's new YAML text."
+      },
+      "PolicyDetail": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "yaml": {
+            "type": "string",
+            "title": "Yaml"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions"
+          },
+          "thresholds": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyThreshold"
+            },
+            "type": "array",
+            "title": "Thresholds"
+          },
+          "suites": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suites"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "yaml",
+          "actions",
+          "thresholds",
+          "suites"
+        ],
+        "title": "PolicyDetail",
+        "description": "A policy's YAML text and what it defines."
+      },
+      "PolicyList": {
+        "properties": {
+          "policies": {
+            "items": {
+              "$ref": "#/components/schemas/PolicySummary"
+            },
+            "type": "array",
+            "title": "Policies"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "policies"
+        ],
+        "title": "PolicyList",
+        "description": "Every policy under `suites/`."
+      },
+      "PolicySummary": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "actions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Actions"
+          },
+          "suites": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suites"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "actions",
+          "suites"
+        ],
+        "title": "PolicySummary",
+        "description": "A policy in the list of policies."
+      },
+      "PolicyThreshold": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "per_target": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Per Target"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "value",
+          "per_target"
+        ],
+        "title": "PolicyThreshold",
+        "description": "A threshold a policy uses, with any per-target values."
+      },
+      "ProbeCell": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "title": "Case Id"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "variant": {
+            "$ref": "#/components/schemas/ProbeVariant"
+          },
+          "instances": {
+            "type": "integer",
+            "title": "Instances"
+          },
+          "changed": {
+            "type": "integer",
+            "title": "Changed"
+          },
+          "change_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Rate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "case_id",
+          "target",
+          "variant",
+          "instances",
+          "changed",
+          "change_rate"
+        ],
+        "title": "ProbeCell",
+        "description": "How often one case's answers changed under one variant on one target."
+      },
+      "ProbeCreate": {
+        "properties": {
+          "suite": {
+            "type": "string",
+            "title": "Suite"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Targets"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/ProbeVariant"
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Variants"
+          },
+          "question_set_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Set Version"
+          },
+          "no_cache": {
+            "type": "boolean",
+            "title": "No Cache",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suite",
+          "variants"
+        ],
+        "title": "ProbeCreate",
+        "description": "A probe run to start."
+      },
+      "ProbeReport": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/ProbeVariant"
+            },
+            "type": "array",
+            "title": "Variants"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/ProbeCell"
+            },
+            "type": "array",
+            "title": "Cells"
+          },
+          "summary": {
+            "items": {
+              "$ref": "#/components/schemas/ProbeSummary"
+            },
+            "type": "array",
+            "title": "Summary"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "variants",
+          "cells",
+          "summary"
+        ],
+        "title": "ProbeReport",
+        "description": "A probe run's results."
+      },
+      "ProbeSummary": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "variant": {
+            "$ref": "#/components/schemas/ProbeVariant"
+          },
+          "cases": {
+            "type": "integer",
+            "title": "Cases"
+          },
+          "change_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change Rate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target",
+          "variant",
+          "cases",
+          "change_rate"
+        ],
+        "title": "ProbeSummary",
+        "description": "The change rate of one variant on one target, across every case."
+      },
+      "ProbeVariant": {
+        "type": "string",
+        "enum": [
+          "option_order",
+          "key_order",
+          "bare_levels",
+          "pad_state"
+        ]
+      },
+      "Provenance": {
+        "type": "string",
+        "enum": [
+          "human",
+          "claude-draft"
+        ]
+      },
+      "ProviderName": {
+        "type": "string",
+        "enum": [
+          "systemone",
+          "workers-ai",
+          "claude"
+        ]
+      },
+      "Question": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NoulQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/ChoiceQuestion"
+          },
+          {
+            "$ref": "#/components/schemas/ScoreQuestion"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "choice": "#/components/schemas/ChoiceQuestion",
+            "noul": "#/components/schemas/NoulQuestion",
+            "score": "#/components/schemas/ScoreQuestion"
+          }
+        }
+      },
+      "QuestionDiff": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DiffStatus"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Question"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Question"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "changed_fields": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "type",
+                "instructions",
+                "criteria"
+              ]
+            },
+            "type": "array",
+            "title": "Changed Fields"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/OptionDiff"
+            },
+            "type": "array",
+            "title": "Options"
+          },
+          "order_changed": {
+            "type": "boolean",
+            "title": "Order Changed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "before",
+          "after",
+          "changed_fields",
+          "options",
+          "order_changed"
+        ],
+        "title": "QuestionDiff",
+        "description": "How one question changed between two versions."
+      },
+      "QuestionMetrics": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "type": {
+            "$ref": "#/components/schemas/QuestionType"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy"
+          },
+          "macro_f1": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Macro F1"
+          },
+          "mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mae"
+          },
+          "within_tolerance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Within Tolerance"
+          },
+          "brier": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brier"
+          },
+          "log_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Loss"
+          },
+          "auroc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auroc"
+          },
+          "ece": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ece"
+          },
+          "abstention_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Abstention Rate"
+          },
+          "consistency": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consistency"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "type",
+          "n",
+          "accuracy",
+          "macro_f1",
+          "mae",
+          "within_tolerance",
+          "brier",
+          "log_loss",
+          "auroc",
+          "ece",
+          "abstention_rate",
+          "consistency"
+        ],
+        "title": "QuestionMetrics",
+        "description": "One target's metrics for one question. A metric that doesn't apply to the question's type is `None`."
+      },
+      "QuestionSet": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "questions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Question"
+            },
+            "type": "object",
+            "minProperties": 1,
+            "title": "Questions"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "description": "The SHA-256 hash of the questions as sent, in order. The name isn't part of it.",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "questions",
+          "version"
+        ],
+        "title": "QuestionSet",
+        "description": "A named set of questions. Its content hash identifies a version."
+      },
+      "QuestionSetBody": {
+        "properties": {
+          "questions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Question"
+            },
+            "type": "object",
+            "minProperties": 1,
+            "title": "Questions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "questions"
+        ],
+        "title": "QuestionSetBody",
+        "description": "The questions to save as a question set's new version."
+      },
+      "QuestionSetDetail": {
+        "properties": {
+          "question_set": {
+            "$ref": "#/components/schemas/QuestionSet"
+          },
+          "suites": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suites"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/WordingCheck"
+            },
+            "type": "array",
+            "title": "Checks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_set",
+          "suites",
+          "checks"
+        ],
+        "title": "QuestionSetDetail",
+        "description": "A question set's current version, the suites that use it, and its wording checks."
+      },
+      "QuestionSetDiff": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "from_version": {
+            "type": "string",
+            "title": "From Version"
+          },
+          "to_version": {
+            "type": "string",
+            "title": "To Version"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionDiff"
+            },
+            "type": "array",
+            "title": "Questions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "from_version",
+          "to_version",
+          "questions"
+        ],
+        "title": "QuestionSetDiff",
+        "description": "The differences between two versions of a question set."
+      },
+      "QuestionSetList": {
+        "properties": {
+          "question_sets": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionSetSummary"
+            },
+            "type": "array",
+            "title": "Question Sets"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_sets"
+        ],
+        "title": "QuestionSetList",
+        "description": "Every question set under `suites/`."
+      },
+      "QuestionSetSummary": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "question_count": {
+            "type": "integer",
+            "title": "Question Count"
+          },
+          "suites": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Suites"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "question_count",
+          "suites",
+          "updated_at"
+        ],
+        "title": "QuestionSetSummary",
+        "description": "A question set in the list of question sets."
+      },
+      "QuestionSetVersion": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "first_seen": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Seen"
+          },
+          "question_count": {
+            "type": "integer",
+            "title": "Question Count"
+          },
+          "run_count": {
+            "type": "integer",
+            "title": "Run Count"
+          },
+          "current": {
+            "type": "boolean",
+            "title": "Current"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "version",
+          "first_seen",
+          "question_count",
+          "run_count",
+          "current"
+        ],
+        "title": "QuestionSetVersion",
+        "description": "One version of a question set."
+      },
+      "QuestionSetVersions": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionSetVersion"
+            },
+            "type": "array",
+            "title": "Versions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "versions"
+        ],
+        "title": "QuestionSetVersions",
+        "description": "A question set's versions, newest first."
+      },
+      "QuestionType": {
+        "type": "string",
+        "enum": [
+          "noul",
+          "choice",
+          "score"
+        ]
+      },
+      "ResultError": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ResultError",
+        "description": "Why a target returned no answers."
+      },
+      "ResultWarning": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/WarningCode"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ResultWarning",
+        "description": "Something about a result that a person should know."
+      },
+      "RunCase": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "case": {
+            "$ref": "#/components/schemas/Case"
+          },
+          "questions": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Question"
+            },
+            "type": "object",
+            "title": "Questions"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/CaseResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "case",
+          "questions",
+          "results"
+        ],
+        "title": "RunCase",
+        "description": "A case in a run, with every target's result."
+      },
+      "RunChanges": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "baseline": {
+            "type": "string",
+            "title": "Baseline"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/AnswerChange"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "summary": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeSummary"
+            },
+            "type": "array",
+            "title": "Summary"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "baseline",
+          "changes",
+          "summary"
+        ],
+        "title": "RunChanges",
+        "description": "The answers that changed between a run and a baseline run, for the targets both ran."
+      },
+      "RunCounts": {
+        "properties": {
+          "jobs": {
+            "type": "integer",
+            "title": "Jobs"
+          },
+          "done": {
+            "type": "integer",
+            "title": "Done"
+          },
+          "sent": {
+            "type": "integer",
+            "title": "Sent"
+          },
+          "cached": {
+            "type": "integer",
+            "title": "Cached"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/TargetCounts"
+            },
+            "type": "array",
+            "title": "Targets"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "jobs",
+          "done",
+          "sent",
+          "cached",
+          "failed",
+          "skipped",
+          "targets"
+        ],
+        "title": "RunCounts",
+        "description": "Job counts for a run. `done` is `sent + cached + failed + skipped`."
+      },
+      "RunCreate": {
+        "properties": {
+          "suite": {
+            "type": "string",
+            "title": "Suite"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Targets"
+          },
+          "question_set_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Set Version"
+          },
+          "repeats": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repeats"
+          },
+          "no_cache": {
+            "type": "boolean",
+            "title": "No Cache",
+            "default": false
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suite"
+        ],
+        "title": "RunCreate",
+        "description": "A run to start."
+      },
+      "RunCreated": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "RunCreated",
+        "description": "A run that has started."
+      },
+      "RunKind": {
+        "type": "string",
+        "enum": [
+          "suite",
+          "probe"
+        ]
+      },
+      "RunList": {
+        "properties": {
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummary"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "runs"
+        ],
+        "title": "RunList",
+        "description": "Runs, newest first."
+      },
+      "RunMetrics": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/TargetMetrics"
+            },
+            "type": "array",
+            "title": "Targets"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "questions",
+          "targets"
+        ],
+        "title": "RunMetrics",
+        "description": "Metrics for each target in a run."
+      },
+      "RunReport": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/RunSummary"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/RunMetrics"
+          },
+          "markdown": {
+            "type": "string",
+            "title": "Markdown"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "summary",
+          "metrics",
+          "markdown"
+        ],
+        "title": "RunReport",
+        "description": "The result of `jevtester report`."
+      },
+      "RunStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "finished",
+          "cancelled",
+          "failed"
+        ]
+      },
+      "RunSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/RunKind"
+          },
+          "suite": {
+            "type": "string",
+            "title": "Suite"
+          },
+          "question_set": {
+            "type": "string",
+            "title": "Question Set"
+          },
+          "question_set_version": {
+            "type": "string",
+            "title": "Question Set Version"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy"
+          },
+          "policy_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy Version"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Targets"
+          },
+          "repeats": {
+            "type": "integer",
+            "title": "Repeats"
+          },
+          "variants": {
+            "items": {
+              "$ref": "#/components/schemas/ProbeVariant"
+            },
+            "type": "array",
+            "title": "Variants"
+          },
+          "no_cache": {
+            "type": "boolean",
+            "title": "No Cache"
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "case_count": {
+            "type": "integer",
+            "title": "Case Count"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RunCounts"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApiErrorBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "suite",
+          "question_set",
+          "question_set_version",
+          "policy",
+          "policy_version",
+          "targets",
+          "repeats",
+          "variants",
+          "no_cache",
+          "baseline",
+          "status",
+          "case_count",
+          "counts",
+          "cost_usd",
+          "created_at",
+          "started_at",
+          "finished_at"
+        ],
+        "title": "RunSummary",
+        "description": "A run's settings, status, and counts."
+      },
+      "ScoreAnswer": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "score",
+            "title": "Type",
+            "default": "score"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "probabilities": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Probabilities"
+          },
+          "legend": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Legend"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "server_confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "score",
+          "level",
+          "probabilities",
+          "legend"
+        ],
+        "title": "ScoreAnswer",
+        "description": "The answer to a score question."
+      },
+      "ScoreQuestion": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "score",
+            "title": "Type",
+            "default": "score"
+          },
+          "instructions": {
+            "type": "string",
+            "title": "Instructions"
+          },
+          "criteria": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 2,
+            "title": "Criteria"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "instructions",
+          "criteria"
+        ],
+        "title": "ScoreQuestion",
+        "description": "A question that places the state on an ordered list of levels, lowest first."
+      },
+      "State": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object"
+          },
+          {
+            "items": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "array"
+          }
+        ]
+      },
+      "Suite": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "question_set": {
+            "type": "string",
+            "title": "Question Set"
+          },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/Case"
+            },
+            "type": "array",
+            "title": "Cases"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Targets"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "question_set"
+        ],
+        "title": "Suite",
+        "description": "Cases, the question set they're asked, an optional policy, and default targets."
+      },
+      "SuiteCheck": {
+        "properties": {
+          "suite": {
+            "type": "string",
+            "title": "Suite"
+          },
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorDetail"
+            },
+            "type": "array",
+            "title": "Errors"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/WordingCheck"
+            },
+            "type": "array",
+            "title": "Checks"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suite",
+          "valid",
+          "errors",
+          "checks"
+        ],
+        "title": "SuiteCheck",
+        "description": "The result of `jevtester suite check`."
+      },
+      "SuiteDetail": {
+        "properties": {
+          "suite": {
+            "$ref": "#/components/schemas/Suite"
+          },
+          "question_set": {
+            "$ref": "#/components/schemas/QuestionSet"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suite",
+          "question_set"
+        ],
+        "title": "SuiteDetail",
+        "description": "A suite with its cases and its question set."
+      },
+      "SuiteList": {
+        "properties": {
+          "suites": {
+            "items": {
+              "$ref": "#/components/schemas/SuiteSummary"
+            },
+            "type": "array",
+            "title": "Suites"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "suites"
+        ],
+        "title": "SuiteList",
+        "description": "Every suite under `suites/`."
+      },
+      "SuiteSummary": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "question_set": {
+            "type": "string",
+            "title": "Question Set"
+          },
+          "question_set_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Set Version"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Policy"
+          },
+          "targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Targets"
+          },
+          "case_count": {
+            "type": "integer",
+            "title": "Case Count"
+          },
+          "draft_count": {
+            "type": "integer",
+            "title": "Draft Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "question_set",
+          "question_set_version",
+          "policy",
+          "targets",
+          "case_count",
+          "draft_count"
+        ],
+        "title": "SuiteSummary",
+        "description": "A suite in the list of suites."
+      },
+      "SweepBody": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "threshold": {
+            "type": "string",
+            "title": "Threshold"
+          },
+          "start": {
+            "type": "number",
+            "title": "Start",
+            "default": 0.0
+          },
+          "stop": {
+            "type": "number",
+            "title": "Stop",
+            "default": 1.0
+          },
+          "step": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Step",
+            "default": 0.05
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "target",
+          "threshold"
+        ],
+        "title": "SweepBody",
+        "description": "A threshold sweep over a finished run's answers."
+      },
+      "SweepPoint": {
+        "properties": {
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "decided_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided Share"
+          },
+          "error_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Rate"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "value",
+          "decided_share",
+          "error_rate",
+          "cost"
+        ],
+        "title": "SweepPoint",
+        "description": "The policy's outcome at one threshold value."
+      },
+      "SweepResult": {
+        "properties": {
+          "policy": {
+            "type": "string",
+            "title": "Policy"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "threshold": {
+            "type": "string",
+            "title": "Threshold"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/SweepPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "policy",
+          "run_id",
+          "target",
+          "threshold",
+          "current",
+          "points"
+        ],
+        "title": "SweepResult",
+        "description": "The trade-off between cases decided and errors as a threshold moves."
+      },
+      "TargetCounts": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "jobs": {
+            "type": "integer",
+            "title": "Jobs"
+          },
+          "sent": {
+            "type": "integer",
+            "title": "Sent"
+          },
+          "cached": {
+            "type": "integer",
+            "title": "Cached"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "skip_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target",
+          "jobs",
+          "sent",
+          "cached",
+          "failed",
+          "skipped"
+        ],
+        "title": "TargetCounts",
+        "description": "One target's job counts in a run."
+      },
+      "TargetInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/ProviderName"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "local": {
+            "type": "boolean",
+            "title": "Local"
+          },
+          "status": {
+            "$ref": "#/components/schemas/TargetStatus"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "credential": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credential"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ResultWarning"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/Capabilities"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "label",
+          "provider",
+          "model",
+          "base_url",
+          "local",
+          "status",
+          "capabilities"
+        ],
+        "title": "TargetInfo",
+        "description": "A target, its capabilities, and its last health check."
+      },
+      "TargetList": {
+        "properties": {
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/TargetInfo"
+            },
+            "type": "array",
+            "title": "Targets"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "targets"
+        ],
+        "title": "TargetList",
+        "description": "Every configured target."
+      },
+      "TargetMetrics": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "results": {
+            "type": "integer",
+            "title": "Results"
+          },
+          "errors": {
+            "type": "integer",
+            "title": "Errors"
+          },
+          "skipped": {
+            "type": "integer",
+            "title": "Skipped"
+          },
+          "probabilities": {
+            "type": "boolean",
+            "title": "Probabilities"
+          },
+          "latency_p50_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency P50 Ms"
+          },
+          "latency_p95_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency P95 Ms"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "cost_per_1k_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per 1K Usd"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/QuestionMetrics"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "target",
+          "results",
+          "errors",
+          "skipped",
+          "probabilities",
+          "latency_p50_ms",
+          "latency_p95_ms",
+          "cost_usd",
+          "cost_per_1k_usd",
+          "questions",
+          "decision"
+        ],
+        "title": "TargetMetrics",
+        "description": "One target's metrics in a run."
+      },
+      "TargetResult": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "latency_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latency Ms"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Usd"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/ResultWarning"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResultError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "answers": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/jevtester__normalize__answers__Answer"
+            },
+            "type": "object",
+            "title": "Answers"
+          },
+          "request_body": {
+            "$ref": "#/components/schemas/JsonValue"
+          },
+          "raw": {
+            "$ref": "#/components/schemas/JsonValue"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target",
+          "ok"
+        ],
+        "title": "TargetResult",
+        "description": "The result of one request to one target."
+      },
+      "TargetStatus": {
+        "type": "string",
+        "enum": [
+          "ready",
+          "warning",
+          "down",
+          "unchecked"
+        ]
+      },
+      "Usage": {
+        "properties": {
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          }
+        },
+        "type": "object",
+        "title": "Usage",
+        "description": "Token counts the server reports. `None` where it reports none."
+      },
+      "WarningCode": {
+        "type": "string",
+        "enum": [
+          "missing_answer",
+          "invalid_answer",
+          "unknown_option",
+          "missing_probability",
+          "unexpected_answer",
+          "strict_parse_failed",
+          "truncation_on",
+          "state_may_truncate"
+        ]
+      },
+      "WordingCheck": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "code": {
+            "$ref": "#/components/schemas/WordingCheckCode"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "code",
+          "message"
+        ],
+        "title": "WordingCheck",
+        "description": "A finding from the question-wording checks."
+      },
+      "WordingCheckCode": {
+        "type": "string",
+        "enum": [
+          "multiple_dimensions",
+          "degree_words",
+          "bare_number_levels",
+          "no_abstention",
+          "duplicate_options"
+        ]
+      },
+      "jevtester__normalize__answers__Answer": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NoulAnswer"
+          },
+          {
+            "$ref": "#/components/schemas/ChoiceAnswer"
+          },
+          {
+            "$ref": "#/components/schemas/ScoreAnswer"
+          }
+        ],
+        "discriminator": {
+          "propertyName": "type",
+          "mapping": {
+            "choice": "#/components/schemas/ChoiceAnswer",
+            "noul": "#/components/schemas/NoulAnswer",
+            "score": "#/components/schemas/ScoreAnswer"
+          }
+        }
+      },
+      "jevtester__schemas__Answer": {
+        "anyOf": [
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "integer"
+          }
+        ]
+      },
+      "Answer": {
+        "discriminator": {
+          "mapping": {
+            "choice": "#/components/schemas/ChoiceAnswer",
+            "noul": "#/components/schemas/NoulAnswer",
+            "score": "#/components/schemas/ScoreAnswer"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/NoulAnswer"
+          },
+          {
+            "$ref": "#/components/schemas/ChoiceAnswer"
+          },
+          {
+            "$ref": "#/components/schemas/ScoreAnswer"
+          }
+        ]
+      },
+      "CancelledEvent": {
+        "additionalProperties": false,
+        "description": "The run was cancelled. The stream ends after this event.",
+        "properties": {
+          "type": {
+            "const": "cancelled",
+            "default": "cancelled",
+            "title": "Type",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RunCounts"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/RunSummary"
+          }
+        },
+        "required": [
+          "run_id",
+          "counts",
+          "summary"
+        ],
+        "title": "CancelledEvent",
+        "type": "object"
+      },
+      "FinishedEvent": {
+        "additionalProperties": false,
+        "description": "The run finished. The stream ends after this event.",
+        "properties": {
+          "type": {
+            "const": "finished",
+            "default": "finished",
+            "title": "Type",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RunCounts"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/RunSummary"
+          }
+        },
+        "required": [
+          "run_id",
+          "counts",
+          "summary"
+        ],
+        "title": "FinishedEvent",
+        "type": "object"
+      },
+      "ProgressEvent": {
+        "additionalProperties": false,
+        "description": "The run's status and counts. Sent first on every connection, and whenever the status changes.",
+        "properties": {
+          "type": {
+            "const": "progress",
+            "default": "progress",
+            "title": "Type",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RunStatus"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RunCounts"
+          }
+        },
+        "required": [
+          "run_id",
+          "status",
+          "counts"
+        ],
+        "title": "ProgressEvent",
+        "type": "object"
+      },
+      "ResultEvent": {
+        "additionalProperties": false,
+        "description": "One job finished.",
+        "properties": {
+          "type": {
+            "const": "result",
+            "default": "result",
+            "title": "Type",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "repeat": {
+            "title": "Repeat",
+            "type": "integer"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Variant"
+          },
+          "cached": {
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "result": {
+            "$ref": "#/components/schemas/TargetResult"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RunCounts"
+          }
+        },
+        "required": [
+          "run_id",
+          "case_id",
+          "target",
+          "repeat",
+          "cached",
+          "result",
+          "counts"
+        ],
+        "title": "ResultEvent",
+        "type": "object"
+      },
+      "RunErrorEvent": {
+        "additionalProperties": false,
+        "description": "The run failed. The stream ends after this event.",
+        "properties": {
+          "type": {
+            "const": "error",
+            "default": "error",
+            "title": "Type",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ApiErrorBody"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RunCounts"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/RunSummary"
+          }
+        },
+        "required": [
+          "run_id",
+          "error",
+          "counts",
+          "summary"
+        ],
+        "title": "RunErrorEvent",
+        "type": "object"
+      },
+      "TargetSkippedEvent": {
+        "additionalProperties": false,
+        "description": "A target's jobs were skipped, because it isn't ready or a preflight check failed for every case.",
+        "properties": {
+          "type": {
+            "const": "target_skipped",
+            "default": "target_skipped",
+            "title": "Type",
+            "type": "string"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/RunCounts"
+          }
+        },
+        "required": [
+          "run_id",
+          "target",
+          "reason",
+          "counts"
+        ],
+        "title": "TargetSkippedEvent",
+        "type": "object"
+      },
+      "RunEvent": {
+        "discriminator": {
+          "mapping": {
+            "cancelled": "#/components/schemas/CancelledEvent",
+            "error": "#/components/schemas/RunErrorEvent",
+            "finished": "#/components/schemas/FinishedEvent",
+            "progress": "#/components/schemas/ProgressEvent",
+            "result": "#/components/schemas/ResultEvent",
+            "target_skipped": "#/components/schemas/TargetSkippedEvent"
+          },
+          "propertyName": "type"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/ProgressEvent"
+          },
+          {
+            "$ref": "#/components/schemas/ResultEvent"
+          },
+          {
+            "$ref": "#/components/schemas/TargetSkippedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/FinishedEvent"
+          },
+          {
+            "$ref": "#/components/schemas/CancelledEvent"
+          },
+          {
+            "$ref": "#/components/schemas/RunErrorEvent"
+          }
+        ]
+      }
+    }
+  }
+}
