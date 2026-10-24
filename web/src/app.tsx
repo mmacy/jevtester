@@ -7,6 +7,7 @@ import { ServerUnreachable } from './components/states'
 import { TopBar } from './components/top-bar'
 import { useTargets } from './store/targets'
 import { CompareView } from './views/compare-view'
+import { ProbesView } from './views/probes-view'
 import { RunsView } from './views/runs-view'
 import { PoliciesView } from './views/policies-view'
 import { QuestionSetsView } from './views/question-sets-view'
@@ -20,6 +21,7 @@ const BUILT: Record<string, () => React.JSX.Element> = {
   '/runs': RunsView,
   '/question-sets': QuestionSetsView,
   '/policies': PoliciesView,
+  '/probes': ProbesView,
   '/targets': TargetsView,
 }
 
