@@ -281,9 +281,9 @@ def test_result_events_leave_out_the_bodies(tmp_path: Path) -> None:
 
 def test_an_interrupted_run_is_marked_failed(tmp_path: Path) -> None:
     store = RunStore(tmp_path / "runs.sqlite")
-    store.save_run(api_fixtures.PROBE_RUN)
+    store.save_run(api_fixtures.CANCELLED_RUN.model_copy(update={"status": "running", "finished_at": None}))
     service = Service(CONFIG, {}, files=SuiteFiles(tmp_path), store=store, clock=lambda: NOW)
-    summary = service.get_run(api_fixtures.PROBE_RUN.id)
+    summary = service.get_run(api_fixtures.CANCELLED_RUN.id)
     assert summary.status == "failed"
     assert summary.error is not None
     assert summary.error.message == INTERRUPTED
