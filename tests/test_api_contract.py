@@ -158,7 +158,9 @@ def test_mutating_routes_return_their_fixtures(client: TestClient) -> None:
     assert (added.status_code, added.json()) == (201, saved_fixture("post_suites_{name}_cases.json"))
     duplicate = client.post("/api/suites/parley/cases", json=case)
     assert duplicate.status_code == 409
-    assert ApiError.model_validate(duplicate.json()).error.code == "conflict"
+    error = ApiError.model_validate(duplicate.json()).error
+    assert (error.code, error.field) == ("conflict", "id")
+    assert [detail.field for detail in error.details] == ["id"]
     started = client.post("/api/runs", json={"suite": "parley"})
     assert (started.status_code, started.json()) == (202, saved_fixture("post_runs.json"))
 

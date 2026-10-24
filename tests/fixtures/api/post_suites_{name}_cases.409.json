@@ -6,7 +6,7 @@
     "details": [
       {
         "field": "id",
-        "message": "Taken"
+        "message": "The suite already has a case goblin-bribe"
       }
     ]
   }

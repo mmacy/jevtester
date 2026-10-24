@@ -923,7 +923,10 @@ def build(root: Path) -> dict[str, BaseModel | str]:
         "get_suites_{name}.404.json": error("not_found", "No suite named reaction"),
         "get_suites_{name}_check.json": SuiteCheck(suite="parley", valid=True, errors=[], checks=CHECKS),
         "post_suites_{name}_cases.409.json": error(
-            "conflict", "The suite already has a case goblin-bribe", "id", [ErrorDetail(field="id", message="Taken")]
+            "conflict",
+            "The suite already has a case goblin-bribe",
+            "id",
+            [ErrorDetail(field="id", message="The suite already has a case goblin-bribe")],
         ),
         "put_question-sets_{name}.422.json": error(
             "invalid_request",

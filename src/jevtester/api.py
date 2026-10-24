@@ -130,7 +130,8 @@ _SERVICE_STATUS: dict[ApiErrorCode, int] = {
 
 async def _handle_service_error(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ServiceError)
-    details = [ErrorDetail(field=exc.field, message=str(exc))] if exc.code == "invalid_request" else []
+    # An error about one field lists it in details too, so a form shows every such error the same way.
+    details = [ErrorDetail(field=exc.field, message=str(exc))] if exc.field is not None else []
     body = ApiErrorBody(code=exc.code, message=str(exc), field=exc.field, details=details)
     return _error_response(_SERVICE_STATUS[exc.code], body)
 
