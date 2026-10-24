@@ -151,7 +151,7 @@ UI text follows two rules from the user:
 
 ## Messages between the sessions
 
-Use the `ListAgents` tool to find the other session, and `SendMessage` to write to it. Send a message when:
+The sessions are named `JEVTESTER-BACKEND` and `JEVTESTER-FRONTEND`. Use the `ListAgents` tool to find the other session by that name, and `SendMessage` to write to it. The user starts the backend session first, so the frontend session may find the contract already on `main`. Send a message when:
 
 - The backend changes the contract or makes an endpoint live. Include the commit hash and the endpoints affected.
 - The frontend needs a field or an endpoint the contract doesn't have. Say which view needs it and why.
