@@ -50,6 +50,7 @@ truncate = false
 probabilities = true
 context_window = 16_384
 concurrency = 1
+concurrency_group = "mlx"
 
 [targets."clef-flash-8bit@mlx"]
 label = "Clef-flash 8-bit, MLX"
@@ -62,6 +63,7 @@ truncate = false
 probabilities = true
 context_window = 16_384
 concurrency = 1
+concurrency_group = "mlx"
 
 [targets."clef-8bit@mlx"]
 label = "Clef 8-bit, MLX"
@@ -74,6 +76,7 @@ truncate = false
 probabilities = true
 context_window = 16_384
 concurrency = 1
+concurrency_group = "mlx"
 
 [targets."clef-flash@workers-ai"]
 label = "Clef-flash, Workers AI"

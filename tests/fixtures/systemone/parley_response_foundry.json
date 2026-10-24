@@ -1,0 +1,37 @@
+{
+  "model": "microsoft-decision-1",
+  "answers": {
+    "bribe": {"noul": 0.9988304895647238, "type": "noul"},
+    "intent": {
+      "choice": "parley",
+      "confidence": 0.9994862537938526,
+      "probabilities": {
+        "evade": 0.0001794909415287629,
+        "fight": 6.603102726493733e-05,
+        "parley": 0.9996146903453894,
+        "wait": 0.00013978768581682428
+      },
+      "type": "choice"
+    },
+    "reaction": {
+      "confidence": 0.32291261419799433,
+      "legend": {
+        "0": "Attack at once",
+        "1": "Hostile, may attack",
+        "2": "Uncertain, hold and posture",
+        "3": "Indifferent, may let them pass",
+        "4": "Friendly, accept the offer"
+      },
+      "probabilities": {
+        "0": 0.03320131848053559,
+        "1": 0.1910603961750086,
+        "2": 0.4583300913583954,
+        "3": 0.16861020783103078,
+        "4": 0.14879798615502957
+      },
+      "score": 2.20874314700501,
+      "type": "score"
+    }
+  },
+  "usage": {"input_tokens": 185, "output_tokens": 3}
+}
