@@ -14,13 +14,19 @@ from jevtester.schemas import ApiError, RunEvent
 ROOT = Path(__file__).parent.parent
 FIXTURES = ROOT / "tests" / "fixtures" / "api"
 
-APP = create_app()
+APP = create_app(api_fixtures.fixture_service(), static=None)
 ROUTES = [route for route in router.routes if isinstance(route, APIRoute)]
+# Routes the service answers. The targets list has no health check yet, so it matches the unchecked variant.
+LIVE_FIXTURES = {"/api/targets": "get_targets.unchecked.json"}
 
 
 @pytest.fixture
 def client() -> TestClient:
-    return TestClient(APP)
+    return TestClient(create_app(api_fixtures.fixture_service(), static=None))
+
+
+def saved_fixture(name: str) -> object:
+    return json.loads((FIXTURES / name).read_text())
 
 
 def fixture_stem(method: str, path: str) -> str:
@@ -67,8 +73,24 @@ def test_get_routes_return_their_fixture(client: TestClient, route: APIRoute) ->
     params = {"question": "intent", "target": "decision-1@foundry", "baseline": "0141", "from": "a", "to": "b"}
     response = client.get(sample_path(route.path), params=params)
     assert response.status_code == 200
-    saved = json.loads((FIXTURES / f"{fixture_stem('GET', route.path)}.json").read_text())
-    assert response.json() == saved
+    name = LIVE_FIXTURES.get(route.path, f"{fixture_stem('GET', route.path)}.json")
+    assert response.json() == saved_fixture(name)
+
+
+def test_check_and_decide_return_their_fixtures(client: TestClient) -> None:
+    assert client.post("/api/targets/check").json() == saved_fixture("post_targets_check.json")
+    goblin = api_fixtures.CASES[0]
+    questions = {key: question.model_dump(mode="json") for key, question in api_fixtures.QUESTIONS.items()}
+    body = {"state": goblin.state, "questions": questions}
+    assert client.post("/api/decide", json=body).json() == saved_fixture("post_decide.json")
+
+
+def test_decide_rejects_an_unknown_target(client: TestClient) -> None:
+    body = {"state": "s", "questions": {"q": {"type": "noul", "instructions": "?"}}, "targets": ["clef@nowhere"]}
+    response = client.post("/api/decide", json=body)
+    assert response.status_code == 422
+    error = ApiError.model_validate(response.json()).error
+    assert (error.code, error.field, error.message) == ("invalid_request", "targets.0", "Unknown target: clef@nowhere")
 
 
 def test_decide_rejects_an_invalid_body_with_every_error(client: TestClient) -> None:
@@ -91,9 +113,11 @@ def test_decide_rejects_an_invalid_body_with_every_error(client: TestClient) -> 
 
 
 def test_decide_accepts_a_minimal_request(client: TestClient) -> None:
-    body = {"state": "Six goblins block the stairs.", "questions": {"q": {"type": "noul", "instructions": "Hostile?"}}}
+    state = api_fixtures.CASES[0].state
+    body = {"state": state, "questions": {"bribe": {"type": "noul", "instructions": "A bribe?"}}}
     response = client.post("/api/decide", json=body)
     assert response.status_code == 200
+    assert response.json()["results"][0]["target"] == "decision-1@foundry"
 
 
 def test_unknown_route_is_an_api_error(client: TestClient) -> None:

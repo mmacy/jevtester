@@ -7,6 +7,7 @@ The decide result for decision-1@foundry is the real Foundry response from the p
 be consistent: the same suite, cases, targets, and runs appear across files.
 """
 
+import asyncio
 import json
 import math
 from datetime import UTC, datetime, timedelta
@@ -15,17 +16,17 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from fakes import FakeProvider, Responder
 from jevtester.normalize import (
     Answer,
     ChoiceAnswer,
     NoulAnswer,
-    ResultError,
-    ResultWarning,
     ScoreAnswer,
     TargetResult,
     choice_confidence,
 )
-from jevtester.providers import RawResult, target_result
+from jevtester.preflight import target_warnings
+from jevtester.providers import DecisionProvider, Health, RawResult, target_result
 from jevtester.schemas import (
     AnswerChange,
     ApiError,
@@ -36,7 +37,7 @@ from jevtester.schemas import (
     CaseResult,
     ChangeSummary,
     ConfusionMatrix,
-    DecideResponse,
+    DecideBody,
     DecisionMetrics,
     ErrorDetail,
     FinishedEvent,
@@ -75,12 +76,11 @@ from jevtester.schemas import (
     SweepPoint,
     SweepResult,
     TargetCounts,
-    TargetInfo,
-    TargetList,
     TargetMetrics,
     TargetSkippedEvent,
     WordingCheck,
 )
+from jevtester.service import Service
 from jevtester.spec import (
     Case,
     ChoiceQuestion,
@@ -290,10 +290,10 @@ _reaction = QUESTIONS["reaction"]
 QUESTION_SET_LEVELS: list[str] = list(getattr(_reaction, "criteria", []))
 
 
-def make_result(target: str, case: Case, index: int) -> TargetResult:
+def make_raw(target: str, case: Case) -> RawResult:
+    index = CASES.index(case)
     request = DecisionRequest(state=case.state, questions=QUESTIONS)
-    model = CONFIG.targets[target].model
-    sent = request.system_one_body(model)
+    sent = request.system_one_body(CONFIG.targets[target].model)
     if target == FOUNDRY and case.id == "goblin-bribe":
         body = FOUNDRY_RESPONSE
         response_body: Any = body
@@ -302,27 +302,65 @@ def make_result(target: str, case: Case, index: int) -> TargetResult:
         output = 0 if target == WORKERS else 3
         body["usage"] = {"input_tokens": INPUT_TOKENS[index], "output_tokens": output}
         response_body = {"result": body, "success": True, "errors": [], "messages": []} if target == WORKERS else body
-    raw = RawResult(
+    return RawResult(
         request_body=sent,
         status=200,
         response_body=response_body,
         system_one=body,
         latency_ms=LATENCY[target][index],
     )
-    result = target_result(target, request, raw, CONFIG.targets[target].capabilities)
-    if target == WORKERS:
-        result.warnings.append(
-            ResultWarning(code="state_may_truncate", message="Workers AI cuts the state to fit 24,576 tokens")
-        )
+
+
+def make_result(target: str, case: Case) -> TargetResult:
+    """A result as the service builds it, with the target's warnings first."""
+    request = DecisionRequest(state=case.state, questions=QUESTIONS)
+    config_target = CONFIG.targets[target]
+    result = target_result(target, request, make_raw(target, case), config_target.capabilities)
+    result.warnings = [*target_warnings(config_target), *result.warnings]
     return result
 
 
-def not_ready_result(target: str) -> TargetResult:
-    return TargetResult(
-        target=target,
-        ok=False,
-        error=ResultError(code="not_ready", message=OLLAMA_REASON),
-    )
+def respond_for(target: str) -> Responder:
+    def respond(request: DecisionRequest, body: dict[str, Any]) -> RawResult:
+        case = next(case for case in CASES if case.state == request.state)
+        return make_raw(target, case)
+
+    return respond
+
+
+HEALTH = {
+    FOUNDRY: Health(credential="Azure CLI, refreshes in 41 min"),
+    OLLAMA: Health(reason=OLLAMA_REASON, detail="Run ollama pull clef-flash (11-12 GB)"),
+}
+WORKERS_HEALTH = Health(credential="Wrangler sign-in, refreshes in 52 min")
+MLX_HEALTH = Health(reason="The MLX server isn't running", detail="The model download isn't finished")
+
+
+def fixture_service() -> Service:
+    """A service over the real config, with fake providers that answer from the fixtures."""
+    providers: dict[str, DecisionProvider] = {}
+    for target in CONFIG.targets.values():
+        health = WORKERS_HEALTH if target.provider == "workers-ai" else HEALTH.get(target.name, MLX_HEALTH)
+        respond = respond_for(target.name) if target.name in PLANS else None
+        providers[target.name] = FakeProvider(target, respond, health)
+    return Service(CONFIG, providers, clock=lambda: at(3))
+
+
+def service_fixtures() -> dict[str, BaseModel]:
+    """The fixtures for the live routes, made by the service itself."""
+    service = fixture_service()
+    unchecked = service.list_targets()
+    checked = asyncio.run(service.check_targets())
+    goblin = CASES[0]
+    single = DecideBody(state=goblin.state, questions=QUESTIONS, targets=[FOUNDRY])
+    partial = DecideBody(state=goblin.state, questions=QUESTIONS, targets=[FOUNDRY, WORKERS, OLLAMA])
+    return {
+        "get_targets.json": checked,
+        "get_targets.unchecked.json": unchecked,
+        "post_targets_check.json": checked,
+        "post_decide.json": asyncio.run(service.decide(single)),
+        "post_decide.partial.json": asyncio.run(service.decide(partial)),
+    }
 
 
 def slim(result: TargetResult) -> TargetResult:
@@ -330,9 +368,7 @@ def slim(result: TargetResult) -> TargetResult:
 
 
 RESULTS: dict[tuple[str, str], TargetResult] = {
-    (target, case.id): make_result(target, case, index)
-    for target in (FOUNDRY, WORKERS)
-    for index, case in enumerate(CASES)
+    (target, case.id): make_result(target, case) for target in (FOUNDRY, WORKERS) for case in CASES
 }
 CACHED = {(WORKERS, "goblin-bribe"), (WORKERS, "orc-charge")}
 
@@ -371,45 +407,6 @@ def is_correct(case: Case, question_id: str, answer: Answer | None) -> bool | No
 
 
 # Targets
-
-
-def target_infos(checked: bool) -> TargetList:
-    infos: list[TargetInfo] = []
-    for target in CONFIG.targets.values():
-        local = target.provider == "systemone" and target.base_url is not None and "127.0.0.1" in target.base_url
-        local = local or (target.base_url or "").startswith("http://localhost")
-        info = TargetInfo(
-            name=target.name,
-            label=target.label,
-            provider=target.provider,
-            model=target.model,
-            base_url=target.base_url,
-            local=local,
-            status="unchecked",
-            capabilities=target.capabilities,
-        )
-        if target.capabilities.truncates_state:
-            info.warnings.append(
-                ResultWarning(code="state_may_truncate", message="Workers AI cuts the state to fit its context window")
-            )
-        if checked:
-            info.checked_at = at(2)
-            if target.name == FOUNDRY:
-                info.status = "ready"
-                info.credential = "Azure CLI, refreshes in 41 min"
-            elif target.provider == "workers-ai":
-                info.status = "warning"
-                info.credential = "Wrangler sign-in, refreshes in 52 min"
-            elif target.name == OLLAMA:
-                info.status = "down"
-                info.reason = OLLAMA_REASON
-                info.detail = "Run ollama pull clef-flash (11-12 GB)"
-            else:
-                info.status = "down"
-                info.reason = "The MLX server isn't running"
-                info.detail = "The model download isn't finished"
-        infos.append(info)
-    return TargetList(targets=infos, checked_at=at(2) if checked else None)
 
 
 # Runs
@@ -965,14 +962,8 @@ def error(code: Any, message: str, field: str | None = None, details: list[Error
     return ApiError(error=ApiErrorBody(code=code, message=message, field=field, details=details or []))
 
 
-def decide_response(results: list[TargetResult]) -> DecideResponse:
-    request = DecisionRequest(state=CASES[0].state, questions=QUESTIONS)
-    return DecideResponse(request=request, question_set_version=QUESTION_SET.version, asked_at=at(3), results=results)
-
-
 def build() -> dict[str, BaseModel | str]:
     """Every fixture, keyed by file name."""
-    goblin = CASES[0]
     metrics = run_metrics()
     detail = QuestionSetDetail(question_set=QUESTION_SET, suites=["parley"], checks=CHECKS)
     suite_summary = SuiteSummary(
@@ -995,13 +986,7 @@ def build() -> dict[str, BaseModel | str]:
         tags=["bribe"],
     )
     return {
-        "get_targets.json": target_infos(checked=True),
-        "get_targets.unchecked.json": target_infos(checked=False),
-        "post_targets_check.json": target_infos(checked=True),
-        "post_decide.json": decide_response([RESULTS[FOUNDRY, goblin.id]]),
-        "post_decide.partial.json": decide_response(
-            [RESULTS[FOUNDRY, goblin.id], RESULTS[WORKERS, goblin.id], not_ready_result(OLLAMA)]
-        ),
+        **service_fixtures(),
         "post_decide.422.json": error(
             "invalid_request",
             "Unknown target: clef@nowhere",

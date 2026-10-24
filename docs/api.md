@@ -10,7 +10,7 @@ Every route returns a fixture from [`tests/fixtures/api/`](../tests/fixtures/api
 
 | Routes | Live in |
 |---|---|
-| `decide`, `targets` | Steps 3 and 4 |
+| `decide`, `targets` | Live for `decision-1@foundry` and the System One targets. Workers AI comes in step 4. |
 | `suites`, `question-sets`, `runs`, run events, `cancel` | Step 5 |
 | `metrics`, `confusion`, `calibration`, `changes`, `cases`, `report` | Step 6 |
 | `policies`, `sweep` | Step 7 |
@@ -106,6 +106,8 @@ A target's `warnings` come from its config, not from the check:
 
 - `state_may_truncate` when `capabilities.truncates_state` is true, as on Workers AI.
 - `truncation_on` when the target's config sets `truncate = true`, so the MLX server cuts the input at its context window without an error. The MLX targets in `jevtester.toml` set it to `false`.
+
+`default_targets` lists the targets a request goes to when it names none, in the config's order.
 
 `local` is true for targets on this machine (Ollama and MLX), which cost nothing. `capabilities` has every field for every target, and `null` means the limit is unknown, so preflight doesn't check it.
 
