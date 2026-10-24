@@ -32,9 +32,14 @@ export function TargetPicker({ targets, selected, onChange }: TargetPickerProps)
               checked={!down && selected.includes(target.name)}
               onChange={(e) => toggle(target.name, e.target.checked)}
             />
-            {target.name}
+            <span className="shrink-0 whitespace-nowrap">{target.name}</span>
             {down ? (
-              <small className="ml-auto truncate text-xs text-err">{target.reason}</small>
+              <small
+                className="ml-auto min-w-0 truncate text-xs text-err"
+                title={target.reason ?? undefined}
+              >
+                {target.reason}
+              </small>
             ) : null}
           </label>
         )
