@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test'
 
+import { fixture } from './fixtures.ts'
+
+const created = fixture<{ id: string }>('post_runs.json')
+const suite = fixture<{ suite: { policy: string | null } }>('get_suites_{name}.json').suite
+
 test('the suite list links to each suite', async ({ page }) => {
   await page.goto('/suites')
   const row = page.getByRole('row', { name: /parley/ })
@@ -11,9 +16,8 @@ test('the suite list links to each suite', async ({ page }) => {
 
 test('a suite shows its cases and their expected answers', async ({ page }) => {
   await page.goto('/suites/parley')
-  await expect(page.getByRole('heading', { name: /^parley/ })).toContainText(
-    '4 cases, policy parley',
-  )
+  const heading = page.getByRole('heading', { name: /^parley/ })
+  await expect(heading).toContainText(suite.policy ? `4 cases, policy ${suite.policy}` : /4 cases$/)
   const bribe = page.getByRole('row', { name: /^goblin-bribe/ })
   await expect(bribe).toContainText('parley')
   await expect(bribe).toContainText('Yes')
@@ -55,7 +59,7 @@ test('a run starts with the chosen targets and version', async ({ page }) => {
     repeats: 3,
     no_cache: true,
   })
-  await expect(page).toHaveURL(/\/runs\/0144$/)
+  await expect(page).toHaveURL(new RegExp(`/runs/${created.id}$`))
 })
 
 test('a missing suite shows the error', async ({ page }) => {
