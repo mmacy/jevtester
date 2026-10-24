@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { api, ApiError } from '../api/client'
@@ -13,6 +13,7 @@ import { buildCase, nextCaseId, parseTags, unmatchedQuestions } from '../lib/cas
 import type { Asked } from '../store/compare'
 import { ApiErrorState } from './api-error'
 import { Button } from './button'
+import { Dialog } from './dialog'
 import { FieldErrors, FieldLabel, TextInput } from './fields'
 import { EmptyState, Spinner } from './states'
 
@@ -102,7 +103,6 @@ function ExpectedField({
 
 /** Saves the asked state as a case in a suite, with its expected answers. */
 export function SaveCaseDialog({ asked, expected, tolerance, onClose }: SaveCaseDialogProps) {
-  const titleId = useId()
   const [suites, setSuites] = useState<SuiteSummary[] | null>(null)
   const [suiteName, setSuiteName] = useState('')
   const [loaded, setLoaded] = useState<SuiteDetail | null>(null)
@@ -144,14 +144,6 @@ export function SaveCaseDialog({ asked, expected, tolerance, onClose }: SaveCase
     }
   }, [suiteName])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   const detail = loaded?.suite.name === suiteName ? loaded : null
   const skip = detail ? unmatchedQuestions(asked.request, detail.question_set) : []
   const idErrors =
@@ -182,120 +174,107 @@ export function SaveCaseDialog({ asked, expected, tolerance, onClose }: SaveCase
   }
 
   return (
-    <div className="fixed inset-0 z-20 flex items-start justify-center overflow-y-auto bg-black/50 p-6">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="mt-16 w-full max-w-[560px] rounded border border-line bg-surface p-5"
-      >
-        <h2
-          id={titleId}
-          className="m-0 mb-3.5 font-display text-[22px] font-bold [font-stretch:75%]"
-        >
-          Save as case
-        </h2>
-        {saved ? (
+    <Dialog title="Save as case" onClose={onClose}>
+      {saved ? (
+        <div>
+          <p className="m-0 text-ok">
+            Saved {saved.case.id} to {saved.suite}, {saved.case_count} cases
+          </p>
+          <div className="mt-4 flex gap-2.5">
+            <Link to={`/suites/${encodeURIComponent(saved.suite)}`} className="no-underline">
+              <Button primary>Open suite</Button>
+            </Link>
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      ) : suites && suites.length === 0 ? (
+        <>
+          <EmptyState label="No suites" />
+          <div className="mt-4">
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        </>
+      ) : (
+        <div className="space-y-3">
+          {otherError ? <ApiErrorState error={otherError} /> : null}
           <div>
-            <p className="m-0 text-ok">
-              Saved {saved.case.id} to {saved.suite}, {saved.case_count} cases
-            </p>
-            <div className="mt-4 flex gap-2.5">
-              <Link to={`/suites/${encodeURIComponent(saved.suite)}`} className="no-underline">
-                <Button primary>Open suite</Button>
-              </Link>
-              <Button onClick={onClose}>Close</Button>
-            </div>
-          </div>
-        ) : suites && suites.length === 0 ? (
-          <>
-            <EmptyState label="No suites" />
-            <div className="mt-4">
-              <Button onClick={onClose}>Close</Button>
-            </div>
-          </>
-        ) : (
-          <div className="space-y-3">
-            {otherError ? <ApiErrorState error={otherError} /> : null}
-            <div>
-              <FieldLabel htmlFor="case-suite">Suite</FieldLabel>
-              <select
-                id="case-suite"
-                className={SELECT}
-                value={suiteName}
-                onChange={(e) => setSuiteName(e.target.value)}
-                disabled={!suites}
-              >
-                {(suites ?? []).map((s) => (
-                  <option key={s.name} value={s.name}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <FieldLabel htmlFor="case-id">Case id</FieldLabel>
-              <TextInput
-                id="case-id"
-                autoFocus
-                className="font-mono text-sm"
-                value={caseId}
-                onChange={(e) => {
-                  idEdited.current = true
-                  setCaseId(e.target.value)
-                }}
-              />
-              <FieldErrors errors={idErrors} />
-            </div>
-            <div>
-              <FieldLabel htmlFor="case-tags">Tags</FieldLabel>
-              <TextInput
-                id="case-tags"
-                value={tagsText}
-                onChange={(e) => setTagsText(e.target.value)}
-              />
-            </div>
-            <fieldset className="m-0 space-y-1.5 border-0 p-0">
-              <legend className="mb-1 text-sm text-dim">Expected answers</legend>
-              {Object.entries(asked.request.questions).map(([id, question]) => (
-                <ExpectedField
-                  key={id}
-                  id={id}
-                  question={question}
-                  value={answers[id]}
-                  tolerance={slack[id] ?? 0}
-                  disabled={skip.includes(id)}
-                  onChange={(value) =>
-                    setAnswers((current) => {
-                      const next = { ...current }
-                      if (value === null) delete next[id]
-                      else next[id] = value
-                      return next
-                    })
-                  }
-                  onTolerance={(t) => setSlack((current) => ({ ...current, [id]: t }))}
-                />
+            <FieldLabel htmlFor="case-suite">Suite</FieldLabel>
+            <select
+              id="case-suite"
+              className={SELECT}
+              value={suiteName}
+              onChange={(e) => setSuiteName(e.target.value)}
+              disabled={!suites}
+            >
+              {(suites ?? []).map((s) => (
+                <option key={s.name} value={s.name}>
+                  {s.name}
+                </option>
               ))}
-              {skip.length > 0 && detail ? (
-                <p className="m-0 text-sm text-warn">
-                  Not in {detail.question_set.name}: {skip.join(', ')}
-                </p>
-              ) : null}
-            </fieldset>
-            <div className="flex items-center gap-2.5 pt-1">
-              <Button
-                primary
-                onClick={() => void save()}
-                disabled={!detail || saving || caseId.trim() === ''}
-              >
-                Save case
-              </Button>
-              <Button onClick={onClose}>Cancel</Button>
-              {!detail || saving ? <Spinner label={saving ? 'Saving' : 'Loading suite'} /> : null}
-            </div>
+            </select>
           </div>
-        )}
-      </div>
-    </div>
+          <div>
+            <FieldLabel htmlFor="case-id">Case id</FieldLabel>
+            <TextInput
+              id="case-id"
+              autoFocus
+              className="font-mono text-sm"
+              value={caseId}
+              onChange={(e) => {
+                idEdited.current = true
+                setCaseId(e.target.value)
+              }}
+            />
+            <FieldErrors errors={idErrors} />
+          </div>
+          <div>
+            <FieldLabel htmlFor="case-tags">Tags</FieldLabel>
+            <TextInput
+              id="case-tags"
+              value={tagsText}
+              onChange={(e) => setTagsText(e.target.value)}
+            />
+          </div>
+          <fieldset className="m-0 space-y-1.5 border-0 p-0">
+            <legend className="mb-1 text-sm text-dim">Expected answers</legend>
+            {Object.entries(asked.request.questions).map(([id, question]) => (
+              <ExpectedField
+                key={id}
+                id={id}
+                question={question}
+                value={answers[id]}
+                tolerance={slack[id] ?? 0}
+                disabled={skip.includes(id)}
+                onChange={(value) =>
+                  setAnswers((current) => {
+                    const next = { ...current }
+                    if (value === null) delete next[id]
+                    else next[id] = value
+                    return next
+                  })
+                }
+                onTolerance={(t) => setSlack((current) => ({ ...current, [id]: t }))}
+              />
+            ))}
+            {skip.length > 0 && detail ? (
+              <p className="m-0 text-sm text-warn">
+                Not in {detail.question_set.name}: {skip.join(', ')}
+              </p>
+            ) : null}
+          </fieldset>
+          <div className="flex items-center gap-2.5 pt-1">
+            <Button
+              primary
+              onClick={() => void save()}
+              disabled={!detail || saving || caseId.trim() === ''}
+            >
+              Save case
+            </Button>
+            <Button onClick={onClose}>Cancel</Button>
+            {!detail || saving ? <Spinner label={saving ? 'Saving' : 'Loading suite'} /> : null}
+          </div>
+        </div>
+      )}
+    </Dialog>
   )
 }

@@ -8,6 +8,9 @@ import type {
   DecideBody,
   DecideResponse,
   ErrorDetail,
+  QuestionSetVersions,
+  RunCreate,
+  RunCreated,
   SuiteDetail,
   SuiteList,
   TargetList,
@@ -105,4 +108,10 @@ export const api = {
   getSuite: (name: string) => request<SuiteDetail>('GET', `/suites/${encodeURIComponent(name)}`),
   addCase: (suite: string, body: CaseInput) =>
     request<CaseCreated>('POST', `/suites/${encodeURIComponent(suite)}/cases`, body),
+  listVersions: (questionSet: string) =>
+    request<QuestionSetVersions>(
+      'GET',
+      `/question-sets/${encodeURIComponent(questionSet)}/versions`,
+    ),
+  startRun: (body: RunCreate) => request<RunCreated>('POST', '/runs', body),
 }

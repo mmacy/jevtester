@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatBytes, formatCount, formatUsd } from './format'
+import { formatBytes, formatCount, formatUsd, shortVersion, stateSummary } from './format'
 
 describe('formatBytes', () => {
   it('uses the largest whole binary unit', () => {
@@ -25,5 +25,21 @@ describe('formatUsd', () => {
     expect(formatUsd(0.0000074)).toBe('$0.0000074')
     expect(formatUsd(0.00000703)).toBe('$0.0000070')
     expect(formatUsd(1.5)).toBe('$1.50')
+  })
+})
+
+describe('shortVersion', () => {
+  it('keeps 12 characters', () => {
+    expect(shortVersion('95e251b70a75ea722a0c62ce')).toBe('95e251b70a75')
+  })
+})
+
+describe('stateSummary', () => {
+  it('joins the text in a JSON state', () => {
+    expect(stateSummary('Goblins')).toBe('Goblins')
+    expect(stateSummary({ party: 'Three', monsters: { kind: 'Goblins', count: 6 } })).toBe(
+      'Three · Goblins · 6',
+    )
+    expect(stateSummary(['a', null, 'b'])).toBe('a · b')
   })
 })
