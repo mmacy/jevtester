@@ -23,6 +23,9 @@ from jevtester.normalize import ChoiceAnswer, NoulAnswer, ScoreAnswer, TargetRes
 from jevtester.schemas import (
     DecideBody,
     DecideResponse,
+    ProbeCreate,
+    ProbeReport,
+    ProbeVariant,
     ResultEvent,
     RunComparison,
     RunCreate,
@@ -105,6 +108,25 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--baseline", help="A run to compare with.")
     run.add_argument("--no-cache", action="store_true", help="Send every request, even when a cached result exists.")
     add_format(run)
+
+    probe = commands.add_parser(
+        "probe",
+        help="Run probes on a suite and report how often answers change.",
+        description=(
+            "Run each case as written and as each probe changes it: shuffled choice options, reversed JSON keys, "
+            "bare-number score levels, and a state padded toward the target's context window."
+        ),
+    )
+    probe.add_argument("suite", help="The suite's name, or the path of its YAML file.")
+    probe.add_argument(
+        "--variant",
+        action="append",
+        choices=["option_order", "key_order", "bare_levels", "pad_state"],
+        help="A probe to run. Repeat. Defaults to option_order, key_order, and bare_levels.",
+    )
+    probe.add_argument("--target", action="append", default=[], help="A target name. Repeat. Defaults to the suite's.")
+    probe.add_argument("--no-cache", action="store_true", help="Send every request, even when a cached result exists.")
+    add_format(probe)
 
     compare = commands.add_parser(
         "compare",
@@ -365,6 +387,58 @@ def _run(args: argparse.Namespace) -> int:
     return EXIT_ALL_FAILED if counts.jobs and counts.sent + counts.cached == 0 else EXIT_OK
 
 
+DEFAULT_PROBES: list[ProbeVariant] = ["option_order", "key_order", "bare_levels"]
+"""The probes `jevtester probe` runs without `--variant`. `pad_state` sends large requests, so it's opt-in."""
+
+
+def _print_probes(report: ProbeReport) -> None:
+    print(f"Run {report.run_id}")
+    for row in report.summary:
+        rate = f"{row.change_rate:.3f}" if row.change_rate is not None else "n/a"
+        print(f"  {row.target}  {row.variant}  change rate {rate} over {row.cases} cases")
+    for cell in report.cells:
+        if cell.changed:
+            print(f"  changed  {cell.case_id}  {cell.target}  {cell.variant}: {cell.changed} of {cell.instances}")
+
+
+async def _probe_and_follow(service: Service, body: ProbeCreate) -> ProbeReport:
+    created = await service.start_probe(body)
+    print(f"Run {created.id} started", file=sys.stderr)
+    async for event in service.run_events(created.id):
+        if isinstance(event, ResultEvent):
+            state = "cached" if event.cached else "ok" if event.result.ok else "failed"
+            variant = event.variant or "original"
+            print(
+                f"{event.counts.done}/{event.counts.jobs}  {event.case_id}  {event.target}  {variant}  {state}",
+                file=sys.stderr,
+            )
+        elif isinstance(event, TargetSkippedEvent):
+            print(f"Skipped {event.target}: {event.reason}", file=sys.stderr)
+    await service.wait_run(created.id)
+    return service.run_probes(created.id)
+
+
+def _probe(args: argparse.Namespace) -> int:
+    body = ProbeCreate.model_validate(
+        {
+            "suite": _suite_name(args.suite),
+            "targets": list(args.target),
+            "variants": args.variant or DEFAULT_PROBES,
+            "no_cache": args.no_cache,
+        }
+    )
+    service = _load_service(args.config)
+    try:
+        report = asyncio.run(_probe_and_follow(service, body))
+    except ServiceError as error:
+        _fail(str(error))
+    if args.format == "json":
+        _print_json(report)
+    else:
+        _print_probes(report)
+    return EXIT_OK
+
+
 def _print_comparison(comparison: RunComparison) -> None:
     changes = comparison.changes
     print(f"Run {changes.run_id} against baseline {changes.baseline}")
@@ -488,6 +562,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _targets(args)
         case "run":
             return _run(args)
+        case "probe":
+            return _probe(args)
         case "compare":
             return _compare(args)
         case "report":

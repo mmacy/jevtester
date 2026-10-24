@@ -14,7 +14,7 @@ Every route returns a fixture from [`tests/fixtures/api/`](../tests/fixtures/api
 | `suites`, `question-sets`, `runs`, run events, `cancel` | Live. Wording checks (`checks`) are empty until step 6. |
 | `metrics`, `confusion`, `calibration`, `changes`, `compare`, `cases`, `report`, suite `check` | Live |
 | `policies`, `sweep` | Live |
-| `probes` | Step 8 |
+| `probes` | Live |
 
 ## Conventions
 
@@ -247,6 +247,19 @@ A run keeps its suite's policy as it was when the run started, and `policy_versi
 `PUT /api/policies/{name}` saves the YAML text as sent, comments included, after it validates. An invalid policy is a 422 with every error in `details`, and nothing is saved. `POST /api/policies/{name}/sweep` uses the policy as it is now, against a finished run's results, so a threshold can be tuned without running the suite again. Each swept value replaces the threshold for the sweep's target, whether the policy sets a shared value or a `per_target` one, and `current` is the target's value now. A sweep has at most 1,000 points.
 
 A YAML syntax error is a 422 whose `details` entry has the `line` it's on, from 1.
+
+## Probes
+
+A probe changes something about a case that shouldn't change the answers, and counts how often they change anyway. `POST /api/probes` starts a run with `kind: "probe"`: each case as written, plus each probe's variants of it. Its events stream like any run's, and a `result` event's `variant` names the variant, like `option_order:2`. `GET /api/runs/{id}/probes` reports it.
+
+| Probe | Variants per case | Applies when |
+|---|---|---|
+| `option_order` | 3, each a different order of every choice question's options | The questions include a choice |
+| `key_order` | 1, with every JSON object's keys reversed | The state has a JSON object with more than one key |
+| `bare_levels` | 1, with each score level's description replaced by its number | The questions include a score |
+| `pad_state` | 1, with neutral text added until the request fills about 90% of the target's context window | The target's context window is known |
+
+An instance changed when any answer's value (as Evaluation describes) differs from the original's. A failed request isn't counted. The metrics of a probe run count only the original cases. `jevtester probe` runs `option_order`, `key_order`, and `bare_levels` unless `--variant` says otherwise, since `pad_state` sends large requests. Paraphrasing needs Claude and isn't built.
 
 ## Fixtures
 
