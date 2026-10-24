@@ -6,40 +6,57 @@ and the API's responses are the same.
 
 import asyncio
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
 from jevtester.credentials import AzureCliToken, WranglerToken
-from jevtester.normalize import ResultError, ResultWarning, TargetResult
-from jevtester.preflight import preflight, target_warnings
-from jevtester.providers import DecisionProvider, Health, RawResult, target_result
+from jevtester.diff import diff_question_sets
+from jevtester.errors import ConflictError, InvalidRequestError, NotFoundError
+from jevtester.normalize import ResultError, TargetResult
+from jevtester.preflight import target_warnings
+from jevtester.providers import DecisionProvider, Health
 from jevtester.providers.systemone import SystemOneProvider
 from jevtester.providers.workers_ai import WorkersAIProvider
-from jevtester.schemas import DecideBody, DecideResponse, TargetInfo, TargetList, TargetStatus
-from jevtester.spec import Config, DecisionRequest, QuestionSet, Target, load_config
+from jevtester.runner.jobs import ask, not_sent
+from jevtester.runner.run import Job, RunHandle, Runner, final_event
+from jevtester.schemas import (
+    ApiErrorBody,
+    CaseCreated,
+    DecideBody,
+    DecideResponse,
+    ProgressEvent,
+    QuestionSetBody,
+    QuestionSetDetail,
+    QuestionSetDiff,
+    QuestionSetList,
+    QuestionSetSummary,
+    QuestionSetVersion,
+    QuestionSetVersions,
+    RunCounts,
+    RunCreate,
+    RunCreated,
+    RunEvent,
+    RunList,
+    RunSummary,
+    SuiteDetail,
+    SuiteList,
+    SuiteSummary,
+    TargetCounts,
+    TargetInfo,
+    TargetList,
+    TargetStatus,
+)
+from jevtester.spec import Case, Config, DecisionRequest, QuestionSet, Suite, Target, load_config
+from jevtester.store.files import SuiteFiles, check_name
+from jevtester.store.runs import RunStore
 
 CONFIG_ENV = "JEVTESTER_CONFIG"
 """An environment variable naming the config file. Without it, jevtester reads `jevtester.toml` here."""
 HEALTH_CHECK_TIMEOUT_S = 15.0
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
-TIMEOUT_GRACE_S = 5.0
-"""Extra seconds before jevtester gives up on a provider that doesn't honor its own timeout."""
-
-
-class UnknownTargetError(ValueError):
-    """A request names a target the config doesn't have, or names one twice."""
-
-    def __init__(self, message: str, index: int) -> None:
-        """Describe the target name that can't be used.
-
-        Args:
-            message: What's wrong with the name.
-            index: Its position in the list of target names.
-        """
-        super().__init__(message)
-        self.field = f"targets.{index}"
+INTERRUPTED = "The server stopped during the run"
 
 
 def config_path() -> Path:
@@ -95,6 +112,8 @@ class Service:
         config: Config,
         providers: Mapping[str, DecisionProvider],
         *,
+        files: SuiteFiles | None = None,
+        store: RunStore | None = None,
         clock: Callable[[], datetime] = lambda: datetime.now(UTC),
     ) -> None:
         """Serve one config.
@@ -102,13 +121,20 @@ class Service:
         Args:
             config: The targets and defaults.
             providers: A provider for each target that has one, keyed by target name.
+            files: The suites and question sets. `None` reads `suites/` in the working directory.
+            store: The run database. `None` keeps runs in memory.
             clock: The current time, for tests.
         """
         self.config = config
+        self.files = files or SuiteFiles(Path(config.paths.suites))
+        self.store = store or RunStore(Path(":memory:"))
         self._providers = dict(providers)
         self._clock = clock
         self._health: dict[str, tuple[Health, datetime]] = {}
         self._checked_at: datetime | None = None
+        self._runner = Runner(self.store, clock)
+        self._handles: dict[str, RunHandle] = {}
+        self._fail_interrupted_runs()
 
     @classmethod
     def load(cls, path: Path | None = None) -> Service:
@@ -120,8 +146,12 @@ class Service:
         Returns:
             The service.
         """
-        config = load_config(path or config_path())
-        return cls(config, build_providers(config))
+        path = path or config_path()
+        config = load_config(path)
+        root = path.parent
+        files = SuiteFiles(root / config.paths.suites)
+        store = RunStore(root / config.paths.store)
+        return cls(config, build_providers(config), files=files, store=store)
 
     # Targets
 
@@ -208,7 +238,7 @@ class Service:
             The targets, in the order named.
 
         Raises:
-            UnknownTargetError: A name isn't in the config, or is given twice.
+            InvalidRequestError: A name isn't in the config, or is given twice.
         """
         if names == ["all"]:
             return list(self.config.targets.values())
@@ -217,43 +247,25 @@ class Service:
         for index, name in enumerate(chosen):
             target = self.config.targets.get(name)
             if target is None:
-                raise UnknownTargetError(f"Unknown target: {name}", index)
+                raise InvalidRequestError(f"Unknown target: {name}", field=f"targets.{index}")
             if target in targets:
-                raise UnknownTargetError(f"{name} is named twice", index)
+                raise InvalidRequestError(f"{name} is named twice", field=f"targets.{index}")
             targets.append(target)
         return targets
 
     # Decide
 
-    async def _decide_one(self, target: Target, request: DecisionRequest, timeout: float) -> TargetResult:
-        def failed(error: ResultError, warnings: list[ResultWarning] | None = None) -> TargetResult:
-            # Nothing was sent, so the result has no request body.
-            return TargetResult(target=target.name, ok=False, error=error, warnings=warnings or [])
-
-        provider = self._providers.get(target.name)
-        if provider is None:
-            return failed(ResultError(code="not_ready", message=self._missing_reason(target)))
+    def _not_ready(self, target: Target) -> str | None:
+        if target.name not in self._providers:
+            return self._missing_reason(target)
         checked = self._health.get(target.name)
-        if checked is not None and checked[0].reason:
-            return failed(ResultError(code="not_ready", message=checked[0].reason))
-        error, warnings = preflight(request, target)
-        if error is not None:
-            return failed(error, warnings)
-        try:
-            raw = await asyncio.wait_for(provider.decide(request, timeout=timeout), timeout + TIMEOUT_GRACE_S)
-        except TimeoutError:
-            raw = RawResult(
-                request_body=request.system_one_body(target.model),
-                error=ResultError(code="timeout", message=f"No response in {timeout:g} s."),
-            )
-        result = target_result(target.name, request, raw, target.capabilities)
-        codes = {warning.code for warning in warnings}
-        result.warnings = [
-            *warnings,
-            *(warning for warning in target_warnings(target) if warning.code not in codes),
-            *result.warnings,
-        ]
-        return result
+        return checked[0].reason if checked is not None else None
+
+    async def _decide_one(self, target: Target, request: DecisionRequest, timeout: float) -> TargetResult:
+        reason = self._not_ready(target)
+        if reason is not None:
+            return not_sent(target, ResultError(code="not_ready", message=reason))
+        return await ask(target, self._providers[target.name], request, timeout)
 
     async def decide(self, body: DecideBody) -> DecideResponse:
         """Send one request to each chosen target at once.
@@ -266,7 +278,7 @@ class Service:
             with `ok: false`.
 
         Raises:
-            UnknownTargetError: A target name isn't in the config.
+            InvalidRequestError: A target name isn't in the config, or is given twice.
         """
         targets = self.resolve_targets(body.targets)
         request = DecisionRequest(state=body.state, questions=body.questions, images=body.images)
@@ -279,3 +291,375 @@ class Service:
             asked_at=asked_at,
             results=list(results),
         )
+
+    # Suites
+
+    def _record(self, question_set: QuestionSet) -> QuestionSet:
+        self.store.record_version(question_set, self._clock())
+        return question_set
+
+    def _suites_using(self, question_set: str) -> list[str]:
+        return [suite.name for suite in self.files.list_suites() if suite.question_set == question_set]
+
+    def list_suites(self) -> SuiteList:
+        """List the suites.
+
+        Returns:
+            Each suite with its question set's current version and its case counts.
+
+        Raises:
+            InvalidRequestError: A suite file is invalid.
+        """
+        summaries: list[SuiteSummary] = []
+        for suite in self.files.list_suites():
+            try:
+                version: str | None = self._record(self.files.load_question_set(suite.question_set)).version
+            except NotFoundError:
+                version = None
+            drafts = sum(1 for case in suite.cases if case.provenance != "human")
+            summaries.append(
+                SuiteSummary(
+                    name=suite.name,
+                    question_set=suite.question_set,
+                    question_set_version=version,
+                    policy=suite.policy,
+                    targets=suite.targets,
+                    case_count=len(suite.cases) - drafts,
+                    draft_count=drafts,
+                )
+            )
+        return SuiteList(suites=summaries)
+
+    def get_suite(self, name: str) -> SuiteDetail:
+        """Read a suite and its question set.
+
+        Args:
+            name: The suite's name.
+
+        Returns:
+            The suite, with its question set's current version.
+
+        Raises:
+            NotFoundError: There's no such suite, or its question set is missing.
+            InvalidRequestError: A file is invalid.
+        """
+        suite = self.files.load_suite(name)
+        return SuiteDetail(suite=suite, question_set=self._record(self.files.load_question_set(suite.question_set)))
+
+    def add_case(self, name: str, case: Case) -> CaseCreated:
+        """Add a case to the end of a suite's file.
+
+        Args:
+            name: The suite's name.
+            case: The case.
+
+        Returns:
+            The case and the suite's new case count.
+
+        Raises:
+            NotFoundError: There's no such suite.
+            ConflictError: The suite already has a case with that id.
+        """
+        suite = self.files.load_suite(name)
+        if any(existing.id == case.id for existing in suite.cases):
+            raise ConflictError(f"The suite already has a case {case.id}", field="id")
+        suite = suite.model_copy(update={"cases": [*suite.cases, case]})
+        self.files.save_suite(suite)
+        return CaseCreated(suite=name, case=case, case_count=sum(1 for c in suite.cases if c.provenance == "human"))
+
+    # Question sets
+
+    def _question_set_detail(self, question_set: QuestionSet) -> QuestionSetDetail:
+        return QuestionSetDetail(question_set=question_set, suites=self._suites_using(question_set.name), checks=[])
+
+    def list_question_sets(self) -> QuestionSetList:
+        """List the question sets.
+
+        Returns:
+            Each question set's current version, question count, and the suites that use it.
+        """
+        summaries: list[QuestionSetSummary] = []
+        for question_set in self.files.list_question_sets():
+            self._record(question_set)
+            stored = self.store.get_version(question_set.name, question_set.version)
+            summaries.append(
+                QuestionSetSummary(
+                    name=question_set.name,
+                    version=question_set.version,
+                    question_count=len(question_set.questions),
+                    suites=self._suites_using(question_set.name),
+                    updated_at=stored.first_seen if stored else None,
+                )
+            )
+        return QuestionSetList(question_sets=summaries)
+
+    def get_question_set(self, name: str) -> QuestionSetDetail:
+        """Read a question set's current version.
+
+        Args:
+            name: The question set's name.
+
+        Returns:
+            The question set, the suites that use it, and its wording checks.
+
+        Raises:
+            NotFoundError: There's no such question set.
+        """
+        return self._question_set_detail(self._record(self.files.load_question_set(name)))
+
+    def save_question_set(self, name: str, body: QuestionSetBody) -> QuestionSetDetail:
+        """Save new questions as a question set's current version, creating the set if it's new.
+
+        Args:
+            name: The question set's name.
+            body: The questions.
+
+        Returns:
+            The saved question set.
+        """
+        question_set = QuestionSet(name=check_name(name, "question set"), questions=body.questions)
+        self.files.save_question_set(question_set)
+        return self._question_set_detail(self._record(question_set))
+
+    def question_set_versions(self, name: str) -> QuestionSetVersions:
+        """List a question set's versions.
+
+        Args:
+            name: The question set's name.
+
+        Returns:
+            Every version jevtester has seen, newest first, with how many runs used each.
+
+        Raises:
+            NotFoundError: There's no such question set.
+        """
+        current = self._record(self.files.load_question_set(name))
+        runs = [run for run in self.store.list_runs() if run.question_set == name]
+        versions = [
+            QuestionSetVersion(
+                version=stored.question_set.version,
+                first_seen=stored.first_seen,
+                question_count=len(stored.question_set.questions),
+                run_count=sum(1 for run in runs if run.question_set_version == stored.question_set.version),
+                current=stored.question_set.version == current.version,
+            )
+            for stored in self.store.versions(name)
+        ]
+        return QuestionSetVersions(name=name, versions=versions)
+
+    def question_set_version(self, name: str, version: str) -> QuestionSet:
+        """Read one version of a question set.
+
+        Args:
+            name: The question set's name.
+            version: The version hash, or a prefix of it at least 8 characters long.
+
+        Returns:
+            That version.
+
+        Raises:
+            NotFoundError: There's no such version, or the prefix matches more than one.
+        """
+        check_name(name, "question set")
+        stored = self.store.get_version(name, version)
+        if stored is None:
+            raise NotFoundError(f"No version {version} of the question set {name}")
+        return stored.question_set
+
+    def diff_question_set(self, name: str, from_version: str, to_version: str) -> QuestionSetDiff:
+        """Compare two versions of a question set.
+
+        Args:
+            name: The question set's name.
+            from_version: The older version, or a prefix of it.
+            to_version: The newer version, or a prefix of it.
+
+        Returns:
+            How each question changed.
+
+        Raises:
+            NotFoundError: A version doesn't exist.
+        """
+        return diff_question_sets(
+            self.question_set_version(name, from_version), self.question_set_version(name, to_version)
+        )
+
+    # Runs
+
+    def _fail_interrupted_runs(self) -> None:
+        for run in self.store.list_runs():
+            if run.status in ("queued", "running"):
+                error = ApiErrorBody(code="internal", message=INTERRUPTED)
+                self.store.save_run(
+                    run.model_copy(update={"status": "failed", "error": error, "finished_at": self._clock()})
+                )
+
+    def _empty_counts(self, targets: list[Target], jobs_per_target: int) -> RunCounts:
+        rows = [
+            TargetCounts(target=target.name, jobs=jobs_per_target, sent=0, cached=0, failed=0, skipped=0)
+            for target in targets
+        ]
+        jobs = jobs_per_target * len(targets)
+        return RunCounts(jobs=jobs, done=0, sent=0, cached=0, failed=0, skipped=0, targets=rows)
+
+    def _question_set_for(self, suite: Suite, version: str | None) -> QuestionSet:
+        if version is None:
+            return self._record(self.files.load_question_set(suite.question_set))
+        try:
+            return self.question_set_version(suite.question_set, version)
+        except NotFoundError as error:
+            raise NotFoundError(str(error), field="question_set_version") from error
+
+    async def start_run(self, body: RunCreate) -> RunCreated:
+        """Start a run of a suite. It runs in the background.
+
+        Args:
+            body: The suite, targets, question set version, repeats, and cache setting.
+
+        Returns:
+            The run's id.
+
+        Raises:
+            NotFoundError: The suite, the question set version, or the baseline run doesn't exist.
+            InvalidRequestError: A target name is invalid.
+        """
+        suite = self.files.load_suite(body.suite)
+        question_set = self._question_set_for(suite, body.question_set_version)
+        targets = self.resolve_targets(body.targets or suite.targets)
+        if body.baseline is not None and self.store.get_run(body.baseline) is None:
+            raise NotFoundError(f"No run {body.baseline}", field="baseline")
+        repeats = body.repeats or self.config.defaults.repeats
+        cases = [case for case in suite.cases if case.provenance == "human"]
+        jobs = [
+            Job(
+                case=case,
+                target=target,
+                repeat=repeat,
+                request=DecisionRequest(state=case.state, questions=question_set.questions, images=case.images),
+            )
+            for case in cases
+            for target in targets
+            for repeat in range(repeats)
+        ]
+        now = self._clock()
+        summary = RunSummary(
+            id=self.store.next_run_id(),
+            kind="suite",
+            suite=suite.name,
+            question_set=question_set.name,
+            question_set_version=question_set.version,
+            policy=suite.policy,
+            policy_version=None,
+            targets=[target.name for target in targets],
+            repeats=repeats,
+            variants=[],
+            no_cache=body.no_cache,
+            baseline=body.baseline,
+            status="queued",
+            case_count=len(cases),
+            counts=self._empty_counts(targets, len(cases) * repeats),
+            cost_usd=None,
+            created_at=now,
+            started_at=None,
+            finished_at=None,
+        )
+        self.store.save_run(summary)
+        handle = RunHandle(summary)
+        self._handles[summary.id] = handle
+        handle.task = asyncio.create_task(self._execute(handle, targets, jobs, no_cache=body.no_cache))
+        return RunCreated(id=summary.id)
+
+    async def _execute(self, handle: RunHandle, targets: list[Target], jobs: list[Job], *, no_cache: bool) -> None:
+        # Check the targets first, so a target that's down is skipped instead of failing every job.
+        healths = await asyncio.gather(*(self._check(target) for target in targets))
+        now = self._clock()
+        for target, health in zip(targets, healths, strict=True):
+            self._health[target.name] = (health, now)
+        skipped = {target.name: health.reason for target, health in zip(targets, healths, strict=True) if health.reason}
+        await self._runner.execute(
+            handle, jobs, self._providers, skipped, timeout=self.config.defaults.timeout_s, no_cache=no_cache
+        )
+
+    def list_runs(self) -> RunList:
+        """List the runs.
+
+        Returns:
+            Every run, newest first.
+        """
+        return RunList(runs=self.store.list_runs())
+
+    def get_run(self, run_id: str) -> RunSummary:
+        """Read a run's summary.
+
+        Args:
+            run_id: The run's id.
+
+        Returns:
+            The run's settings, status, and counts.
+
+        Raises:
+            NotFoundError: There's no such run.
+        """
+        handle = self._handles.get(run_id)
+        if handle is not None:
+            return handle.summary
+        summary = self.store.get_run(run_id)
+        if summary is None:
+            raise NotFoundError(f"No run {run_id}")
+        return summary
+
+    async def wait_run(self, run_id: str) -> RunSummary:
+        """Wait for a run in this process to end.
+
+        Args:
+            run_id: The run's id.
+
+        Returns:
+            The run's final summary.
+        """
+        handle = self._handles.get(run_id)
+        if handle is not None and handle.task is not None:
+            await handle.task
+        return self.get_run(run_id)
+
+    async def run_events(self, run_id: str) -> AsyncIterator[RunEvent]:
+        """Follow a run's events.
+
+        Args:
+            run_id: The run's id.
+
+        Yields:
+            A `progress` event with the current counts, then each event that follows. A run that has ended sends
+            `progress` and its final event.
+
+        Raises:
+            NotFoundError: There's no such run.
+        """
+        handle = self._handles.get(run_id)
+        if handle is not None:
+            async for event in handle.subscribe():
+                yield event
+            return
+        summary = self.get_run(run_id)
+        yield ProgressEvent(run_id=run_id, status=summary.status, counts=summary.counts)
+        final = final_event(summary)
+        if final is not None:
+            yield final
+
+    async def cancel_run(self, run_id: str) -> RunSummary:
+        """Cancel a queued or running run.
+
+        Args:
+            run_id: The run's id.
+
+        Returns:
+            The run's summary. A run that has ended is returned unchanged.
+
+        Raises:
+            NotFoundError: There's no such run.
+        """
+        handle = self._handles.get(run_id)
+        if handle is not None and handle.task is not None and not handle.task.done():
+            handle.task.cancel()
+            await asyncio.gather(handle.task, return_exceptions=True)
+        return self.get_run(run_id)

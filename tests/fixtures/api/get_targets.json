@@ -12,7 +12,7 @@
       "detail": null,
       "credential": "Azure CLI, refreshes in 41 min",
       "warnings": [],
-      "checked_at": "2026-10-24T14:03:00Z",
+      "checked_at": "2026-10-24T14:10:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -50,7 +50,7 @@
       "detail": "Run ollama pull clef-flash (11-12 GB)",
       "credential": null,
       "warnings": [],
-      "checked_at": "2026-10-24T14:03:00Z",
+      "checked_at": "2026-10-24T14:10:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -88,7 +88,7 @@
       "detail": "The model download isn't finished",
       "credential": null,
       "warnings": [],
-      "checked_at": "2026-10-24T14:03:00Z",
+      "checked_at": "2026-10-24T14:10:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -126,7 +126,7 @@
       "detail": "The model download isn't finished",
       "credential": null,
       "warnings": [],
-      "checked_at": "2026-10-24T14:03:00Z",
+      "checked_at": "2026-10-24T14:10:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -164,7 +164,7 @@
       "detail": "The model download isn't finished",
       "credential": null,
       "warnings": [],
-      "checked_at": "2026-10-24T14:03:00Z",
+      "checked_at": "2026-10-24T14:10:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -208,7 +208,7 @@
           "question": null
         }
       ],
-      "checked_at": "2026-10-24T14:03:00Z",
+      "checked_at": "2026-10-24T14:10:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -256,7 +256,7 @@
           "question": null
         }
       ],
-      "checked_at": "2026-10-24T14:03:00Z",
+      "checked_at": "2026-10-24T14:10:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -300,7 +300,7 @@
           "question": null
         }
       ],
-      "checked_at": "2026-10-24T14:03:00Z",
+      "checked_at": "2026-10-24T14:10:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -330,5 +330,5 @@
   "default_targets": [
     "decision-1@foundry"
   ],
-  "checked_at": "2026-10-24T14:03:00Z"
+  "checked_at": "2026-10-24T14:10:00Z"
 }

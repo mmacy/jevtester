@@ -1,0 +1,70 @@
+name: parley
+question_set: parley
+cases:
+- id: goblin-bribe
+  state:
+    party: Three adventurers, torches lit
+    monsters: Six goblins, weapons drawn, 40 feet away
+    player_says: We come in peace. Take this sack of silver and let us pass to the stairs.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - bribe
+- id: orc-charge
+  state:
+    party: Four adventurers in a narrow corridor
+    monsters: Five orcs, shields up, 30 feet away
+    player_says: Charge them! Swords out!
+  expected:
+    intent:
+      answer: fight
+    bribe:
+      answer: false
+    reaction:
+      answer: 0
+      tolerance: 1
+  expected_action: battle
+  tags:
+  - combat
+- id: kobold-retreat
+  state:
+    party: Two adventurers, one wounded
+    monsters: Eight kobolds with spears, 60 feet away
+    player_says: Back away slowly toward the door we came in by.
+  expected:
+    intent:
+      answer: evade
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: evade
+  tags:
+  - evade
+- id: gnoll-watch
+  state:
+    party: Three adventurers behind a pillar
+    monsters: Four gnolls arguing over a carcass, 50 feet away
+    player_says: We stay still and watch what they do.
+  expected:
+    intent:
+      answer: wait
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: wait
+  tags:
+  - wait
+targets:
+- decision-1@foundry
+- clef-flash@workers-ai

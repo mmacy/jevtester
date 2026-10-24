@@ -10,6 +10,8 @@ Everything else is made up to be consistent: the same suite, cases, targets, and
 import asyncio
 import json
 import math
+import shutil
+import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -27,21 +29,19 @@ from jevtester.normalize import (
 )
 from jevtester.preflight import target_warnings
 from jevtester.providers import DecisionProvider, Health, RawResult, target_result
+from jevtester.runner.jobs import cache_key
 from jevtester.schemas import (
     AnswerChange,
     ApiError,
     ApiErrorBody,
     Calibration,
     CalibrationBin,
-    CaseCreated,
     CaseResult,
     ChangeSummary,
     ConfusionMatrix,
     DecideBody,
     DecisionMetrics,
     ErrorDetail,
-    FinishedEvent,
-    OptionDiff,
     PolicyDetail,
     PolicyList,
     PolicySummary,
@@ -50,34 +50,22 @@ from jevtester.schemas import (
     ProbeReport,
     ProbeSummary,
     ProbeVariant,
-    ProgressEvent,
-    QuestionDiff,
     QuestionMetrics,
-    QuestionSetDetail,
-    QuestionSetDiff,
-    QuestionSetList,
-    QuestionSetSummary,
-    QuestionSetVersion,
-    QuestionSetVersions,
-    ResultEvent,
+    QuestionSetBody,
     RunCase,
     RunChanges,
     RunCounts,
+    RunCreate,
     RunCreated,
     RunEvent,
-    RunList,
     RunMetrics,
     RunReport,
     RunSummary,
     SuiteCheck,
-    SuiteDetail,
-    SuiteList,
-    SuiteSummary,
     SweepPoint,
     SweepResult,
     TargetCounts,
     TargetMetrics,
-    TargetSkippedEvent,
     WordingCheck,
 )
 from jevtester.service import Service
@@ -86,11 +74,11 @@ from jevtester.spec import (
     ChoiceQuestion,
     DecisionRequest,
     Expectation,
-    Question,
     QuestionSet,
-    Suite,
     load_config,
 )
+from jevtester.store.files import SuiteFiles
+from jevtester.store.runs import RunStore
 
 ROOT = Path(__file__).parent.parent
 OUT = ROOT / "tests" / "fixtures" / "api"
@@ -122,10 +110,10 @@ FOUNDRY_RESPONSE = load_json(SYSTEMONE / "parley_response_foundry.json")
 WORKERS_RESPONSE = load_json(SYSTEMONE / "parley_response_workers_ai.json")
 """A real Clef-flash response to the plan's request, from 2026-10-24, in its Cloudflare envelope."""
 
-QUESTIONS = DecisionRequest.model_validate(
-    {"state": PLAN_REQUEST["state"], "questions": PLAN_REQUEST["questions"]}
-).questions
-QUESTION_SET = QuestionSet(name="parley", questions=QUESTIONS)
+SUITE_FILES = SuiteFiles(ROOT / "suites")
+QUESTION_SET = SUITE_FILES.load_question_set("parley")
+QUESTIONS = QUESTION_SET.questions
+CASES = SUITE_FILES.load_suite("parley").cases
 
 _intent = QUESTIONS["intent"]
 assert isinstance(_intent, ChoiceQuestion)
@@ -134,64 +122,6 @@ OLD_INTENT = ChoiceQuestion(
 )
 OLD_QUESTION_SET = QuestionSet(name="parley", questions={**QUESTIONS, "intent": OLD_INTENT})
 
-CASES = [
-    Case(
-        id="goblin-bribe",
-        state=PLAN_REQUEST["state"],
-        expected={
-            "intent": Expectation(answer="parley"),
-            "bribe": Expectation(answer=True),
-            "reaction": Expectation(answer=3, tolerance=1),
-        },
-        expected_action="parley_succeeds",
-        tags=["bribe"],
-    ),
-    Case(
-        id="orc-charge",
-        state={
-            "party": "Four adventurers in a narrow corridor",
-            "monsters": "Five orcs, shields up, 30 feet away",
-            "player_says": "Charge them! Swords out!",
-        },
-        expected={
-            "intent": Expectation(answer="fight"),
-            "bribe": Expectation(answer=False),
-            "reaction": Expectation(answer=0, tolerance=1),
-        },
-        expected_action="battle",
-        tags=["combat"],
-    ),
-    Case(
-        id="kobold-retreat",
-        state={
-            "party": "Two adventurers, one wounded",
-            "monsters": "Eight kobolds with spears, 60 feet away",
-            "player_says": "Back away slowly toward the door we came in by.",
-        },
-        expected={
-            "intent": Expectation(answer="evade"),
-            "bribe": Expectation(answer=False),
-            "reaction": Expectation(answer=1, tolerance=1),
-        },
-        expected_action="evade",
-        tags=["evade"],
-    ),
-    Case(
-        id="gnoll-watch",
-        state={
-            "party": "Three adventurers behind a pillar",
-            "monsters": "Four gnolls arguing over a carcass, 50 feet away",
-            "player_says": "We stay still and watch what they do.",
-        },
-        expected={
-            "intent": Expectation(answer="wait"),
-            "bribe": Expectation(answer=False),
-            "reaction": Expectation(answer=2, tolerance=1),
-        },
-        expected_action="wait",
-        tags=["wait"],
-    ),
-]
 DRAFT_CASE = Case(
     id="hobgoblin-gold",
     state={
@@ -203,9 +133,6 @@ DRAFT_CASE = Case(
     expected_action="parley_succeeds",
     tags=["bribe"],
     provenance="claude-draft",
-)
-SUITE = Suite(
-    name="parley", question_set="parley", cases=[*CASES, DRAFT_CASE], policy="parley", targets=[FOUNDRY, WORKERS]
 )
 CASE_BY_ID = {case.id: case for case in CASES}
 
@@ -336,31 +263,130 @@ WORKERS_HEALTH = Health(credential="Wrangler sign-in, refreshes in 52 min")
 MLX_HEALTH = Health(reason="The MLX server isn't running", detail="The model download isn't finished")
 
 
-def fixture_service() -> Service:
-    """A service over the real config, with fake providers that answer from the fixtures."""
-    providers: dict[str, DecisionProvider] = {}
+def providers() -> dict[str, DecisionProvider]:
+    fakes: dict[str, DecisionProvider] = {}
     for target in CONFIG.targets.values():
         health = WORKERS_HEALTH if target.provider == "workers-ai" else HEALTH.get(target.name, MLX_HEALTH)
         respond = respond_for(target.name) if target.name in PLANS else None
-        providers[target.name] = FakeProvider(target, respond, health)
-    return Service(CONFIG, providers, clock=lambda: at(3))
+        fakes[target.name] = FakeProvider(target, respond, health)
+    return fakes
 
 
-def service_fixtures() -> dict[str, BaseModel]:
+# The runs use a config without Foundry's request rate, so a fixture run doesn't wait between requests. The targets
+# fixtures use the real config.
+RUN_CONFIG = CONFIG.model_copy(
+    update={
+        "targets": {
+            name: target.model_copy(
+                update={"capabilities": target.capabilities.model_copy(update={"requests_per_minute": None})}
+            )
+            for name, target in CONFIG.targets.items()
+        }
+    }
+)
+
+
+def fixture_service(root: Path) -> Service:
+    """A service over a copy of `suites/` in `root`, with fake providers that answer from the fixtures.
+
+    The copy's suite has a Claude draft, the store has the baseline run 0141 and both question set versions, and the
+    cache holds two Workers AI results, so run 0142 shows every kind of job.
+    """
+    shutil.copytree(ROOT / "suites", root / "suites", dirs_exist_ok=True)
+    files = SuiteFiles(root / "suites")
+    suite = files.load_suite("parley")
+    files.save_suite(suite.model_copy(update={"cases": [*suite.cases, DRAFT_CASE]}))
+    store = RunStore(Path(":memory:"))
+    store.record_version(OLD_QUESTION_SET, at(-40))
+    store.record_version(QUESTION_SET, at(5))
+    store.save_run(BASELINE)
+    for target_name, case_id in CACHED:
+        case = CASE_BY_ID[case_id]
+        request = DecisionRequest(state=case.state, questions=QUESTIONS)
+        store.cache_put(cache_key(CONFIG.targets[target_name], request, 0), RESULTS[target_name, case_id], at(-30))
+    return Service(CONFIG, providers(), files=files, store=store, clock=lambda: at(10))
+
+
+def run_service(root: Path) -> Service:
+    """A fixture service whose runs use the run config."""
+    service = fixture_service(root)
+    service.config = RUN_CONFIG
+    return service
+
+
+async def populate(service: Service) -> str:
+    """Run 0142 for real, then store the probe run 0143 and the cancelled run 0144.
+
+    Returns:
+        Run 0142's event stream, as the API sends it.
+    """
+    created = await service.start_run(RunCreate(suite="parley", targets=RUN_TARGETS, baseline="0141"))
+    events = [event async for event in service.run_events(created.id)]
+    await service.wait_run(created.id)
+    service.store.save_run(PROBE_RUN)
+    service.store.save_run(CANCELLED_RUN)
+    return "".join(sse_event(index, event) for index, event in enumerate(events))
+
+
+def prepared_service(root: Path) -> tuple[Service, str]:
+    """A fixture service after `populate`, and run 0142's event stream."""
+    service = run_service(root)
+    return service, asyncio.run(populate(service))
+
+
+async def start_and_wait(service: Service, body: RunCreate) -> RunCreated:
+    created = await service.start_run(body)
+    await service.wait_run(created.id)
+    return created
+
+
+def service_fixtures(root: Path) -> dict[str, BaseModel | str]:
     """The fixtures for the live routes, made by the service itself."""
-    service = fixture_service()
-    unchecked = service.list_targets()
-    checked = asyncio.run(service.check_targets())
+    fresh = fixture_service(root / "fresh")
+    unchecked = fresh.list_targets()
+    checked = asyncio.run(fresh.check_targets())
     goblin = CASES[0]
     single = DecideBody(state=goblin.state, questions=QUESTIONS, targets=[FOUNDRY])
     partial = DecideBody(state=goblin.state, questions=QUESTIONS, targets=[FOUNDRY, WORKERS, OLLAMA])
-    return {
+    fixtures: dict[str, BaseModel | str] = {
         "get_targets.json": checked,
         "get_targets.unchecked.json": unchecked,
         "post_targets_check.json": checked,
-        "post_decide.json": asyncio.run(service.decide(single)),
-        "post_decide.partial.json": asyncio.run(service.decide(partial)),
+        "post_decide.json": asyncio.run(fresh.decide(single)),
+        "post_decide.partial.json": asyncio.run(fresh.decide(partial)),
     }
+    service, events = prepared_service(root / "prepared")
+    old, new = OLD_QUESTION_SET.version[:12], QUESTION_SET.version[:12]
+    fixtures |= {
+        "get_suites.json": service.list_suites(),
+        "get_suites_{name}.json": service.get_suite("parley"),
+        "get_question-sets.json": service.list_question_sets(),
+        "get_question-sets_{name}.json": service.get_question_set("parley"),
+        "get_question-sets_{name}_versions.json": service.question_set_versions("parley"),
+        "get_question-sets_{name}_versions_{version}.json": service.question_set_version("parley", old),
+        "get_question-sets_{name}_diff.json": service.diff_question_set("parley", old, new),
+        "get_runs.json": service.list_runs(),
+        "get_runs_{id}.json": service.get_run("0142"),
+        "get_runs_{id}_events.sse": events,
+        "post_runs_{id}_cancel.json": asyncio.run(service.cancel_run("0144")),
+    }
+    # The fixtures for the routes that change things come last, so they don't show in the others.
+    new_case = Case(
+        id="bugbear-toll",
+        state={
+            "party": "Three adventurers at a rope bridge",
+            "monsters": "Two bugbears demanding a toll",
+            "player_says": "Fine. Ten silver each, and we cross.",
+        },
+        expected={"intent": Expectation(answer="parley"), "bribe": Expectation(answer=True)},
+        tags=["bribe"],
+    )
+    fixtures |= {
+        "put_question-sets_{name}.json": service.save_question_set("parley", QuestionSetBody(questions=QUESTIONS)),
+        "post_suites_{name}_cases.json": service.add_case("parley", new_case),
+        "post_runs.json": asyncio.run(start_and_wait(service, RunCreate(suite="parley"))),
+    }
+    return fixtures
 
 
 def slim(result: TargetResult) -> TargetResult:
@@ -457,8 +483,8 @@ def run_summary(run_id: str, **changes: Any) -> RunSummary:
         suite="parley",
         question_set="parley",
         question_set_version=QUESTION_SET.version,
-        policy="parley",
-        policy_version=POLICY_VERSION,
+        policy=None,
+        policy_version=None,
         targets=RUN_TARGETS,
         repeats=1,
         variants=[],
@@ -520,40 +546,6 @@ CANCELLED_RUN = run_summary(
 
 def sse_event(index: int, event: RunEvent) -> str:
     return f"event: {event.type}\nid: {index}\ndata: {event.model_dump_json()}\n\n"
-
-
-def run_events() -> str:
-    tally: dict[str, dict[str, int]] = {}
-
-    def bump(target: str, kind: str) -> RunCounts:
-        row = tally.setdefault(target, {})
-        row[kind] = row.get(kind, 0) + 1
-        return counts(tally, len(CASES), RUN_TARGETS)
-
-    current = counts({}, len(CASES), RUN_TARGETS)
-    events: list[RunEvent] = [ProgressEvent(run_id="0142", status="running", counts=current)]
-    for _ in CASES:
-        current = bump(OLLAMA, "skipped")
-    events.append(TargetSkippedEvent(run_id="0142", target=OLLAMA, reason=OLLAMA_REASON, counts=current))
-    for case in CASES:
-        for target in (FOUNDRY, WORKERS):
-            cached = (target, case.id) in CACHED
-            current = bump(target, "cached" if cached else "sent")
-            events.append(
-                ResultEvent(
-                    run_id="0142",
-                    case_id=case.id,
-                    target=target,
-                    repeat=0,
-                    cached=cached,
-                    result=slim(RESULTS[target, case.id]),
-                    counts=current,
-                )
-            )
-    final = run_summary("0142")
-    assert current == final.counts
-    events.append(FinishedEvent(run_id="0142", counts=final.counts, summary=final))
-    return "".join(sse_event(index, event) for index, event in enumerate(events))
 
 
 # Metrics
@@ -836,15 +828,6 @@ def probe_report() -> ProbeReport:
 # Question sets
 
 
-VERSIONS = QuestionSetVersions(
-    name="parley",
-    versions=[
-        QuestionSetVersion(version=QUESTION_SET.version, first_seen=at(5), question_count=3, run_count=2, current=True),
-        QuestionSetVersion(
-            version=OLD_QUESTION_SET.version, first_seen=at(-40), question_count=3, run_count=1, current=False
-        ),
-    ],
-)
 CHECKS = [
     WordingCheck(
         question="intent",
@@ -852,49 +835,6 @@ CHECKS = [
         message="No option for a player whose intent can't be told",
     )
 ]
-
-
-def question_set_diff() -> QuestionSetDiff:
-    diffs: list[QuestionDiff] = []
-    for question_id, after in QUESTIONS.items():
-        before: Question = OLD_QUESTION_SET.questions[question_id]
-        if before == after:
-            diffs.append(
-                QuestionDiff(
-                    id=question_id,
-                    status="unchanged",
-                    before=before,
-                    after=after,
-                    changed_fields=[],
-                    options=[],
-                    order_changed=False,
-                )
-            )
-            continue
-        assert isinstance(before, ChoiceQuestion) and isinstance(after, ChoiceQuestion)
-        options = [
-            OptionDiff(
-                key=key,
-                status="added" if key not in before.criteria else "unchanged",
-                before=before.criteria.get(key),
-                after=text,
-            )
-            for key, text in after.criteria.items()
-        ]
-        diffs.append(
-            QuestionDiff(
-                id=question_id,
-                status="changed",
-                before=before,
-                after=after,
-                changed_fields=["criteria"],
-                options=options,
-                order_changed=False,
-            )
-        )
-    return QuestionSetDiff(
-        name="parley", from_version=OLD_QUESTION_SET.version, to_version=QUESTION_SET.version, questions=diffs
-    )
 
 
 # Policies
@@ -962,54 +902,32 @@ def error(code: Any, message: str, field: str | None = None, details: list[Error
     return ApiError(error=ApiErrorBody(code=code, message=message, field=field, details=details or []))
 
 
-def build() -> dict[str, BaseModel | str]:
-    """Every fixture, keyed by file name."""
+def build(root: Path) -> dict[str, BaseModel | str]:
+    """Every fixture, keyed by file name.
+
+    Args:
+        root: An empty directory for the fixture services' copies of `suites/`.
+    """
+    live = service_fixtures(root)
+    run = live["get_runs_{id}.json"]
+    assert isinstance(run, RunSummary)
     metrics = run_metrics()
-    detail = QuestionSetDetail(question_set=QUESTION_SET, suites=["parley"], checks=CHECKS)
-    suite_summary = SuiteSummary(
-        name="parley",
-        question_set="parley",
-        question_set_version=QUESTION_SET.version,
-        policy="parley",
-        targets=SUITE.targets,
-        case_count=len(CASES),
-        draft_count=1,
-    )
-    new_case = Case(
-        id="bugbear-toll",
-        state={
-            "party": "Three adventurers at a rope bridge",
-            "monsters": "Two bugbears demanding a toll",
-            "player_says": "Fine. Ten silver each, and we cross.",
-        },
-        expected={"intent": Expectation(answer="parley"), "bribe": Expectation(answer=True)},
-        tags=["bribe"],
-    )
     return {
-        **service_fixtures(),
+        **live,
         "post_decide.422.json": error(
             "invalid_request",
             "Unknown target: clef@nowhere",
             "targets.0",
             [ErrorDetail(field="targets.0", message="Unknown target: clef@nowhere")],
         ),
-        "get_suites.json": SuiteList(suites=[suite_summary]),
-        "get_suites_{name}.json": SuiteDetail(suite=SUITE, question_set=QUESTION_SET),
         "get_suites_{name}.404.json": error("not_found", "No suite named reaction"),
         "get_suites_{name}_check.json": SuiteCheck(suite="parley", valid=True, errors=[], checks=CHECKS),
-        "post_suites_{name}_cases.json": CaseCreated(suite="parley", case=new_case, case_count=len(CASES) + 1),
         "post_suites_{name}_cases.409.json": error(
-            "conflict", "The suite already has a case goblin-bribe", "id", [ErrorDetail(field="id", message="Taken")]
+            "conflict",
+            "The suite already has a case goblin-bribe",
+            "id",
+            [ErrorDetail(field="id", message="The suite already has a case goblin-bribe")],
         ),
-        "get_question-sets.json": QuestionSetList(
-            question_sets=[
-                QuestionSetSummary(
-                    name="parley", version=QUESTION_SET.version, question_count=3, suites=["parley"], updated_at=at(5)
-                )
-            ]
-        ),
-        "get_question-sets_{name}.json": detail,
-        "put_question-sets_{name}.json": detail,
         "put_question-sets_{name}.422.json": error(
             "invalid_request",
             "List should have at least 2 items after validation, not 1",
@@ -1021,23 +939,13 @@ def build() -> dict[str, BaseModel | str]:
                 )
             ],
         ),
-        "get_question-sets_{name}_versions.json": VERSIONS,
-        "get_question-sets_{name}_versions_{version}.json": OLD_QUESTION_SET,
-        "get_question-sets_{name}_diff.json": question_set_diff(),
-        "post_runs.json": RunCreated(id="0144"),
-        "get_runs.json": RunList(runs=[CANCELLED_RUN, PROBE_RUN, run_summary("0142"), BASELINE]),
-        "get_runs_{id}.json": run_summary("0142"),
         "get_runs_{id}.404.json": error("not_found", "No run 0999"),
-        "get_runs_{id}_events.sse": run_events(),
-        "post_runs_{id}_cancel.json": CANCELLED_RUN,
         "get_runs_{id}_metrics.json": metrics,
         "get_runs_{id}_confusion.json": confusion(WORKERS, "intent"),
         "get_runs_{id}_calibration.json": calibration(FOUNDRY, "bribe"),
         "get_runs_{id}_changes.json": run_changes(),
         "get_runs_{id}_cases_{case_id}.json": run_case("goblin-bribe"),
-        "get_runs_{id}_report.json": RunReport(
-            summary=run_summary("0142"), metrics=metrics, markdown=report_markdown(metrics)
-        ),
+        "get_runs_{id}_report.json": RunReport(summary=run, metrics=metrics, markdown=report_markdown(metrics)),
         "get_runs_{id}_probes.json": probe_report(),
         "post_probes.json": RunCreated(id="0143"),
         "get_policies.json": PolicyList(
@@ -1069,7 +977,9 @@ def write(out: Path = OUT) -> None:
     for stale in out.glob("*"):
         if stale.suffix in {".json", ".sse"}:
             stale.unlink()
-    for name, fixture in build().items():
+    with tempfile.TemporaryDirectory() as root:
+        fixtures = build(Path(root))
+    for name, fixture in fixtures.items():
         (out / name).write_text(render(fixture))
 
 
