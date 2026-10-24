@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('the app opens on Compare with every view in the tabs', async ({ page }) => {
   await page.goto('/')
   await expect(page).toHaveURL(/\/compare$/)
-  await expect(page.getByRole('heading', { name: 'Compare' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Request' })).toBeVisible()
   const tabs = page.getByRole('navigation', { name: 'Views' }).getByRole('link')
   await expect(tabs).toHaveText([
     'Compare',
@@ -43,6 +43,11 @@ test('fixture mode answers an unknown endpoint with the error envelope', async (
   const response = await request.get('/api/no-such-endpoint')
   expect(response.status()).toBe(404)
   expect(await response.json()).toEqual({
-    error: { code: 'not_found', message: 'No fixture for GET /api/no-such-endpoint' },
+    error: {
+      code: 'not_found',
+      message: 'No fixture for GET /api/no-such-endpoint',
+      field: null,
+      details: [],
+    },
   })
 })
