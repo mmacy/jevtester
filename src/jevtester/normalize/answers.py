@@ -6,10 +6,12 @@ the same fields.
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, JsonValue
+from pydantic import Field, JsonValue
+
+from jevtester.model import Model
 
 
-class NoulAnswer(BaseModel):
+class NoulAnswer(Model):
     """The answer to a yes/no question."""
 
     type: Literal["noul"] = "noul"
@@ -21,7 +23,7 @@ class NoulAnswer(BaseModel):
     """The server's confidence, when it sends one."""
 
 
-class ChoiceAnswer(BaseModel):
+class ChoiceAnswer(Model):
     """The answer to a choice question."""
 
     type: Literal["choice"] = "choice"
@@ -38,7 +40,7 @@ class ChoiceAnswer(BaseModel):
     """The server's confidence, when it sends one."""
 
 
-class ScoreAnswer(BaseModel):
+class ScoreAnswer(Model):
     """The answer to a score question."""
 
     type: Literal["score"] = "score"
@@ -62,7 +64,7 @@ type Answer = Annotated[NoulAnswer | ChoiceAnswer | ScoreAnswer, Field(discrimin
 """A canonical answer, told apart by its `type`."""
 
 
-class Usage(BaseModel):
+class Usage(Model):
     """Token counts the server reports. `None` where it reports none."""
 
     input_tokens: int | None = None
@@ -82,7 +84,7 @@ type WarningCode = Literal[
 """Why a result has a warning. A warning doesn't stop the result from counting."""
 
 
-class ResultWarning(BaseModel):
+class ResultWarning(Model):
     """Something about a result that a person should know."""
 
     code: WarningCode
@@ -107,7 +109,7 @@ type ErrorCode = Literal[
 """Why a target returned no answers."""
 
 
-class ResultError(BaseModel):
+class ResultError(Model):
     """Why a target returned no answers."""
 
     code: ErrorCode
@@ -116,7 +118,7 @@ class ResultError(BaseModel):
     """The HTTP status, when the server sent one."""
 
 
-class TargetResult(BaseModel):
+class TargetResult(Model):
     """The result of one request to one target."""
 
     target: str

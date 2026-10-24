@@ -4,19 +4,15 @@ import tomllib
 from pathlib import Path
 from typing import Any, Literal, Self, cast
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import Field, model_validator
 
+from jevtester.model import Model
 from jevtester.spec.questions import QuestionType
-
-
-class _Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
 
 type ImageFormat = Literal["png", "jpeg", "webp"]
 
 
-class Capabilities(_Strict):
+class Capabilities(Model):
     """What a target accepts and returns. `None` means the limit is unknown, so preflight doesn't check it."""
 
     probabilities: bool = True
@@ -53,7 +49,7 @@ type ProviderName = Literal["systemone", "workers-ai", "claude"]
 type AuthMethod = Literal["azure-cli"]
 
 
-class Target(_Strict):
+class Target(Model):
     """One model on one runtime, with its settings."""
 
     name: str
@@ -72,7 +68,7 @@ class Target(_Strict):
     capabilities: Capabilities = Field(default_factory=Capabilities)
 
 
-class Defaults(_Strict):
+class Defaults(Model):
     """Values every field without its own setting falls back to."""
 
     targets: list[str] = Field(default_factory=list[str])
@@ -80,13 +76,13 @@ class Defaults(_Strict):
     repeats: int = Field(default=1, ge=1)
 
 
-class CloudflareSettings(_Strict):
+class CloudflareSettings(Model):
     """Account settings for Workers AI targets."""
 
     account_id: str | None = None
 
 
-class Config(_Strict):
+class Config(Model):
     """The contents of `jevtester.toml`."""
 
     defaults: Defaults = Field(default_factory=Defaults)
