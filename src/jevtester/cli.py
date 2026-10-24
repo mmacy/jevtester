@@ -24,6 +24,7 @@ from jevtester.schemas import (
     DecideBody,
     DecideResponse,
     ResultEvent,
+    RunComparison,
     RunCreate,
     RunSummary,
     TargetList,
@@ -32,6 +33,7 @@ from jevtester.schemas import (
 from jevtester.service import Service
 
 EXIT_OK = 0
+EXIT_CHECK_FAILED = 1
 EXIT_INVALID = 2
 EXIT_ALL_FAILED = 3
 
@@ -102,6 +104,32 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--baseline", help="A run to compare with.")
     run.add_argument("--no-cache", action="store_true", help="Send every request, even when a cached result exists.")
     add_format(run)
+
+    compare = commands.add_parser(
+        "compare",
+        help="Compare a run with a baseline run: metrics, changed answers, and McNemar's test.",
+        description="Compare a run with a baseline. Exits with 1 when a metric dropped by more than --max-drop.",
+    )
+    compare.add_argument("run", help="The run's id.")
+    compare.add_argument("baseline", help="The baseline run's id.")
+    compare.add_argument(
+        "--max-drop", type=float, help="The largest allowed drop in accuracy. Defaults to the config's."
+    )
+    add_format(compare)
+
+    report = commands.add_parser("report", help="Write a run's report as Markdown or JSON.")
+    report.add_argument("run", help="The run's id.")
+    report.add_argument("--format", choices=["markdown", "json"], default="markdown", help="The output format.")
+
+    suite = commands.add_parser("suite", help="Work with suites.")
+    suite_commands = suite.add_subparsers(dest="suite_command", metavar="<command>", required=True)
+    check = suite_commands.add_parser(
+        "check",
+        help="Validate a suite and run the question-wording checks.",
+        description="Validate a suite and run the question-wording checks. Exits with 2 when the suite is invalid.",
+    )
+    check.add_argument("suite", help="The suite's name, or the path of its YAML file.")
+    add_format(check)
 
     serve = commands.add_parser("serve", help="Start the API and the web UI on 127.0.0.1.")
     serve.add_argument("--port", type=int, default=None, help="The port. Defaults to 8640.")
@@ -320,6 +348,70 @@ def _run(args: argparse.Namespace) -> int:
     return EXIT_ALL_FAILED if counts.jobs and counts.sent + counts.cached == 0 else EXIT_OK
 
 
+def _print_comparison(comparison: RunComparison) -> None:
+    changes = comparison.changes
+    print(f"Run {changes.run_id} against baseline {changes.baseline}")
+    if not changes.changes:
+        print("No answers changed.")
+    for change in changes.changes:
+        print(
+            f"  {change.status:<7}  {change.case_id}  {change.target}  {change.question}: "
+            f"{change.baseline_answer} -> {change.answer} (expected {change.expected})"
+        )
+    for row in changes.summary:
+        p_value = f"{row.mcnemar_p:.3f}" if row.mcnemar_p is not None else "n/a"
+        print(f"{row.target}: {row.fixed} fixed, {row.broken} broken, {row.changed} changed, McNemar p {p_value}")
+    for regression in comparison.regressions:
+        print(
+            f"Regression: {regression.target} {regression.question} {regression.metric} "
+            f"{regression.baseline:.3f} -> {regression.value:.3f} (allowed drop {comparison.max_drop:g})"
+        )
+
+
+def _compare(args: argparse.Namespace) -> int:
+    service = _load_service(args.config)
+    try:
+        comparison = service.compare_runs(args.run, args.baseline, args.max_drop)
+    except ServiceError as error:
+        _fail(str(error))
+    if args.format == "json":
+        _print_json(comparison)
+    else:
+        _print_comparison(comparison)
+    return EXIT_CHECK_FAILED if comparison.regressions else EXIT_OK
+
+
+def _report(args: argparse.Namespace) -> int:
+    service = _load_service(args.config)
+    try:
+        report = service.run_report(args.run)
+    except ServiceError as error:
+        _fail(str(error))
+    if args.format == "json":
+        _print_json(report)
+    else:
+        print(report.markdown, end="")
+    return EXIT_OK
+
+
+def _suite_check(args: argparse.Namespace) -> int:
+    service = _load_service(args.config)
+    try:
+        result = service.check_suite(_suite_name(args.suite))
+    except ServiceError as error:
+        _fail(str(error))
+    if args.format == "json":
+        _print_json(result)
+    else:
+        print(f"Suite {result.suite} is {'valid' if result.valid else 'invalid'}")
+        for error in result.errors:
+            where = f" {error.field}" if error.field else ""
+            print(f"  error{where}: {error.message}")
+        for finding in result.checks:
+            print(f"  {finding.code}  {finding.question}: {finding.message}")
+    return EXIT_OK if result.valid else EXIT_INVALID
+
+
 def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -348,6 +440,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _targets(args)
         case "run":
             return _run(args)
+        case "compare":
+            return _compare(args)
+        case "report":
+            return _report(args)
+        case "suite":
+            return _suite_check(args)
         case "serve":
             return _serve(args)
         case _:

@@ -1,14 +1,14 @@
 {
-  "run_id": "0142",
-  "target": "decision-1@foundry",
-  "question": "bribe",
+  "run_id": "0002",
+  "target": "clef-flash@workers-ai",
+  "question": "intent",
   "bins": [
     {
       "lower": 0.0,
       "upper": 0.1,
-      "count": 3,
-      "mean_predicted": 0.008,
-      "observed_rate": 0.0
+      "count": 0,
+      "mean_predicted": null,
+      "observed_rate": null
     },
     {
       "lower": 0.1,
@@ -41,9 +41,9 @@
     {
       "lower": 0.5,
       "upper": 0.6,
-      "count": 0,
-      "mean_predicted": null,
-      "observed_rate": null
+      "count": 1,
+      "mean_predicted": 0.5585,
+      "observed_rate": 0.0
     },
     {
       "lower": 0.6,
@@ -62,18 +62,18 @@
     {
       "lower": 0.8,
       "upper": 0.9,
-      "count": 0,
-      "mean_predicted": null,
-      "observed_rate": null
+      "count": 1,
+      "mean_predicted": 0.8443,
+      "observed_rate": 1.0
     },
     {
       "lower": 0.9,
       "upper": 1.0,
-      "count": 1,
-      "mean_predicted": 0.9988304895647238,
+      "count": 2,
+      "mean_predicted": 0.9785,
       "observed_rate": 1.0
     }
   ],
-  "ece": 0.006292377608819061,
+  "ece": 0.18929999999999997,
   "n": 4
 }

@@ -1,5 +1,5 @@
 {
-  "run_id": "0142",
+  "run_id": "0002",
   "questions": [
     "intent",
     "bribe",
@@ -28,7 +28,7 @@
           "brier": null,
           "log_loss": null,
           "auroc": null,
-          "ece": 0.053596327413652695,
+          "ece": 0.05359632741365261,
           "abstention_rate": null,
           "consistency": null
         },
@@ -51,7 +51,7 @@
           "question": "reaction",
           "type": "score",
           "n": 4,
-          "accuracy": 1.0,
+          "accuracy": 0.75,
           "macro_f1": null,
           "mae": 0.4395642132487475,
           "within_tolerance": 1.0,
@@ -63,13 +63,7 @@
           "consistency": null
         }
       ],
-      "decision": {
-        "n": 4,
-        "accuracy": 1.0,
-        "decided_share": 0.75,
-        "error_rate": 0.0,
-        "cost": 0.0
-      }
+      "decision": null
     },
     {
       "target": "clef-flash@workers-ai",
@@ -79,7 +73,7 @@
       "probabilities": true,
       "latency_p50_ms": 2430.5,
       "latency_p95_ms": 2532.9,
-      "cost_usd": 3.7772e-05,
+      "cost_usd": 1.3831999999999999e-05,
       "cost_per_1k_usd": 0.009443,
       "questions": [
         {
@@ -87,7 +81,7 @@
           "type": "choice",
           "n": 4,
           "accuracy": 0.75,
-          "macro_f1": 0.667,
+          "macro_f1": 0.6666666666666666,
           "mae": null,
           "within_tolerance": null,
           "brier": null,
@@ -128,13 +122,7 @@
           "consistency": null
         }
       ],
-      "decision": {
-        "n": 4,
-        "accuracy": 0.75,
-        "decided_share": 0.5,
-        "error_rate": 0.5,
-        "cost": 1.0
-      }
+      "decision": null
     },
     {
       "target": "clef-flash@ollama",

@@ -564,8 +564,8 @@ class Calibration(Model):
 
 
 type ChangeStatus = Literal["fixed", "broken", "changed"]
-"""`fixed` and `broken` compare each answer with the expectation. `changed` means neither answer was correct, or the
-case has no expectation."""
+"""`fixed` went from wrong to right and `broken` from right to wrong. `changed` stayed right or stayed wrong, for
+example a score that moved within its tolerance, or the case has no expectation."""
 
 
 class AnswerChange(Model):
@@ -602,6 +602,28 @@ class RunChanges(Model):
     baseline: str
     changes: list[AnswerChange]
     summary: list[ChangeSummary]
+
+
+class Regression(Model):
+    """A metric that dropped by more than the allowed amount from the baseline."""
+
+    target: str
+    question: str
+    metric: Literal["accuracy", "within_tolerance"]
+    baseline: float
+    value: float
+    drop: float
+
+
+class RunComparison(Model):
+    """The result of `jevtester compare`: both runs' metrics, the changed answers, and any regressions."""
+
+    run_metrics: RunMetrics
+    baseline_metrics: RunMetrics
+    changes: RunChanges
+    max_drop: float
+    """The largest drop allowed in accuracy, or in within-tolerance accuracy for a score question."""
+    regressions: list[Regression]
 
 
 class CaseResult(Model):
@@ -787,10 +809,12 @@ __all__ = [
     "QuestionSetSummary",
     "QuestionSetVersion",
     "QuestionSetVersions",
+    "Regression",
     "ResultError",
     "ResultEvent",
     "RunCase",
     "RunChanges",
+    "RunComparison",
     "RunCounts",
     "RunCreate",
     "RunCreated",
