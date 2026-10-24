@@ -41,3 +41,5 @@ npx playwright test
 ```
 
 Playwright runs against fixture mode on port 5174.
+
+To check the built UI as `jevtester serve` ships it, against the real API on port 8645, run `npm run e2e:serve`. It needs uv. It asks no target anything, though the server still creates or updates `.jevtester/runs.sqlite` as it starts.
