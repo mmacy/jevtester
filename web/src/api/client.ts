@@ -16,6 +16,8 @@ import type {
   QuestionSetDetail,
   QuestionSetDiff,
   QuestionSetList,
+  ProbeCreate,
+  ProbeReport,
   QuestionSetVersions,
   RunCase,
   RunChanges,
@@ -165,6 +167,8 @@ export const api = {
     request<RunChanges>('GET', `/runs/${encodeURIComponent(id)}/changes?${query({ baseline })}`),
   compareRuns: (id: string, baseline: string) =>
     request<RunComparison>('GET', `/runs/${encodeURIComponent(id)}/compare?${query({ baseline })}`),
+  startProbes: (body: ProbeCreate) => request<RunCreated>('POST', '/probes', body),
+  getProbes: (id: string) => request<ProbeReport>('GET', `/runs/${encodeURIComponent(id)}/probes`),
   getRunCase: (id: string, caseId: string) =>
     request<RunCase>('GET', `/runs/${encodeURIComponent(id)}/cases/${encodeURIComponent(caseId)}`),
 }
