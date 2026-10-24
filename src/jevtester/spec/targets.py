@@ -48,6 +48,9 @@ type ProviderName = Literal["systemone", "workers-ai", "claude"]
 
 type AuthMethod = Literal["azure-cli"]
 
+type Runtime = Literal["foundry", "ollama", "mlx", "workers-ai"]
+"""The server a target runs on. Health checks differ by runtime."""
+
 
 class Target(Model):
     """One model on one runtime, with its settings."""
@@ -57,6 +60,8 @@ class Target(Model):
     label: str
     """The name people read, like `Microsoft-Decision-1, Azure Foundry`."""
     provider: ProviderName
+    runtime: Runtime | None = None
+    """The server the target runs on. `None` for a System One server with no runtime-specific checks."""
     model: str
     """The model name sent in the request body. On Foundry it's the deployment name."""
     base_url: str | None = None

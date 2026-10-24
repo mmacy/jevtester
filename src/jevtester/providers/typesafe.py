@@ -9,6 +9,7 @@ import time
 from typing import Any, cast
 
 import httpx2
+from pydantic import ValidationError
 from typesafe_sdk import (
     AsyncTypeSafeClient,
     RetryPolicy,
@@ -45,7 +46,15 @@ def make_client(
     return AsyncTypeSafeClient(api_key=api_key or NO_KEY, base_url=base_url, compression=False, transport=transport)
 
 
-def _status_code(status: int) -> ErrorCode:
+def error_code(status: int) -> ErrorCode:
+    """Map an HTTP error status to the contract's error code.
+
+    Args:
+        status: The HTTP status, 400 or more.
+
+    Returns:
+        `auth`, `rate_limited`, `request_too_large`, `server_error`, or `bad_request`.
+    """
     if status in (401, 403):
         return "auth"
     if status == 429:
@@ -57,7 +66,33 @@ def _status_code(status: int) -> ErrorCode:
     return "bad_request"
 
 
-def _decoded(content: bytes) -> Any:
+def strict_parse_warning(body: dict[str, Any]) -> ResultWarning | None:
+    """Validate a System One response body with the SDK's strict models.
+
+    Args:
+        body: The System One response body.
+
+    Returns:
+        A `strict_parse_failed` warning when the SDK rejects the body, so differences between servers show, or `None`.
+    """
+    try:
+        SystemOneResponse.model_validate_json(json.dumps(body))
+    except ValidationError as error:
+        first = error.errors(include_url=False)[0]
+        location = ".".join(str(part) for part in first["loc"]) or "the response"
+        return ResultWarning(code="strict_parse_failed", message=f"The SDK couldn't parse {location}.")
+    return None
+
+
+def decoded(content: bytes) -> Any:
+    """Decode a response body as JSON, or as text when it isn't JSON.
+
+    Args:
+        content: The response body.
+
+    Returns:
+        The decoded body.
+    """
     try:
         return json.loads(content)
     except ValueError:
@@ -120,7 +155,7 @@ async def system_one(client: AsyncTypeSafeClient, body: dict[str, Any], *, timeo
             request_body=body, latency_ms=elapsed_ms(), error=ResultError(code="connection", message=str(error))
         )
     except TypeSafeAPIError as error:
-        result_error = ResultError(code=_status_code(error.status), message=str(error), status=error.status)
+        result_error = ResultError(code=error_code(error.status), message=str(error), status=error.status)
         return RawResult(
             request_body=body,
             status=error.status,
@@ -131,9 +166,9 @@ async def system_one(client: AsyncTypeSafeClient, body: dict[str, Any], *, timeo
     except TypeSafeError as error:
         return RawResult(request_body=body, error=ResultError(code="bad_request", message=str(error)))
     raw = response.raw_http_response
-    response_body = _decoded(raw.content)
+    response_body = decoded(raw.content)
     return RawResult(
-        request_body=_decoded(raw.request.content),
+        request_body=decoded(raw.request.content),
         status=raw.status_code,
         response_body=response_body,
         system_one=cast(dict[str, Any], response_body) if isinstance(response_body, dict) else None,

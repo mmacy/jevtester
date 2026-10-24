@@ -45,19 +45,27 @@ class FakeCredential:
 
 
 class Recorder:
-    """An HTTP handler that records requests and answers with one response."""
+    """An HTTP handler that records requests and answers with one response, or one per path."""
 
-    def __init__(self, status: int = 200, body: Any = None, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        status: int = 200,
+        body: Any = None,
+        error: Exception | None = None,
+        routes: dict[str, tuple[int, Any]] | None = None,
+    ) -> None:
         self.status = status
         self.body = FOUNDRY_RESPONSE if body is None else body
         self.error = error
+        self.routes = routes or {}
         self.requests: list[httpx2.Request] = []
 
     def __call__(self, request: httpx2.Request) -> httpx2.Response:
         self.requests.append(request)
         if self.error is not None:
             raise self.error
-        return httpx2.Response(self.status, json=self.body)
+        status, body = self.routes.get(request.url.path, (self.status, self.body))
+        return httpx2.Response(status, json=body)
 
 
 def provider_with(recorder: Recorder, target: Any = FOUNDRY, credential: Any = None) -> SystemOneProvider:
@@ -84,13 +92,25 @@ def test_provider_sends_the_plan_request_with_the_token() -> None:
     assert raw.latency_ms is not None
 
 
+MLX_LOADED = {"/health": (200, {"status": "ok", "model": "clef-flash-4bit"})}
+
+
 def test_provider_sends_truncate_when_the_target_sets_it() -> None:
-    recorder = Recorder()
+    recorder = Recorder(routes=MLX_LOADED)
     asyncio.run(provider_with(recorder, target=MLX).decide(REQUEST, timeout=5))
-    body = json.loads(recorder.requests[0].content)
+    assert recorder.requests[0].url.path == "/health"
+    body = json.loads(recorder.requests[1].content)
     assert body["truncate"] is False
     assert body["model"] == "clef-flash-4bit"
-    assert recorder.requests[0].headers["authorization"] == "Bearer none"
+    assert recorder.requests[1].headers["authorization"] == "Bearer none"
+
+
+def test_mlx_refuses_a_request_for_another_loaded_model() -> None:
+    recorder = Recorder(routes={"/health": (200, {"status": "ok", "model": "clef-8bit"})})
+    raw = asyncio.run(provider_with(recorder, target=MLX).decide(REQUEST, timeout=5))
+    assert raw.error is not None
+    assert (raw.error.code, raw.error.message) == ("not_ready", "The MLX server has clef-8bit loaded")
+    assert [request.url.path for request in recorder.requests] == ["/health"]
 
 
 @pytest.mark.parametrize(
@@ -151,10 +171,48 @@ def test_health_check_reports_the_credential() -> None:
 
 
 def test_health_check_reports_a_server_that_isnt_listening() -> None:
-    down = provider_with(Recorder(error=httpx2.ConnectError("refused")), target=OLLAMA)
+    target = OLLAMA.model_copy(update={"runtime": None})
+    down = provider_with(Recorder(error=httpx2.ConnectError("refused")), target=target)
     health = asyncio.run(down.health_check())
     assert health.reason == "The server isn't running"
-    assert asyncio.run(provider_with(Recorder(), target=OLLAMA).health_check()) == Health()
+    assert asyncio.run(provider_with(Recorder(), target=target).health_check()) == Health()
+
+
+def ollama_routes(version: str, *models: str) -> dict[str, tuple[int, Any]]:
+    return {
+        "/api/version": (200, {"version": version}),
+        "/api/tags": (200, {"models": [{"name": model} for model in models]}),
+    }
+
+
+@pytest.mark.parametrize(
+    ("routes", "reason", "detail"),
+    [
+        (ollama_routes("0.40.11", "clef-flash:latest"), None, "Ollama 0.40.11"),
+        (ollama_routes("0.40.11", "qwen3.8:27b-mlx"), "clef-flash isn't pulled", "Run ollama pull clef-flash"),
+        (ollama_routes("0.32.15", "clef-flash:latest"), "Ollama is too old", "Needs 0.35.1 or later, found 0.32.15"),
+    ],
+)
+def test_ollama_health_check(routes: dict[str, tuple[int, Any]], reason: str | None, detail: str) -> None:
+    health = asyncio.run(provider_with(Recorder(routes=routes), target=OLLAMA).health_check())
+    assert (health.reason, health.detail) == (reason, detail)
+
+
+def test_ollama_health_check_when_it_isnt_running() -> None:
+    health = asyncio.run(provider_with(Recorder(error=httpx2.ConnectError("refused")), target=OLLAMA).health_check())
+    assert health.reason == "Ollama isn't running"
+
+
+def test_mlx_health_check() -> None:
+    assert asyncio.run(provider_with(Recorder(routes=MLX_LOADED), target=MLX).health_check()) == Health()
+    other = Recorder(routes={"/health": (200, {"status": "ok", "model": "clef-8bit"})})
+    health = asyncio.run(provider_with(other, target=MLX).health_check())
+    assert health.reason == "The MLX server has clef-8bit loaded"
+    down = Recorder(error=httpx2.ConnectError("refused"))
+    assert asyncio.run(provider_with(down, target=MLX).health_check()).reason == "The MLX server isn't running"
+    unnamed = Recorder(routes={"/health": (200, {"status": "ok"})})
+    health = asyncio.run(provider_with(unnamed, target=MLX).health_check())
+    assert health.reason == "The MLX server doesn't name its model"
 
 
 # Tokens
