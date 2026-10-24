@@ -5,6 +5,8 @@ import type { TargetInfo } from '../api/types'
 
 interface TargetsState {
   targets: TargetInfo[] | null
+  /** The targets a request goes to when it names none. */
+  defaultTargets: string[]
   checkedAt: string | null
   loading: boolean
   checking: boolean
@@ -17,6 +19,7 @@ interface TargetsState {
 
 export const useTargets = create<TargetsState>((set) => ({
   targets: null,
+  defaultTargets: [],
   checkedAt: null,
   loading: false,
   checking: false,
@@ -25,7 +28,11 @@ export const useTargets = create<TargetsState>((set) => ({
     set({ loading: true, error: null })
     try {
       const list = await api.listTargets()
-      set({ targets: list.targets, checkedAt: list.checked_at })
+      set({
+        targets: list.targets,
+        defaultTargets: list.default_targets,
+        checkedAt: list.checked_at,
+      })
     } catch (error) {
       set({ error })
     } finally {
@@ -36,7 +43,11 @@ export const useTargets = create<TargetsState>((set) => ({
     set({ checking: true, error: null })
     try {
       const list = await api.checkTargets()
-      set({ targets: list.targets, checkedAt: list.checked_at })
+      set({
+        targets: list.targets,
+        defaultTargets: list.default_targets,
+        checkedAt: list.checked_at,
+      })
     } catch (error) {
       set({ error })
     } finally {
