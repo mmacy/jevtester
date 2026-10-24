@@ -131,7 +131,84 @@ export function MetricsPanel({ run, metrics }: { run: RunSummary; metrics: RunMe
           })}
         </tbody>
       </table>
+      <DecisionTable run={run} metrics={metrics} />
     </div>
+  )
+}
+
+const DECISION_COLUMNS = [
+  { label: 'Decision accuracy', key: 'accuracy', higherBetter: true, percent: false },
+  { label: 'Decided', key: 'decided_share', higherBetter: true, percent: true },
+  { label: 'Errors among decided', key: 'error_rate', higherBetter: false, percent: true },
+  { label: 'Cost', key: 'cost', higherBetter: false, percent: false },
+] as const
+
+/** How the run's policy did on each target, when the suite has one. */
+function DecisionTable({ run, metrics }: { run: RunSummary; metrics: RunMetrics }) {
+  const rows = metrics.targets.filter((t) => t.decision !== null)
+  if (!run.policy || rows.length === 0) return null
+  const columns = DECISION_COLUMNS.filter((c) => rows.some((t) => t.decision?.[c.key] !== null))
+  return (
+    <section aria-label="Decisions" className="mt-4">
+      <h3 className="m-0 mb-1.5 text-sm font-medium text-dim">
+        Decisions, policy <span className="font-mono text-text">{run.policy}</span>
+      </h3>
+      <table className="w-full table-fixed border-separate border-spacing-0.5">
+        <thead>
+          <tr>
+            <th className="w-[170px] px-2 py-1 text-left text-sm font-medium text-dim">Target</th>
+            {columns.map((c) => (
+              <th key={c.key} className="px-2 py-1 text-right text-sm font-medium text-dim">
+                {c.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((t) => (
+            <tr key={t.target}>
+              <td
+                className="truncate font-display text-[15px] font-[650] [font-stretch:75%]"
+                title={t.target}
+              >
+                {t.target}
+              </td>
+              {columns.map((c) => {
+                const value = t.decision?.[c.key] ?? null
+                const shade = rankShade(
+                  rows.map((r) => r.decision?.[c.key] ?? null),
+                  value,
+                  c.higherBetter,
+                )
+                if (value === null || shade === null) {
+                  return (
+                    <td
+                      key={c.key}
+                      className="h-10 rounded-[2px] bg-surface px-2 text-right text-faint"
+                    >
+                      None
+                    </td>
+                  )
+                }
+                return (
+                  <td
+                    key={c.key}
+                    className="h-10 rounded-[2px] px-2 text-right"
+                    style={{ background: heat(shade), color: ink(shade) }}
+                  >
+                    {c.percent
+                      ? `${Math.round(value * 100)}%`
+                      : c.key === 'cost'
+                        ? value.toFixed(2)
+                        : value.toFixed(3)}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
   )
 }
 

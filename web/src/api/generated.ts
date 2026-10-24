@@ -635,6 +635,8 @@ export interface components {
         };
         /** @enum {string} */
         ApiErrorCode: "invalid_request" | "not_found" | "conflict" | "not_ready" | "internal";
+        /** @enum {string} */
+        BandLevel: "act" | "confirm" | "escalate";
         /**
          * Calibration
          * @description A reliability table for one question and one target.
@@ -796,6 +798,7 @@ export interface components {
             correct: {
                 [key: string]: boolean | null;
             };
+            decision: components["schemas"]["PolicyDecision"] | null;
             result: components["schemas"]["TargetResult"];
         };
         /** @enum {string} */
@@ -972,6 +975,8 @@ export interface components {
             field: string | null;
             /** Message */
             message: string;
+            /** Line */
+            line: number | null;
         };
         /**
          * Expectation
@@ -1091,6 +1096,25 @@ export interface components {
         PolicyBody: {
             /** Yaml */
             yaml: string;
+        };
+        /**
+         * PolicyDecision
+         * @description The action a policy chose from one result's answers.
+         */
+        PolicyDecision: {
+            /** Action */
+            action: string;
+            band: components["schemas"]["BandLevel"];
+            /** Escalated */
+            escalated: boolean;
+            /** Rule */
+            rule: number | null;
+            /** Composites */
+            composites: {
+                [key: string]: number | null;
+            };
+            /** Reason */
+            reason: string | null;
         };
         /**
          * PolicyDetail
