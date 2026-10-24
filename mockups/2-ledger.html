@@ -1,0 +1,455 @@
+<!doctype html>
+<!--
+  Direction 2: Referee's ledger.
+  A long, readable page set in Noto Serif by torchlight: one request at a time, with answers summarized in
+  plain sentences, targets placed on a shared reaction ruler, and run results written up like a referee's notes.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jevtester ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:ital,wght@0,300;0,400;0,500;1,300;1,400&family=Noto+Serif:ital,wght@0,400;0,500;0,600;1,400&family=Noto+Sans+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #1e1915;
+  --page: #251f1a;
+  --well: #18140f;
+  --rule: #3e352c;
+  --rule-soft: #302922;
+  --text: #ece2d1;
+  --dim: #ab9c8b;
+  --faint: #7a6c5e;
+  --torch: #e5a54c;
+  --torch-dim: #6b4e26;
+  --verd: #7fb3a3;
+  --blood: #db7462;
+  --serif: "Noto Serif", Georgia, serif;
+  --display: "Noto Serif Display", "Noto Serif", Georgia, serif;
+  --mono: "Noto Sans Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 17px/1.65 var(--serif);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--torch); outline-offset: 2px; }
+a { color: var(--torch); }
+
+.layout { display: grid; grid-template-columns: 236px minmax(0, 1fr); max-width: 1360px; margin: 0 auto; }
+
+/* contents */
+.contents { position: sticky; top: 0; align-self: start; height: 100vh; padding: 36px 24px 24px 32px; border-right: 1px solid var(--rule-soft); display: flex; flex-direction: column; gap: 28px; overflow-y: auto; }
+.wordmark { font-family: var(--display); font-size: 26px; font-weight: 400; letter-spacing: 0.01em; line-height: 1; }
+.wordmark small { display: block; font-family: var(--serif); font-size: 13px; color: var(--faint); margin-top: 6px; font-style: italic; letter-spacing: 0; }
+.toc { list-style: none; margin: 0; padding: 0; counter-reset: none; }
+.toc a { display: block; padding: 5px 0 5px 12px; color: var(--dim); text-decoration: none; border-left: 1px solid var(--rule); font-size: 15px; }
+.toc a:hover { color: var(--text); }
+.toc a.on { color: var(--text); border-left: 2px solid var(--torch); padding-left: 11px; }
+.side-h { font-family: var(--display); font-style: italic; font-size: 15px; color: var(--dim); margin: 0 0 8px; font-weight: 400; }
+.side-targets { list-style: none; margin: 0; padding: 0; font-size: 13.5px; line-height: 1.4; }
+.side-targets li { padding: 5px 0; display: grid; grid-template-columns: 14px 1fr; }
+.side-targets li::before { content: ""; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--verd); }
+.side-targets li.down::before { background: var(--blood); }
+.side-targets li.warn::before { background: var(--torch); }
+.side-targets span { font-family: var(--mono); font-size: 12px; }
+.side-targets em { grid-column: 2; display: block; color: var(--blood); font-size: 13px; }
+.side-targets li.warn em { color: var(--torch); }
+
+/* main */
+main { padding: 36px 48px 120px; min-width: 0; }
+.sheet { display: grid; grid-template-columns: minmax(0, 720px) 220px; gap: 0 48px; }
+.sheet > * { grid-column: 1; }
+.margin { grid-column: 2; font-size: 13.5px; line-height: 1.5; color: var(--dim); border-left: 1px solid var(--rule); padding-left: 14px; align-self: start; }
+.margin b { color: var(--text); font-weight: 500; }
+.margin.warn { border-left-color: var(--torch); }
+.margin.warn b { color: var(--torch); }
+.bleed { grid-column: 1 / -1; }
+
+section.chapter { padding: 8px 0 56px; }
+section.chapter + section.chapter { border-top: 1px solid var(--rule-soft); padding-top: 44px; }
+h1, h2, h3 { font-family: var(--display); font-weight: 300; margin: 0; }
+h1 { font-size: 52px; line-height: 1.08; letter-spacing: -0.01em; }
+h2 { font-size: 34px; line-height: 1.15; margin-bottom: 14px; }
+h3 { font-size: 26px; line-height: 1.25; font-weight: 400; }
+.lede { font-size: 19px; color: var(--dim); margin: 12px 0 28px; max-width: 34em; }
+p { margin: 0 0 14px; max-width: 36em; }
+.qid { font-family: var(--mono); font-size: 13px; color: var(--faint); }
+
+/* ask */
+.ask label.cap { display: block; font-family: var(--display); font-style: italic; color: var(--dim); font-size: 16px; margin: 0 0 6px; }
+.ask textarea, .ask input[type=text] {
+  width: 100%; background: var(--well); border: 1px solid var(--rule); border-radius: 2px;
+  padding: 14px 16px; font-size: 18px; line-height: 1.6; resize: vertical;
+}
+.ask textarea:focus, .ask input:focus { border-color: var(--torch-dim); outline: none; box-shadow: 0 0 0 1px var(--torch-dim); }
+.ask .q { font-family: var(--display); font-size: 22px; font-weight: 300; }
+.row { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; margin-top: 18px; }
+.btn { border: 1px solid var(--rule); background: var(--page); padding: 8px 18px; border-radius: 2px; cursor: pointer; font-size: 15.5px; }
+.btn:hover { border-color: var(--faint); }
+.btn.primary { background: var(--torch); border-color: var(--torch); color: #22180d; font-weight: 600; }
+.btn.primary:hover { background: #efb560; }
+.textbtn { border: 0; background: none; color: var(--torch); cursor: pointer; padding: 0; font-size: 15.5px; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--torch-dim); }
+.hint { color: var(--faint); font-size: 14.5px; font-style: italic; }
+.detail { display: none; margin-top: 28px; padding-top: 22px; border-top: 1px dashed var(--rule); }
+.ask.open .detail { display: block; }
+.ask.open .growrow { display: none; }
+.types { display: flex; gap: 0; border: 1px solid var(--rule); border-radius: 2px; width: max-content; margin: 4px 0 18px; }
+.types button { border: 0; background: none; padding: 6px 14px; cursor: pointer; color: var(--dim); font-size: 15px; }
+.types button + button { border-left: 1px solid var(--rule); }
+.types button[aria-pressed="true"] { background: var(--torch-dim); color: var(--text); }
+.optlist { list-style: none; margin: 0 0 12px; padding: 0; }
+.optlist li { display: grid; grid-template-columns: 110px 1fr 24px; gap: 12px; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--rule-soft); }
+.optlist li b { font-family: var(--mono); font-weight: 400; font-size: 14px; color: var(--torch); }
+.optlist li span { color: var(--text); }
+.optlist li button { border: 0; background: none; color: var(--faint); cursor: pointer; }
+.more-q { margin: 18px 0 4px; padding: 0; list-style: none; }
+.more-q li { padding: 10px 0; border-bottom: 1px solid var(--rule-soft); display: grid; grid-template-columns: 1fr auto; gap: 12px; }
+.more-q li small { color: var(--faint); font-size: 14px; display: block; }
+.picks { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 10px 0 0; font-size: 15px; }
+.picks label { display: inline-flex; gap: 8px; align-items: center; font-family: var(--mono); font-size: 13.5px; }
+.picks label.off { color: var(--faint); }
+.picks input { accent-color: var(--torch); }
+
+/* answers */
+.verdict { font-size: 18px; margin: 10px 0 18px; }
+.verdict b { font-weight: 600; color: var(--torch); }
+.qsec { margin-top: 40px; }
+.qsec:first-of-type { margin-top: 12px; }
+.cols { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 28px; margin-top: 16px; }
+.tcol h4 { margin: 0 0 8px; font-family: var(--mono); font-weight: 400; font-size: 12.5px; color: var(--dim); padding-bottom: 6px; border-bottom: 1px solid var(--rule); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tcol h4 sup, .receipt sup { color: var(--torch); line-height: 0; }
+.pb { display: grid; grid-template-columns: 1fr auto; font-size: 15px; line-height: 1.3; margin: 0 0 9px; }
+.pb .v { color: var(--dim); }
+.pb .track { grid-column: 1 / -1; height: 4px; background: var(--rule-soft); margin-top: 4px; position: relative; }
+.pb .fill { position: absolute; inset: 0 auto 0 0; background: var(--verd); opacity: 0.75; }
+.pb.top .fill { background: var(--torch); opacity: 1; }
+.pb.top .v { color: var(--torch); }
+.cf { font-size: 14px; color: var(--faint); font-style: italic; margin-top: 6px; }
+.cf b { font-style: normal; color: var(--dim); font-weight: 400; }
+
+.ruler { position: relative; margin: 26px 0 8px; height: 150px; }
+.ruler .line { position: absolute; left: 0; right: 0; top: 70px; height: 2px; background: var(--rule); }
+.ruler .lvl { position: absolute; top: 64px; width: 1px; height: 14px; background: var(--faint); }
+.ruler .lvl span { position: absolute; top: 22px; left: 0; transform: translateX(-50%); width: 120px; text-align: center; font-size: 13.5px; line-height: 1.3; color: var(--dim); }
+.ruler .lvl.first span { transform: none; text-align: left; }
+.ruler .lvl.last span { transform: translateX(-100%); text-align: right; }
+.ruler .lvl span i { display: block; font-style: normal; font-family: var(--mono); font-size: 12px; color: var(--faint); }
+.ruler .mk { position: absolute; top: 0; bottom: 0; width: 0; }
+.ruler .mk .dotm { position: absolute; left: -5px; top: 66px; width: 10px; height: 10px; border-radius: 50%; background: var(--torch); border: 2px solid var(--bg); }
+.ruler .mk .stem { position: absolute; left: 0; width: 1px; background: var(--torch-dim); }
+.ruler .mk .lab { position: absolute; left: 0; padding-left: 6px; border-left: 1px solid var(--torch-dim); font-family: var(--mono); font-size: 12px; line-height: 17px; color: var(--dim); white-space: nowrap; }
+.ruler .mk .lab b { color: var(--torch); font-weight: 400; }
+.receipt { width: 100%; border-collapse: collapse; margin-top: 18px; font-size: 15.5px; }
+.receipt th { font-weight: 400; font-style: italic; color: var(--dim); text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--rule); }
+.receipt td { padding: 8px 10px; text-align: right; border-bottom: 1px solid var(--rule-soft); }
+.receipt th:first-child, .receipt td:first-child { text-align: left; padding-left: 0; }
+.receipt td:first-child { font-family: var(--mono); font-size: 13.5px; }
+.receipt sup { color: var(--torch); }
+.receipt tr.down td { color: var(--faint); }
+.receipt tr.down td.why { text-align: left; color: var(--blood); font-style: italic; }
+.foot { font-size: 14px; color: var(--dim); margin-top: 10px; max-width: 44em; }
+.foot sup { color: var(--torch); }
+.promote { margin-top: 28px; padding: 18px 20px; border: 1px solid var(--rule); background: var(--page); display: grid; grid-template-columns: 1fr auto; gap: 8px 20px; align-items: center; }
+.promote p { margin: 0; color: var(--dim); font-size: 15.5px; }
+
+/* run */
+.metrics { width: 100%; border-collapse: collapse; font-size: 15.5px; margin-top: 6px; }
+.metrics caption { text-align: left; font-family: var(--display); font-style: italic; color: var(--dim); font-size: 16px; padding-bottom: 6px; }
+.metrics th { font-weight: 400; font-style: italic; color: var(--dim); text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--rule); vertical-align: bottom; line-height: 1.3; }
+.metrics td { text-align: right; padding: 9px 10px; border-bottom: 1px solid var(--rule-soft); }
+.metrics th:first-child, .metrics td:first-child { text-align: left; padding-left: 0; }
+.metrics td:first-child { font-family: var(--mono); font-size: 13.5px; }
+.metrics td.best { color: var(--torch); }
+.metrics tr.down td { color: var(--faint); }
+.metrics tr.down td.why { color: var(--blood); font-style: italic; text-align: left; }
+.pair { display: grid; grid-template-columns: auto 1fr; gap: 40px; margin-top: 36px; align-items: start; }
+.cmx { border-collapse: collapse; font-size: 15px; }
+.cmx th { font-weight: 400; color: var(--dim); padding: 4px 10px; font-family: var(--mono); font-size: 13px; }
+.cmx th.ax { font-family: var(--display); font-style: italic; font-size: 14px; }
+.cmx td { width: 58px; height: 46px; text-align: center; border: 1px solid var(--rule-soft); }
+.cmx td.diag { color: var(--text); }
+.cmx td.miss { color: var(--blood); font-weight: 600; }
+.cmx td.zero { color: var(--faint); }
+.entries { list-style: none; margin: 18px 0 0; padding: 0; }
+.entries li { display: grid; grid-template-columns: 96px 1fr 88px; gap: 4px 18px; padding: 14px 0; border-bottom: 1px solid var(--rule-soft); }
+.entries .cid { font-family: var(--mono); font-size: 13px; color: var(--dim); padding-top: 3px; }
+.entries blockquote { margin: 0 0 4px; font-style: italic; font-size: 17px; }
+.entries .delta { font-size: 15px; color: var(--dim); }
+.entries .delta s { color: var(--faint); }
+.entries .delta b { color: var(--text); font-weight: 500; }
+.entries .res { text-align: right; font-size: 15px; padding-top: 3px; }
+.entries .fixed { color: var(--verd); }
+.entries .broke { color: var(--blood); }
+.stepper { display: flex; gap: 12px; align-items: center; margin-top: 18px; }
+
+/* targets */
+.tlist { list-style: none; margin: 8px 0 0; padding: 0; }
+.tlist li { display: grid; grid-template-columns: 240px 1fr; gap: 6px 28px; padding: 16px 0; border-bottom: 1px solid var(--rule-soft); }
+.tlist .nm { font-family: var(--mono); font-size: 14px; }
+.tlist .nm small { display: block; font-family: var(--serif); font-size: 14px; color: var(--faint); }
+.tlist .st { font-size: 16px; }
+.tlist .ok { color: var(--verd); }
+.tlist .bad { color: var(--blood); }
+.tlist .wr { color: var(--torch); }
+.tlist .st small { display: block; color: var(--dim); font-size: 15px; }
+.tlist code, .foot .qid { white-space: nowrap; }
+.tlist code { font-family: var(--mono); font-size: 13.5px; background: var(--well); padding: 1px 5px; border: 1px solid var(--rule-soft); }
+
+@media (max-width: 1240px) {
+  .layout { grid-template-columns: 200px minmax(0, 1fr); }
+  .contents { padding: 28px 16px 16px 20px; }
+  main { padding: 28px 28px 100px; }
+  .sheet { grid-template-columns: minmax(0, 1fr); }
+  .margin { grid-column: 1; margin: 4px 0 18px; }
+  h1 { font-size: 42px; }
+  .cols { gap: 0 18px; }
+  .pair { grid-template-columns: 1fr; }
+  .tlist li { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <nav class="contents" aria-label="Contents">
+    <div class="wordmark">jevtester<small>Parley suite, session of October 24</small></div>
+    <ol class="toc">
+      <li><a href="#ask" class="on">Ask</a></li>
+      <li><a href="#answers">Answers</a></li>
+      <li><a href="#run">Run 0142</a></li>
+      <li><a href="#targets">Targets</a></li>
+    </ol>
+    <div>
+      <h2 class="side-h">Targets</h2>
+      <ul class="side-targets">
+        <li><span>decision-1@foundry</span></li>
+        <li><span>clef-flash@workers-ai</span></li>
+        <li class="warn"><span>clef-flash-4bit@mlx</span><em>Ready, truncation is on</em></li>
+        <li><span>clef@mlx</span></li>
+        <li class="down"><span>clef-flash@ollama</span><em>Ollama isn't running</em></li>
+      </ul>
+    </div>
+  </nav>
+
+  <main>
+    <!-- Ask -->
+    <section class="chapter sheet" id="ask">
+      <h1>Goblins at the stairs</h1>
+      <p class="lede">Write what's happening and ask one question. A question with no options is a yes or no question, sent to decision-1@foundry.</p>
+
+      <div class="ask" id="askbox">
+        <label class="cap" for="state">State</label>
+        <textarea id="state" rows="3">Three adventurers, torches lit. Six goblins, weapons drawn, 40 feet away. The player says: "We come in peace. Take this sack of silver and let us pass to the stairs."</textarea>
+        <label class="cap" for="question" style="margin-top:18px">Question</label>
+        <input type="text" id="question" class="q" value="Does the player offer the monsters something of value?">
+        <div class="row growrow">
+          <button class="btn primary">Ask</button>
+          <button class="textbtn" id="grow">Add options, change the type, or ask more targets</button>
+        </div>
+
+        <div class="detail">
+          <label class="cap">This question asks the model to</label>
+          <div class="types" role="group" aria-label="Question type">
+            <button aria-pressed="false">Answer yes or no</button>
+            <button aria-pressed="true">Choose one option</button>
+            <button aria-pressed="false">Place on a scale</button>
+          </div>
+          <p class="hint" style="margin-bottom:6px">Id <span class="qid">intent</span>. Instructions: "What is the player trying to do?"</p>
+          <ul class="optlist">
+            <li><b>parley</b><span>Talk, bargain, bribe, or negotiate</span><button aria-label="Remove parley">&times;</button></li>
+            <li><b>evade</b><span>Run away or avoid the monsters</span><button aria-label="Remove evade">&times;</button></li>
+            <li><b>fight</b><span>Attack the monsters</span><button aria-label="Remove fight">&times;</button></li>
+            <li><b>wait</b><span>Hold position and watch</span><button aria-label="Remove wait">&times;</button></li>
+          </ul>
+          <button class="textbtn">Add an option</button>
+          <span class="hint" style="margin-left:14px">Consider "cannot tell" if a forced choice could be wrong.</span>
+
+          <label class="cap" style="margin-top:26px">Other questions in this request</label>
+          <ul class="more-q">
+            <li><div>Does the player offer the monsters something of value?<small>bribe, yes or no</small></div><button class="textbtn">Edit</button></li>
+            <li><div>How are goblins likely to react to this offer?<small>reaction, a scale of 5 levels from "Attack at once" to "Friendly, accept the offer"</small></div><button class="textbtn">Edit</button></li>
+          </ul>
+          <button class="textbtn" style="margin-top:10px">Add a question</button>
+
+          <label class="cap" style="margin-top:26px">Ask these targets</label>
+          <div class="picks">
+            <label><input type="checkbox" checked> decision-1@foundry</label>
+            <label><input type="checkbox" checked> clef-flash@workers-ai</label>
+            <label><input type="checkbox" checked> clef-flash-4bit@mlx</label>
+            <label><input type="checkbox" checked> clef@mlx</label>
+            <label class="off"><input type="checkbox" disabled> clef-flash@ollama, not running</label>
+          </div>
+          <div class="row">
+            <button class="btn primary">Ask 4 targets</button>
+            <button class="btn">Save as a case</button>
+            <button class="textbtn" id="shrink">Back to one question</button>
+          </div>
+        </div>
+      </div>
+      <aside class="margin" style="grid-row: 3">Quick tests aren't saved until you save them as a case. Saving keeps the state, the questions, and the answers you mark as expected.</aside>
+    </section>
+
+    <!-- Answers -->
+    <section class="chapter sheet" id="answers">
+      <h2>Answers</h2>
+      <p class="lede" style="margin-bottom:8px">Four targets answered three questions. clef-flash@ollama was left out because Ollama isn't running.</p>
+
+      <div class="qsec bleed">
+        <h3>What is the player trying to do? <span class="qid">intent</span></h3>
+        <p class="verdict">Every target says <b>parley</b>, with probabilities from 0.981 to 0.9996.</p>
+        <div class="cols" id="intentCols"></div>
+      </div>
+
+      <div class="qsec bleed">
+        <h3>Does the player offer the monsters something of value? <span class="qid">bribe</span></h3>
+        <p class="verdict">Every target says <b>yes</b>. Decision-1 is the surest at 0.9988, the 4-bit Clef-flash the least sure at 0.9327.</p>
+        <div class="cols" id="bribeCols"></div>
+      </div>
+
+      <div class="qsec bleed">
+        <h3>How are goblins likely to react to this offer? <span class="qid">reaction</span></h3>
+        <p class="verdict">The targets place the goblins between <b>uncertain</b> and <b>indifferent</b>, at scores from 2.05 to 2.36. None of them is confident: the highest confidence is 0.323.</p>
+        <div class="ruler" id="ruler"></div>
+        <div class="cols" id="reactionCols"></div>
+      </div>
+
+      <div class="bleed">
+        <table class="receipt">
+          <thead><tr><th>Target</th><th>Latency</th><th>Input tokens</th><th>Output tokens</th><th>Cost</th></tr></thead>
+          <tbody>
+            <tr><td>decision-1@foundry</td><td>1,550 ms</td><td>185</td><td>3</td><td>$0.000019</td></tr>
+            <tr><td>clef-flash@workers-ai</td><td>1,940 ms</td><td>435</td><td>0</td><td>$0.000017</td></tr>
+            <tr><td>clef-flash-4bit@mlx<sup>*</sup></td><td>820 ms</td><td>431</td><td>3</td><td>Free, local</td></tr>
+            <tr><td>clef@mlx</td><td>3,410 ms</td><td>431</td><td>3</td><td>Free, local</td></tr>
+            <tr class="down"><td>clef-flash@ollama</td><td colspan="4" class="why">Not asked. Ollama isn't running.</td></tr>
+          </tbody>
+        </table>
+        <p class="foot"><sup>*</sup> Truncation warning. This MLX server was started without <span class="qid">--no-truncate</span>, so it cuts any input over 16,384 tokens without saying so. This request was 431 tokens and wasn't cut, but a longer state would be.</p>
+      </div>
+
+      <div class="promote bleed">
+        <p>Keep this request as a case in parley.yaml, and mark parley, yes, and level 3 as the expected answers.</p>
+        <button class="btn primary">Save as a case</button>
+      </div>
+    </section>
+
+    <!-- Run -->
+    <section class="chapter sheet" id="run">
+      <h2>Run 0142</h2>
+      <p class="lede">The parley suite, 48 cases, asked of four targets with question set v4 (7f20bd). It took 4 minutes and cost $0.0018. 37 of 192 answers came from the cache.</p>
+      <p>Clef on MLX was the most accurate and the best calibrated, and the slowest. The 4-bit Clef-flash was the fastest and the least accurate. Decision-1 sits between them at a cost of two cents per thousand requests.</p>
+
+      <div class="bleed">
+        <table class="metrics">
+          <caption>Intent accuracy and macro-F1, bribe Brier score, and calibration error</caption>
+          <thead><tr><th>Target</th><th>Accuracy</th><th>Macro-F1</th><th>Brier score</th><th>Calibration error</th><th>p50 latency</th><th>p95 latency</th><th>Cost per 1,000</th></tr></thead>
+          <tbody>
+            <tr><td>decision-1@foundry</td><td>0.917</td><td>0.900</td><td>0.061</td><td>0.048</td><td>1,520 ms</td><td>2,310 ms</td><td>$0.021</td></tr>
+            <tr><td>clef-flash@workers-ai</td><td>0.896</td><td>0.871</td><td>0.074</td><td>0.071</td><td>1,910 ms</td><td>3,040 ms</td><td>$0.017</td></tr>
+            <tr><td>clef-flash-4bit@mlx</td><td>0.875</td><td>0.846</td><td>0.083</td><td>0.079</td><td class="best">790 ms</td><td class="best">1,140 ms</td><td class="best">Free</td></tr>
+            <tr><td>clef@mlx</td><td class="best">0.938</td><td class="best">0.921</td><td class="best">0.052</td><td class="best">0.039</td><td>3,380 ms</td><td>4,020 ms</td><td class="best">Free</td></tr>
+            <tr class="down"><td>clef-flash@ollama</td><td colspan="7" class="why">Skipped. Ollama isn't running.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pair bleed">
+        <div>
+          <h3 style="font-size:22px;margin-bottom:12px">Intent, decision-1@foundry</h3>
+          <table class="cmx" id="cmx"></table>
+          <p class="hint" style="margin-top:10px">Rows are what the case expects. 44 of 48 match.</p>
+        </div>
+        <div>
+          <h3 style="font-size:22px;margin-bottom:12px">Where it went wrong</h3>
+          <p style="font-size:16px">Two cases that expected <b>wait</b> came back as parley and fight. The player stood still but spoke, or stood still with a weapon raised. One parley and one evade case came back as wait. The wait option may need a sharper description: "Hold position and watch, without speaking or acting."</p>
+        </div>
+      </div>
+
+      <div class="bleed" style="margin-top:40px">
+        <h3 style="font-size:22px">What changed from v3 to v4</h3>
+        <p class="hint" style="margin-top:4px">v4 reworded the parley, evade, and wait descriptions. Six answers changed on decision-1@foundry. Five changes fixed a case and one broke a case. McNemar's test gives p = 0.22, so the gain may be chance.</p>
+        <ul class="entries" id="entries"></ul>
+        <div class="stepper"><button class="btn">Previous change</button><button class="btn">Next change</button><span class="hint">Opens each case with both versions' answers side by side.</span></div>
+      </div>
+    </section>
+
+    <!-- Targets -->
+    <section class="chapter sheet" id="targets">
+      <h2>Targets</h2>
+      <p class="lede">Four of five targets are ready. Checked a moment ago.</p>
+      <ul class="tlist">
+        <li><div class="nm">decision-1@foundry<small>Microsoft-Decision-1 on Azure Foundry</small></div><div class="st ok">Ready<small>Signed in through the Azure CLI. The token refreshes in 41 minutes. 100 requests a minute.</small></div></li>
+        <li><div class="nm">clef-flash@workers-ai<small>Clef-flash on Cloudflare Workers AI</small></div><div class="st ok">Ready<small>Signed in through Wrangler. $0.038 per million input tokens.</small></div></li>
+        <li><div class="nm">clef-flash-4bit@mlx<small>Clef-flash 4-bit on MLX, this Mac</small></div><div class="st wr">Ready, with a warning<small>The server truncates inputs over 16,384 tokens without telling you. Restart it with <code>python clef_mlx.py serve --no-truncate</code>.</small></div></li>
+        <li><div class="nm">clef@mlx<small>Clef 27B 8-bit on MLX, this Mac</small></div><div class="st ok">Ready<small>Same server as the 4-bit model. One request at a time. Uses about 32 GB of memory.</small></div></li>
+        <li><div class="nm">clef-flash@ollama<small>Clef-flash on Ollama, this Mac</small></div><div class="st bad">Ollama isn't running<small>Nothing answers on <code>localhost:11434</code>. The installed Ollama is 0.32.15, and Clef-flash needs 0.35.1 or later. Upgrade Ollama, start it, then run <code>ollama pull clef-flash</code> (11 to 12 GB).</small></div></li>
+      </ul>
+      <div class="row"><button class="btn">Check targets again</button></div>
+    </section>
+  </main>
+</div>
+
+<script>
+const T = [
+  { id: "decision-1@foundry", intent: [0.9996, 0.0002, 0.0001, 0.0001], iconf: 0.9995, bribe: 0.9988, score: 2.21, rp: [0.033, 0.191, 0.458, 0.169, 0.149], rconf: 0.323 },
+  { id: "clef-flash@workers-ai", intent: [0.9867, 0.0045, 0.0040, 0.0048], iconf: 0.9648, bribe: 0.9405, score: 2.10, rp: [0.108, 0.241, 0.265, 0.212, 0.174], rconf: 0.019 },
+  { id: "clef-flash-4bit@mlx", warn: true, intent: [0.9812, 0.0061, 0.0059, 0.0068], iconf: 0.9749, bribe: 0.9327, score: 2.05, rp: [0.121, 0.252, 0.249, 0.211, 0.167], rconf: 0.021 },
+  { id: "clef@mlx", intent: [0.9973, 0.0011, 0.0007, 0.0009], iconf: 0.9964, bribe: 0.9951, score: 2.36, rp: [0.041, 0.162, 0.371, 0.247, 0.179], rconf: 0.188 },
+];
+const OPT = [["parley", "Talk, bargain, bribe, or negotiate"], ["evade", "Run away or avoid the monsters"], ["fight", "Attack the monsters"], ["wait", "Hold position and watch"]];
+const LV = ["Attack at once", "Hostile, may attack", "Uncertain, hold and posture", "Indifferent, may let them pass", "Friendly, accept the offer"];
+
+const pb = (label, v, top, d, title) => `<div class="pb${top ? " top" : ""}" ${title ? `title="${title}"` : ""}><span>${label}</span><span class="v">${v.toFixed(d)}</span><span class="track"><span class="fill" style="width:${Math.max(v * 100, 0.8)}%"></span></span></div>`;
+const head = t => `<h4>${t.id}${t.warn ? "<sup>*</sup>" : ""}</h4>`;
+const argmax = a => a.indexOf(Math.max(...a));
+
+document.getElementById("intentCols").innerHTML = T.map(t => `<div class="tcol">${head(t)}${OPT.map(([o, d], i) => pb(o, t.intent[i], i === argmax(t.intent), 4, d)).join("")}<div class="cf">Confidence <b>${t.iconf.toFixed(4)}</b></div></div>`).join("");
+document.getElementById("bribeCols").innerHTML = T.map(t => `<div class="tcol">${head(t)}${pb("yes", t.bribe, true, 4)}${pb("no", 1 - t.bribe, false, 4)}<div class="cf">Confidence <b>${Math.abs(2 * t.bribe - 1).toFixed(4)}</b></div></div>`).join("");
+document.getElementById("reactionCols").innerHTML = T.map(t => `<div class="tcol">${head(t)}${LV.map((l, i) => pb(`${i} ${l.split(",")[0]}`, t.rp[i], i === argmax(t.rp), 3, l)).join("")}<div class="cf">Score <b>${t.score.toFixed(2)}</b>, confidence <b>${t.rconf.toFixed(3)}</b></div></div>`).join("");
+
+// shared ruler: markers stacked at different heights so labels don't collide
+const r = document.getElementById("ruler");
+r.innerHTML = `<div class="line"></div>` + LV.map((l, i) => `<div class="lvl${i === 0 ? " first" : i === 4 ? " last" : ""}" style="left:${i * 25}%"><span><i>${i}</i>${l}</span></div>`).join("") +
+  [...T].sort((a, b) => b.score - a.score).map((t, k) => {
+    const y = k * 17, x = t.score / 4 * 100;
+    return `<div class="mk" style="left:${x}%"><span class="lab" style="top:${y}px">${t.id} <b>${t.score.toFixed(2)}</b></span><span class="stem" style="top:${y + 9}px;height:${70 - y - 9}px"></span><span class="dotm"></span></div>`;
+  }).join("");
+
+// confusion matrix
+const names = OPT.map(o => o[0]);
+const cm = [[17, 0, 0, 1], [0, 9, 0, 1], [0, 0, 12, 0], [1, 0, 1, 6]];
+document.getElementById("cmx").innerHTML = `<tr><td style="border:0"></td><th colspan="4" class="ax">Answered</th></tr><tr><th class="ax" style="text-align:right">Expected</th>${names.map(n => `<th>${n}</th>`).join("")}</tr>` +
+  cm.map((row, i) => `<tr><th style="text-align:right">${names[i]}</th>${row.map((v, j) => `<td class="${i === j ? "diag" : v ? "miss" : "zero"}" style="${i === j ? `background:rgba(127,179,163,${0.08 + v / 18 * 0.32})` : ""}">${v}</td>`).join("")}</tr>`).join("");
+
+// changed entries
+const E = [
+  ["parley-07", "We shout that we mean no harm and back toward the door.", "intent", "evade (0.58)", "parley (0.71)", "parley", true],
+  ["parley-12", "Throw the rations at them and run for the stairs.", "intent", "parley (0.62)", "evade (0.88)", "evade", true],
+  ["parley-19", "We stay where we are and watch what they do.", "intent", "wait (0.71)", "parley (0.54)", "wait", false],
+  ["parley-23", "Offer them the dwarf's beard as a trophy.", "reaction", "level 1, score 1.38", "level 2, score 2.04", "level 2", true],
+  ["parley-31", "I hold up the gold idol so they can see it.", "bribe", "no (0.41)", "yes (0.77)", "yes", true],
+  ["parley-40", "I raise my shield and wait for them to move first.", "intent", "fight (0.55)", "wait (0.81)", "wait", true],
+];
+document.getElementById("entries").innerHTML = E.map(([id, q, qn, a, b, e, ok]) => `<li><span class="cid">${id}</span><div><blockquote>"${q}"</blockquote><div class="delta"><span class="qid">${qn}</span>: v3 said <s>${a}</s>, v4 says <b>${b}</b>. Expected ${e}.</div></div><span class="res ${ok ? "fixed" : "broke"}">${ok ? "Fixed" : "Broken"}</span></li>`).join("");
+
+// grow and shrink
+const box = document.getElementById("askbox");
+document.getElementById("grow").onclick = () => { box.classList.add("open"); document.getElementById("question").value = "What is the player trying to do?"; };
+document.getElementById("shrink").onclick = () => { box.classList.remove("open"); document.getElementById("question").value = "Does the player offer the monsters something of value?"; };
+document.querySelectorAll(".types button").forEach(b => b.onclick = () => document.querySelectorAll(".types button").forEach(x => x.setAttribute("aria-pressed", x === b)));
+
+// contents highlight
+const links = [...document.querySelectorAll(".toc a")];
+const obs = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) links.forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + e.target.id));
+}), { rootMargin: "-30% 0px -60% 0px" });
+document.querySelectorAll("section.chapter").forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
