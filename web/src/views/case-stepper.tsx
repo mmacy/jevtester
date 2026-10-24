@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import { api } from '../api/client'
-import type { AnswerValue, RunCase } from '../api/types'
+import type { AnswerValue, PolicyDecision, RunCase } from '../api/types'
 import { AnswerMatrix } from '../components/answer-matrix'
 import { ApiErrorState } from '../components/api-error'
 import { Button } from '../components/button'
@@ -11,19 +11,62 @@ import { PanelHeading } from '../components/panel-heading'
 import { EmptyState, Spinner } from '../components/states'
 import { useLoad } from '../hooks/use-load'
 import { stateSummary } from '../lib/format'
-import { buildMatrix, type MatrixColumn } from '../lib/matrix'
+import { buildMatrix, type MatrixColumn, type MatrixRow } from '../lib/matrix'
 import { useTargets } from '../store/targets'
 
-function columnsFor(runCase: RunCase, runId: string): MatrixColumn[] {
+function columnsFor(
+  runCase: RunCase,
+  runId: string,
+  decisions: Map<string, PolicyDecision | null>,
+): MatrixColumn[] {
   return runCase.results
     .filter((r) => r.repeat === 0 && r.variant === null)
-    .map((r) => ({
-      target: r.target,
-      key: `${runId}:${r.target}`,
-      label: `Run ${runId}`,
-      state: r.result.ok ? 'ok' : 'failed',
-      result: r.result,
-    }))
+    .map((r) => {
+      const key = `${runId}:${r.target}`
+      decisions.set(key, r.decision)
+      return {
+        target: r.target,
+        key,
+        label: `Run ${runId}`,
+        state: r.result.ok ? 'ok' : 'failed',
+        result: r.result,
+      }
+    })
+}
+
+/** The policy's decision for each column, as rows under the answers. */
+function decisionRows(
+  columns: MatrixColumn[],
+  decisions: Map<string, PolicyDecision | null>,
+): MatrixRow[] {
+  const of = (c: MatrixColumn) => decisions.get(c.key ?? c.target) ?? null
+  if (!columns.some((c) => of(c) !== null)) return []
+  const cells = (pick: (d: PolicyDecision) => string) =>
+    columns.map((c) => (of(c) ? pick(of(c)!) : ''))
+  return [
+    { kind: 'group', key: 'decision', id: 'usage', instructions: 'Decision', type: '' },
+    {
+      kind: 'plain',
+      key: 'decision:action',
+      label: 'Action',
+      cells: cells((d) => d.action),
+      warn: columns.map(() => false),
+    },
+    {
+      kind: 'plain',
+      key: 'decision:band',
+      label: 'Band',
+      cells: cells((d) => d.band[0].toUpperCase() + d.band.slice(1)),
+      warn: columns.map((c) => of(c)?.escalated ?? false),
+    },
+    {
+      kind: 'plain',
+      key: 'decision:rule',
+      label: 'Rule',
+      cells: cells((d) => (d.rule === null ? 'Default' : `Rule ${d.rule + 1}`)),
+      warn: columns.map(() => false),
+    },
+  ]
 }
 
 /** One changed case at a time: its state, and each target's answers in the baseline and this run. */
@@ -65,10 +108,11 @@ export function CaseStepper() {
   }, [go, index])
 
   const runCase = current.data
+  const decisions = new Map<string, PolicyDecision | null>()
   const columns: MatrixColumn[] = runCase
-    ? columnsFor(runCase, id).flatMap((column) => {
+    ? columnsFor(runCase, id, decisions).flatMap((column) => {
         const old = before.data
-          ? columnsFor(before.data, baseline).find((c) => c.target === column.target)
+          ? columnsFor(before.data, baseline, decisions).find((c) => c.target === column.target)
           : undefined
         return old ? [old, column] : [column]
       })
@@ -79,7 +123,7 @@ export function CaseStepper() {
         { state: runCase.case.state, questions: runCase.questions, images: [] },
         columns,
         (t) => local.has(t),
-      )
+      ).concat(decisionRows(columns, decisions))
     : []
   const expected: Record<string, AnswerValue> = {}
   for (const [q, e] of Object.entries(runCase?.case.expected ?? {})) {
