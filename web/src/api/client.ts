@@ -1,7 +1,17 @@
 // The typed client over the jevtester API. Every failed call throws: an
 // ApiError when the server answered with its error envelope, or a
 // ServerUnreachableError when no answer came back at all.
-import type { ApiErrorBody, DecideBody, DecideResponse, ErrorDetail, TargetList } from './types'
+import type {
+  ApiErrorBody,
+  CaseCreated,
+  CaseInput,
+  DecideBody,
+  DecideResponse,
+  ErrorDetail,
+  SuiteDetail,
+  SuiteList,
+  TargetList,
+} from './types'
 import { useServer } from './server-store'
 
 export class ApiError extends Error {
@@ -91,4 +101,8 @@ export const api = {
   checkTargets: () => request<TargetList>('POST', '/targets/check'),
   decide: (body: DecideBody, signal?: AbortSignal) =>
     request<DecideResponse>('POST', '/decide', body, signal),
+  listSuites: () => request<SuiteList>('GET', '/suites'),
+  getSuite: (name: string) => request<SuiteDetail>('GET', `/suites/${encodeURIComponent(name)}`),
+  addCase: (suite: string, body: CaseInput) =>
+    request<CaseCreated>('POST', `/suites/${encodeURIComponent(suite)}/cases`, body),
 }
