@@ -2,7 +2,7 @@
 
 jevtester is a local web app and companion command-line tool (CLI) for testing *decision models*: models that read a state and a set of typed questions and return a probability for every allowed answer, instead of generating text. It tests three things at once: the models, the questions you write for them (the prompts), and the decisions your code makes from their answers.
 
-Build the core library, the CLI, and the HTTP API first. Plan the web UI after those exist, from the list in [What the UI must show](#what-the-ui-must-show).
+Two Claude Code sessions build jevtester in parallel. A backend session builds the core library, the CLI, and the HTTP API, and a frontend session builds the web UI against the API contract. [The handoff notes](handoff.md) describe how they split the work.
 
 Two terms are used throughout:
 
@@ -442,7 +442,7 @@ Start with the parley suite. The B/X reaction bands are an ordered scale, and ea
 
 ## What the UI must show
 
-Plan the UI after the API exists. The UI must let a person:
+The UI must let a person:
 
 - Run a quick test from a state and a question, then add options, change the type, and add targets without starting over.
 - See each answer as probability bars for every option or level, with confidence, the score and legend, latency, tokens, cost, and any truncation warning.
@@ -477,7 +477,7 @@ Each step ends with a command that shows the step works. Write the contracts (mo
 7. **Policies.** Add YAML policies, decision accuracy, threshold sweeps, and the cost matrix. Done when a suite with expected actions reports decision accuracy.
 8. **Probes.** Add every probe except paraphrasing, which needs Claude. Done when `jevtester probe` reports the option-order change rate.
 9. **API.** Expose `service.py` through FastAPI on `127.0.0.1`, with SSE for run progress. Done when every CLI command has a matching endpoint and the API tests pass.
-10. **UI plan.** Write the UI plan from [What the UI must show](#what-the-ui-must-show) and the API, and review it with the user before building it.
+10. **UI.** The frontend session builds it in parallel with steps 2 through 9, as [the handoff notes](handoff.md#frontend-session) describe.
 
 ## Decisions
 
