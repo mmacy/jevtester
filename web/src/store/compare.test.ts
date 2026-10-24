@@ -67,12 +67,40 @@ describe('compare store', () => {
     ])
   })
 
-  it('keeps a request error and fails each column', async () => {
+  it('fails only the column of a target the server rejects', async () => {
     useCompare.setState({ mode: 'full', targets: ['clef@nowhere'] })
     stubApi({ 'POST /api/decide': { status: 422, body: fixture('post_decide.422.json') } })
     await useCompare.getState().ask()
     const { askError, asked } = useCompare.getState()
-    expect(askError).toMatchObject({ code: 'invalid_request', field: 'targets.0' })
-    expect(asked?.columns[0]).toMatchObject({ state: 'failed', error: { code: 'invalid_request' } })
+    expect(askError).toBeNull()
+    expect(asked?.columns[0]).toMatchObject({
+      state: 'failed',
+      error: { code: 'invalid_request', message: 'Unknown target: clef@nowhere' },
+    })
+  })
+
+  it('keeps a request error that is about the questions', async () => {
+    useCompare.setState({ mode: 'full', targets: ['decision-1@foundry'] })
+    const error = {
+      code: 'invalid_request',
+      message: 'Too few options',
+      field: 'questions.intent.choice.criteria',
+      details: [{ field: 'questions.intent.choice.criteria', message: 'Too few options' }],
+    }
+    stubApi({ 'POST /api/decide': { status: 422, body: { error } } })
+    await useCompare.getState().ask()
+    expect(useCompare.getState().askError).toMatchObject({
+      field: 'questions.intent.choice.criteria',
+    })
+  })
+
+  it('lets the server pick when the default targets have not loaded', async () => {
+    useTargets.setState({ defaultTargets: [] })
+    const fetchMock = stubApi({ 'POST /api/decide': { body: fixture('post_decide.json') } })
+    await useCompare.getState().ask()
+    expect(fetchMock.mock.calls.map((c) => bodyOf(c).targets)).toEqual([[]])
+    expect(useCompare.getState().asked?.columns.map((c) => c.target)).toEqual([
+      'decision-1@foundry',
+    ])
   })
 })

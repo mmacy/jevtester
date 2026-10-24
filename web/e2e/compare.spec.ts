@@ -126,7 +126,7 @@ test('an incomplete request shows what is missing', async ({ page }) => {
   await expect(answers(page)).toContainText('No answers')
 })
 
-test('a rejected request shows the error and its fields', async ({ page }) => {
+test('a target the server rejects fails its own column', async ({ page }) => {
   await page.route('**/api/decide', (route) =>
     route.continue({ headers: { ...route.request().headers(), 'x-fixture': '422' } }),
   )
@@ -134,7 +134,7 @@ test('a rejected request shows the error and its fields', async ({ page }) => {
   await form.getByLabel('State', { exact: true }).fill('Six goblins block the stairs.')
   await form.getByLabel('Question').fill('Are the goblins hostile?')
   await form.getByRole('button', { name: 'Ask', exact: true }).click()
-  const alert = answers(page).getByRole('alert')
-  await expect(alert).toContainText('invalid_request')
-  await expect(alert).toContainText('targets.0')
+  const column = answers(page).getByRole('columnheader', { name: /decision-1@foundry/ })
+  await expect(column).toContainText('Unknown target: clef@nowhere')
+  await expect(answers(page).getByRole('alert')).toHaveCount(0)
 })

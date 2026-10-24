@@ -62,6 +62,14 @@ function failedColumn(target: string, error: unknown): MatrixColumn {
   }
 }
 
+function isRequestError(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.code === 'invalid_request' &&
+    !(error.field ?? '').startsWith('targets.')
+  )
+}
+
 let controller: AbortController | null = null
 
 export const useCompare = create<CompareState>((set, get) => ({
@@ -91,6 +99,28 @@ export const useCompare = create<CompareState>((set, get) => ({
     const request = asEchoed(body)
     const isCurrent = () => controller === mine
 
+    if (targets.length === 0) {
+      // The targets haven't loaded, so let the server pick its defaults.
+      set({ asking: true, askError: null, asked: { request, askedAt: null, columns: [] } })
+      try {
+        const response = await api.decide({ ...body, targets: [] }, mine.signal)
+        if (isCurrent()) {
+          set({
+            asked: {
+              request,
+              askedAt: response.asked_at,
+              columns: response.results.map(columnFor),
+            },
+          })
+        }
+      } catch (error) {
+        if (isCurrent() && !mine.signal.aborted) set({ askError: error, asked: null })
+      } finally {
+        if (isCurrent()) set({ asking: false })
+      }
+      return
+    }
+
     // One call per target, so each column fills in when its answer arrives.
     const pending: MatrixColumn[] = targets.map((target) => ({
       target,
@@ -118,9 +148,9 @@ export const useCompare = create<CompareState>((set, get) => ({
           place(result ? columnFor(result) : failedColumn(target, 'No result'), response.asked_at)
         } catch (error) {
           if (mine.signal.aborted) return
-          if (error instanceof ApiError && error.code === 'invalid_request' && isCurrent()) {
-            set({ askError: error })
-          }
+          // A 422 on the state or the questions is about the whole request. One on
+          // targets.0 is about this column's target alone.
+          if (isRequestError(error) && isCurrent()) set({ askError: error })
           place(failedColumn(target, error), null)
         }
       }),

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { DecideResponse, TargetResult } from '../api/types'
 import { fixture } from '../test/fixtures'
+import { formatCount, formatUsd } from './format'
 import { buildMatrix, spread, type MatrixColumn, type MatrixRow } from './matrix'
 
 const partial = fixture<DecideResponse>('post_decide.partial.json')
@@ -64,10 +65,16 @@ describe('buildMatrix', () => {
   it('leaves a failed target’s cells empty', () => {
     const latency = find(rows, 'latency')
     if (latency.kind !== 'plain') throw new Error('expected a plain row')
-    expect(latency.cells).toEqual(['1,550 ms', '912 ms', null])
+    const [foundry, workers] = partial.results
+    expect(latency.cells).toEqual([
+      `${formatCount(Math.round(foundry.latency_ms ?? 0))} ms`,
+      `${formatCount(Math.round(workers.latency_ms ?? 0))} ms`,
+      null,
+    ])
     const cost = find(rows, 'cost')
     if (cost.kind !== 'plain') throw new Error('expected a plain row')
-    expect(cost.cells).toEqual(['Unknown', '$0.0000070', null])
+    // Foundry's price isn't known yet, and the Ollama target failed.
+    expect(cost.cells).toEqual(['Unknown', formatUsd(workers.cost_usd ?? 0), null])
   })
 
   it('adds a row for an option the question does not have', () => {

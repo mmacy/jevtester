@@ -69,11 +69,13 @@ function QuickForm({ errors, onAsk }: { errors: DraftErrors | null; onAsk: () =>
         <FieldErrors errors={errors?.questions[question.key]} />
       </div>
       <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
-        <Button primary onClick={onAsk} disabled={asking || defaults.length === 0}>
+        <Button primary onClick={onAsk} disabled={asking}>
           Ask
         </Button>
         <span className="text-sm text-faint">
-          {defaults.length > 0 ? `Yes or no, on ${defaults.join(', ')}` : 'No default targets'}
+          {defaults.length > 0
+            ? `Yes or no, on ${defaults.join(', ')}`
+            : 'Yes or no, on the default targets'}
         </span>
       </div>
       <button
