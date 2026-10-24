@@ -3,8 +3,8 @@
 Run `uv run python tests/api_fixtures.py` after changing a model or a fixture here. `test_api_contract.py` fails
 when the saved files differ from what this module builds.
 
-The decide result for decision-1@foundry is the real Foundry response from the plan. Everything else is made up to
-be consistent: the same suite, cases, targets, and runs appear across files.
+The goblin-bribe results for decision-1@foundry and clef-flash@workers-ai are real responses to the plan's request.
+Everything else is made up to be consistent: the same suite, cases, targets, and runs appear across files.
 """
 
 import asyncio
@@ -119,6 +119,8 @@ def load_json(path: Path) -> dict[str, Any]:
 
 PLAN_REQUEST = load_json(SYSTEMONE / "parley_request.json")
 FOUNDRY_RESPONSE = load_json(SYSTEMONE / "parley_response_foundry.json")
+WORKERS_RESPONSE = load_json(SYSTEMONE / "parley_response_workers_ai.json")
+"""A real Clef-flash response to the plan's request, from 2026-10-24, in its Cloudflare envelope."""
 
 QUESTIONS = DecisionRequest.model_validate(
     {"state": PLAN_REQUEST["state"], "questions": PLAN_REQUEST["questions"]}
@@ -228,11 +230,6 @@ PLANS: dict[str, dict[str, AnswerPlan]] = {
         ),
     },
     WORKERS: {
-        "goblin-bribe": (
-            {"parley": 0.9871, "evade": 0.0042, "fight": 0.0019, "wait": 0.0068},
-            0.9912,
-            [0.0512, 0.2143, 0.4021, 0.1802, 0.1522],
-        ),
         "orc-charge": (
             {"parley": 0.0103, "evade": 0.0051, "fight": 0.9764, "wait": 0.0082},
             0.0207,
@@ -250,7 +247,7 @@ PLANS: dict[str, dict[str, AnswerPlan]] = {
         ),
     },
 }
-LATENCY = {FOUNDRY: [1550.0, 1412.0, 1604.0, 1488.0], WORKERS: [912.0, 845.0, 1021.0, 877.0]}
+LATENCY = {FOUNDRY: [1550.0, 1412.0, 1604.0, 1488.0], WORKERS: [2470.0, 2310.0, 2544.0, 2391.0]}
 INPUT_TOKENS = [185, 178, 181, 183]
 
 
@@ -297,6 +294,9 @@ def make_raw(target: str, case: Case) -> RawResult:
     if target == FOUNDRY and case.id == "goblin-bribe":
         body = FOUNDRY_RESPONSE
         response_body: Any = body
+    elif target == WORKERS and case.id == "goblin-bribe":
+        body = WORKERS_RESPONSE["result"]
+        response_body = WORKERS_RESPONSE
     else:
         body = plan_body(PLANS[target][case.id], 4 if target == WORKERS else None)
         output = 0 if target == WORKERS else 3
