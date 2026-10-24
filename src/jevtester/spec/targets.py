@@ -81,6 +81,15 @@ class Defaults(Model):
     repeats: int = Field(default=1, ge=1)
 
 
+class Paths(Model):
+    """Where jevtester keeps its files, relative to the config file's directory."""
+
+    suites: str = "suites"
+    """Suites, with question sets in `question-sets/` and policies in `policies/` under it."""
+    store: str = ".jevtester/runs.sqlite"
+    """The SQLite database of runs, results, the cache, and question set versions."""
+
+
 class CloudflareSettings(Model):
     """Account settings for Workers AI targets."""
 
@@ -91,6 +100,7 @@ class Config(Model):
     """The contents of `jevtester.toml`."""
 
     defaults: Defaults = Field(default_factory=Defaults)
+    paths: Paths = Field(default_factory=Paths)
     cloudflare: CloudflareSettings = Field(default_factory=CloudflareSettings)
     targets: dict[str, Target] = Field(default_factory=dict[str, Target])
     """Targets keyed by name."""

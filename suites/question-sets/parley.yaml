@@ -1,0 +1,22 @@
+name: parley
+questions:
+  intent:
+    type: choice
+    instructions: What is the player trying to do?
+    criteria:
+      parley: Talk, bargain, bribe, or negotiate
+      evade: Run away or avoid the monsters
+      fight: Attack the monsters
+      wait: Hold position and watch
+  bribe:
+    type: noul
+    instructions: Does the player offer the monsters something of value?
+  reaction:
+    type: score
+    instructions: How are goblins likely to react to this offer?
+    criteria:
+    - Attack at once
+    - Hostile, may attack
+    - Uncertain, hold and posture
+    - Indifferent, may let them pass
+    - Friendly, accept the offer

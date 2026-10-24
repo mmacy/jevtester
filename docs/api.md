@@ -11,7 +11,7 @@ Every route returns a fixture from [`tests/fixtures/api/`](../tests/fixtures/api
 | Routes | Live in |
 |---|---|
 | `decide`, `targets` | Live for every target except Claude |
-| `suites`, `question-sets`, `runs`, run events, `cancel` | Step 5 |
+| `suites`, `question-sets`, `runs`, run events, `cancel` | Live. Wording checks (`checks`) are empty until step 6. |
 | `metrics`, `confusion`, `calibration`, `changes`, `cases`, `report` | Step 6 |
 | `policies`, `sweep` | Step 7 |
 | `probes` | Step 8 |
@@ -166,6 +166,12 @@ Warning codes: `missing_answer`, `invalid_answer`, `unknown_option`, `missing_pr
 
 Error codes: `not_ready`, `preflight`, `auth`, `rate_limited`, `bad_request`, `request_too_large`, `server_error`, `timeout`, `connection`, `invalid_response`, and `cancelled`. `status` is the HTTP status when the server sent one.
 
+## Suites and question sets
+
+Suites are YAML files in `suites/`, like `suites/parley.yaml`, and question sets are in `suites/question-sets/`. A name uses lowercase letters, digits, `-`, and `_`, and anything else is a 422. `POST /api/suites/{name}/cases` adds the case to the end of the suite's file, and `PUT /api/question-sets/{name}` replaces the question set's file. Either change shows up in `git diff`.
+
+A question set version is the hash of its questions in order. jevtester records each version the first time it sees one: when a suite or question set is read, when one is saved, or when a run uses one. `first_seen` is that time. A version can be named by its first 8 or more characters, wherever a route takes a version.
+
 ## Runs
 
 `POST /api/runs` returns 202 and the run's id as soon as the run is queued. Follow it with the event stream, or poll `GET /api/runs/{id}`.
@@ -173,6 +179,8 @@ Error codes: `not_ready`, `preflight`, `auth`, `rate_limited`, `bad_request`, `r
 `RunCounts` counts jobs, where a job is one case on one target for one repeat (and one variant, in a probe run). `done` is `sent + cached + failed + skipped`, so `done / jobs` is the progress. `targets` breaks the counts down by target, with `skip_reason` for a target whose jobs were skipped.
 
 A run's `status` moves from `queued` to `running`, then ends as `finished`, `cancelled`, or `failed`. Cancelling a run that has ended returns it unchanged.
+
+Before it sends anything, a run checks the health of each of its targets. A target that's down has all its jobs skipped, with the reason. Each job is cached by its target, its request, and its repeat, so a rerun of an unchanged suite costs nothing. `no_cache: true` sends every request again. A run that was running when the server stopped is marked `failed` when the server starts again.
 
 ### Run events
 
@@ -199,7 +207,7 @@ data: {"type":"result","run_id":"0142","case_id":"goblin-bribe","target":"decisi
 
 Every event carries `counts`, so a client can draw progress from any one event. A `result` event's `TargetResult` has `request_body` and `raw` set to `null`, to keep the stream small. `GET /api/runs/{id}/cases/{case_id}` returns them.
 
-The stream ends after `finished`, `cancelled`, or `error`. A client that reconnects gets a fresh `progress` event and then the events that follow, so it needs no history. A run that has already ended sends `progress` and its final event.
+The stream ends after `finished`, `cancelled`, or `error`. A client that reconnects gets a fresh `progress` event and then the events that follow, so it needs no history. A run that has already ended sends `progress` and its final event. A browser's `EventSource` reconnects when the server closes the stream, so close it on the final event.
 
 ## Fixtures
 

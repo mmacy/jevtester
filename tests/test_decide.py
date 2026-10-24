@@ -11,12 +11,13 @@ import api_fixtures
 from fakes import FakeProvider
 from jevtester import cli
 from jevtester.credentials import AzureCliToken, CredentialError
+from jevtester.errors import InvalidRequestError
 from jevtester.normalize import ChoiceAnswer
 from jevtester.providers import Health, RawResult
 from jevtester.providers.systemone import SystemOneProvider
 from jevtester.providers.typesafe import make_client, system_one
 from jevtester.schemas import DecideBody, DecideResponse, TargetList
-from jevtester.service import Service, UnknownTargetError, is_local
+from jevtester.service import Service, is_local
 from jevtester.spec import ChoiceQuestion, DecisionRequest, NoulQuestion, Question, load_config
 
 ROOT = Path(__file__).parent.parent
@@ -295,14 +296,14 @@ def test_decide_rejects_in_preflight_without_sending() -> None:
 
 
 def test_decide_rejects_an_unknown_target() -> None:
-    with pytest.raises(UnknownTargetError) as raised:
+    with pytest.raises(InvalidRequestError) as raised:
         asyncio.run(service_with().decide(DecideBody(state="s", questions=REQUEST.questions, targets=["x@y"])))
     assert raised.value.field == "targets.0"
 
 
 def test_decide_rejects_a_target_named_twice() -> None:
     body = DecideBody(state="s", questions=REQUEST.questions, targets=[FOUNDRY.name, OLLAMA.name, FOUNDRY.name])
-    with pytest.raises(UnknownTargetError) as raised:
+    with pytest.raises(InvalidRequestError) as raised:
         asyncio.run(service_with().decide(body))
     assert raised.value.field == "targets.2"
     assert str(raised.value) == "decision-1@foundry is named twice"

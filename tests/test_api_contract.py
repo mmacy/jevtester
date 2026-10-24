@@ -1,6 +1,8 @@
 import json
 import re
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
 from fastapi.routing import APIRoute
@@ -14,18 +16,38 @@ from jevtester.schemas import ApiError, RunEvent
 ROOT = Path(__file__).parent.parent
 FIXTURES = ROOT / "tests" / "fixtures" / "api"
 
-APP = create_app(api_fixtures.fixture_service(), static=None)
+APP = create_app(static=None)
 ROUTES = [route for route in router.routes if isinstance(route, APIRoute)]
-# Routes the service answers. The targets list has no health check yet, so it matches the unchecked variant.
-LIVE_FIXTURES = {"/api/targets": "get_targets.unchecked.json"}
+# A fresh service has run no health check, so its targets list matches the unchecked variant.
+FRESH_FIXTURES = {"/api/targets": "get_targets.unchecked.json"}
+OLD_VERSION = api_fixtures.OLD_QUESTION_SET.version[:12]
+NEW_VERSION = api_fixtures.QUESTION_SET.version[:12]
+PATH_PARAMS = {"id": "0142", "name": "parley", "version": OLD_VERSION, "case_id": "goblin-bribe"}
+QUERY = {
+    "question": "intent",
+    "target": "decision-1@foundry",
+    "baseline": "0141",
+    "from": OLD_VERSION,
+    "to": NEW_VERSION,
+}
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(create_app(api_fixtures.fixture_service(), static=None))
+def client(tmp_path: Path) -> Iterator[TestClient]:
+    """A client for a service in the state the fixtures were made in: after run 0142."""
+    service, _ = api_fixtures.prepared_service(tmp_path)
+    with TestClient(create_app(service, static=None)) as test_client:
+        yield test_client
 
 
-def saved_fixture(name: str) -> object:
+@pytest.fixture
+def fresh(tmp_path: Path) -> Iterator[TestClient]:
+    """A client for a service before any health check or run."""
+    with TestClient(create_app(api_fixtures.fixture_service(tmp_path), static=None)) as test_client:
+        yield test_client
+
+
+def saved_fixture(name: str) -> Any:
     return json.loads((FIXTURES / name).read_text())
 
 
@@ -34,7 +56,7 @@ def fixture_stem(method: str, path: str) -> str:
 
 
 def sample_path(path: str) -> str:
-    return re.sub(r"\{[^}]+\}", "x", path)
+    return re.sub(r"\{([^}]+)\}", lambda match: PATH_PARAMS[match.group(1)], path)
 
 
 def test_saved_openapi_document_is_current() -> None:
@@ -69,15 +91,16 @@ def test_error_fixtures_are_api_errors(path: Path) -> None:
 @pytest.mark.parametrize(
     "route", [r for r in ROUTES if "GET" in (r.methods or set[str]()) and not r.path.endswith("/events")]
 )
-def test_get_routes_return_their_fixture(client: TestClient, route: APIRoute) -> None:
-    params = {"question": "intent", "target": "decision-1@foundry", "baseline": "0141", "from": "a", "to": "b"}
-    response = client.get(sample_path(route.path), params=params)
-    assert response.status_code == 200
-    name = LIVE_FIXTURES.get(route.path, f"{fixture_stem('GET', route.path)}.json")
+def test_get_routes_return_their_fixture(client: TestClient, fresh: TestClient, route: APIRoute) -> None:
+    caller = fresh if route.path in FRESH_FIXTURES else client
+    response = caller.get(sample_path(route.path), params=QUERY)
+    assert response.status_code == 200, response.text
+    name = FRESH_FIXTURES.get(route.path, f"{fixture_stem('GET', route.path)}.json")
     assert response.json() == saved_fixture(name)
 
 
-def test_check_and_decide_return_their_fixtures(client: TestClient) -> None:
+def test_check_and_decide_return_their_fixtures(fresh: TestClient) -> None:
+    client = fresh
     assert client.post("/api/targets/check").json() == saved_fixture("post_targets_check.json")
     goblin = api_fixtures.CASES[0]
     questions = {key: question.model_dump(mode="json") for key, question in api_fixtures.QUESTIONS.items()}
@@ -124,6 +147,39 @@ def test_unknown_route_is_an_api_error(client: TestClient) -> None:
     response = client.get("/api/nowhere")
     assert response.status_code == 404
     assert ApiError.model_validate(response.json()).error.code == "not_found"
+
+
+def test_mutating_routes_return_their_fixtures(client: TestClient) -> None:
+    questions = {key: question.model_dump(mode="json") for key, question in api_fixtures.QUESTIONS.items()}
+    saved = client.put("/api/question-sets/parley", json={"questions": questions})
+    assert saved.json() == saved_fixture("put_question-sets_{name}.json")
+    case = saved_fixture("post_suites_{name}_cases.json")["case"]
+    added = client.post("/api/suites/parley/cases", json=case)
+    assert (added.status_code, added.json()) == (201, saved_fixture("post_suites_{name}_cases.json"))
+    duplicate = client.post("/api/suites/parley/cases", json=case)
+    assert duplicate.status_code == 409
+    error = ApiError.model_validate(duplicate.json()).error
+    assert (error.code, error.field) == ("conflict", "id")
+    assert [detail.field for detail in error.details] == ["id"]
+    started = client.post("/api/runs", json={"suite": "parley"})
+    assert (started.status_code, started.json()) == (202, saved_fixture("post_runs.json"))
+
+
+@pytest.mark.parametrize(
+    ("path", "code"),
+    [
+        ("/api/runs/0999", "not_found"),
+        ("/api/runs/0999/events", "not_found"),
+        ("/api/suites/missing", "not_found"),
+        ("/api/question-sets/missing", "not_found"),
+        ("/api/question-sets/parley/versions/00000000", "not_found"),
+        ("/api/suites/Bad..Name", "invalid_request"),
+    ],
+)
+def test_missing_things_are_api_errors(client: TestClient, path: str, code: str) -> None:
+    response = client.get(path)
+    assert response.status_code == (404 if code == "not_found" else 422)
+    assert ApiError.model_validate(response.json()).error.code == code
 
 
 def test_post_routes_answer_with_their_status(client: TestClient) -> None:
