@@ -152,6 +152,10 @@ class SystemOneProvider:
                 reason="The MLX server isn't running",
                 detail=f"Start python clef_mlx.py serve --no-truncate in ~/models/clef-mlx/{self.target.model}",
             )
+        if not isinstance(loaded, str) or not loaded:
+            return Health(
+                reason="The MLX server doesn't name its model", detail="Restart it with a current clef_mlx.py"
+            )
         if loaded != self.target.model:
             return Health(
                 reason=f"The MLX server has {loaded} loaded",

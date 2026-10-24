@@ -210,6 +210,9 @@ def test_mlx_health_check() -> None:
     assert health.reason == "The MLX server has clef-8bit loaded"
     down = Recorder(error=httpx2.ConnectError("refused"))
     assert asyncio.run(provider_with(down, target=MLX).health_check()).reason == "The MLX server isn't running"
+    unnamed = Recorder(routes={"/health": (200, {"status": "ok"})})
+    health = asyncio.run(provider_with(unnamed, target=MLX).health_check())
+    assert health.reason == "The MLX server doesn't name its model"
 
 
 # Tokens
