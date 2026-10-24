@@ -239,6 +239,8 @@ def test_ui_is_served_outside_the_api(tmp_path: Path) -> None:
     assert ui.get("/").text == "<html>ui</html>"
     assert ui.get("/runs/0002").text == "<html>ui</html>"
     assert ui.get("/assets/app.js").text == "console.log(1)"
+    assert ui.get("/assets/old.js").status_code == 404
+    assert ui.get("/runs/0002/changes/case.1").text == "<html>ui</html>"
     assert ui.get("/../../etc/passwd").text == "<html>ui</html>"
     assert ui.get("/api/targets").status_code == 200
     missing = ui.get("/api/nowhere")

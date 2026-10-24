@@ -24,6 +24,7 @@ Every route returns a fixture from [`tests/fixtures/api/`](../tests/fixtures/api
 - Lists keep a meaningful order: targets in the order requested, questions and options in the question set's order, and runs newest first.
 - The browser never sees a credential. Requests name targets, and the server holds the tokens.
 - While the UI is in development, the API allows requests from the Vite dev server at `http://127.0.0.1:5173`.
+- Outside `/api`, `jevtester serve` answers with the built UI: a built file if one exists, a 404 for a missing file under `/assets/`, and `index.html` for any other path, so the UI's own routes load on reload.
 
 ## Errors
 
