@@ -32,9 +32,7 @@ from jevtester.schemas import (
     DecideBody,
     ErrorDetail,
     PolicyBody,
-    ProbeCell,
-    ProbeReport,
-    ProbeSummary,
+    ProbeCreate,
     ProbeVariant,
     QuestionSetBody,
     RunCounts,
@@ -52,6 +50,7 @@ from jevtester.spec import (
     DecisionRequest,
     Expectation,
     QuestionSet,
+    ScoreQuestion,
     load_config,
 )
 from jevtester.store.files import SuiteFiles
@@ -68,6 +67,7 @@ WORKERS = "clef-flash@workers-ai"
 OLLAMA = "clef-flash@ollama"
 RUN_TARGETS = [FOUNDRY, WORKERS, OLLAMA]
 BASELINE_RUN = "0001"
+PROBE_RUN = "0003"
 RUN = "0002"
 """The run the run fixtures show. Its baseline is run 0001."""
 OLLAMA_REASON = "clef-flash isn't pulled"
@@ -258,12 +258,45 @@ def old_raw(target: str, case: Case) -> RawResult:
     return raw.model_copy(update={"request_body": sent, "response_body": envelope, "system_one": body})
 
 
+# Where evade and wait are close, the fake target picks whichever is listed first, as Ollama documents for ties.
+FRAGILE_ORDER = {(WORKERS, "kobold-retreat"), (WORKERS, "gnoll-watch"), (FOUNDRY, "kobold-retreat")}
+
+
+def probed_raw(target: str, case: Case, request: DecisionRequest) -> RawResult:
+    """A response to a probe variant: fragile to option order where evade and wait are close, and, on Workers AI,
+    a reaction one level higher when the score levels are bare numbers."""
+    raw = make_raw(target, case)
+    assert raw.system_one is not None
+    body = json.loads(json.dumps(raw.system_one))
+    intent = request.questions.get("intent")
+    original_order = list(getattr(QUESTIONS["intent"], "criteria", {}))
+    reordered = isinstance(intent, ChoiceQuestion) and list(intent.criteria) != original_order
+    if isinstance(intent, ChoiceQuestion) and reordered and (target, case.id) in FRAGILE_ORDER:
+        first = next(option for option in intent.criteria if option in ("evade", "wait"))
+        body["answers"]["intent"]["choice"] = first
+    reaction = request.questions.get("reaction")
+    if target == WORKERS and isinstance(reaction, ScoreQuestion) and reaction.criteria[0] == "0":
+        answer = body["answers"]["reaction"]
+        levels = [answer["probabilities"][str(level)] for level in range(len(reaction.criteria))]
+        shifted = [levels[-1], *levels[:-1]]
+        answer["probabilities"] = {str(level): p for level, p in enumerate(shifted)}
+        answer["score"] = sum(level * p for level, p in enumerate(shifted))
+    envelope: Any = {"result": body, "success": True, "errors": [], "messages": []} if target == WORKERS else body
+    sent = request.system_one_body(CONFIG.targets[target].model)
+    return raw.model_copy(update={"request_body": sent, "response_body": envelope, "system_one": body})
+
+
 def respond_for(target: str) -> Responder:
     def respond(request: DecisionRequest, body: dict[str, Any]) -> RawResult:
+        # Dict comparison ignores key order, so a key_order variant finds its case.
         case = next(case for case in CASES if case.state == request.state)
         intent = request.questions.get("intent")
         if isinstance(intent, ChoiceQuestion) and "wait" not in intent.criteria:
             return old_raw(target, case)
+        # Compare as JSON, since dict comparison ignores the option order a probe changes.
+        asked = request.system_one_body("m")
+        if json.dumps(asked) != json.dumps(DecisionRequest(state=case.state, questions=QUESTIONS).system_one_body("m")):
+            return probed_raw(target, case, request)
         return make_raw(target, case)
 
     return respond
@@ -340,7 +373,8 @@ async def populate(service: Service) -> str:
     created = await service.start_run(RunCreate(suite="parley", targets=RUN_TARGETS, baseline=baseline.id))
     events = [event async for event in service.run_events(created.id)]
     await service.wait_run(created.id)
-    service.store.save_run(PROBE_RUN)
+    probe = ProbeCreate(suite="parley", targets=[FOUNDRY, WORKERS], variants=PROBES)
+    await start_and_wait_probe(service, probe)
     service.store.save_run(CANCELLED_RUN)
     return "".join(sse_event(index, event) for index, event in enumerate(events))
 
@@ -349,6 +383,15 @@ def prepared_service(root: Path) -> tuple[Service, str]:
     """A fixture service after `populate`, and run 0002's event stream."""
     service = run_service(root)
     return service, asyncio.run(populate(service))
+
+
+PROBES: list[ProbeVariant] = ["option_order", "key_order", "bare_levels"]
+
+
+async def start_and_wait_probe(service: Service, body: ProbeCreate) -> RunCreated:
+    created = await service.start_probe(body)
+    await service.wait_run(created.id)
+    return created
 
 
 async def start_and_wait(service: Service, body: RunCreate) -> RunCreated:
@@ -416,6 +459,7 @@ def service_fixtures(root: Path) -> dict[str, BaseModel | str]:
         "get_runs_{id}_compare.json": service.compare_runs(RUN, BASELINE_RUN),
         "get_runs_{id}_cases_{case_id}.json": service.run_case(RUN, "goblin-bribe"),
         "get_runs_{id}_report.json": service.run_report(RUN),
+        "get_runs_{id}_probes.json": service.run_probes(PROBE_RUN),
         "get_policies.json": service.list_policies(),
         "get_policies_{name}.json": service.get_policy("parley"),
         "post_policies_{name}_sweep.json": service.sweep_policy(
@@ -440,6 +484,9 @@ def service_fixtures(root: Path) -> dict[str, BaseModel | str]:
         "put_question-sets_{name}.json": service.save_question_set("parley", QuestionSetBody(questions=QUESTIONS)),
         "post_suites_{name}_cases.json": service.add_case("parley", new_case),
         "post_runs.json": asyncio.run(start_and_wait(service, RunCreate(suite="parley"))),
+        "post_probes.json": asyncio.run(
+            start_and_wait_probe(service, ProbeCreate(suite="parley", variants=["option_order"]))
+        ),
     }
     return fixtures
 
@@ -520,24 +567,6 @@ def run_summary(run_id: str, **changes: Any) -> RunSummary:
 POLICY = SuiteFiles(ROOT / "suites").load_policy("parley")[0]
 POLICY_VERSION = POLICY.version
 
-PROBE_VARIANTS: list[ProbeVariant] = ["option_order", "key_order"]
-PROBE_INSTANCES: dict[ProbeVariant, int] = {"option_order": 3, "key_order": 1}
-PROBE_JOBS_PER_TARGET = len(CASES) * (1 + sum(PROBE_INSTANCES.values()))
-PROBE_RUN = run_summary(
-    "0003",
-    kind="probe",
-    variants=PROBE_VARIANTS,
-    targets=[FOUNDRY, WORKERS],
-    baseline=None,
-    status="running",
-    counts=counts(
-        {FOUNDRY: {"sent": 14}, WORKERS: {"sent": 9, "cached": 4}}, PROBE_JOBS_PER_TARGET, [FOUNDRY, WORKERS]
-    ),
-    cost_usd=0.0000634,
-    created_at=at(20),
-    started_at=at(20),
-    finished_at=None,
-)
 CANCELLED_RUN = run_summary(
     "0004",
     baseline=None,
@@ -555,40 +584,6 @@ def sse_event(index: int, event: RunEvent) -> str:
 
 
 # Metrics
-
-
-def probe_report() -> ProbeReport:
-    changed = {
-        (WORKERS, "kobold-retreat", "option_order"): 2,
-        (WORKERS, "gnoll-watch", "option_order"): 1,
-        (FOUNDRY, "kobold-retreat", "option_order"): 1,
-    }
-    cells: list[ProbeCell] = []
-    for target in (FOUNDRY, WORKERS):
-        for case in CASES:
-            for variant in PROBE_VARIANTS:
-                instances = PROBE_INSTANCES[variant]
-                count = changed.get((target, case.id, variant), 0)
-                cells.append(
-                    ProbeCell(
-                        case_id=case.id,
-                        target=target,
-                        variant=variant,
-                        instances=instances,
-                        changed=count,
-                        change_rate=count / instances,
-                    )
-                )
-    summary: list[ProbeSummary] = []
-    for target in (FOUNDRY, WORKERS):
-        for variant in PROBE_VARIANTS:
-            group = [c for c in cells if c.target == target and c.variant == variant]
-            rate = sum(c.changed for c in group) / sum(c.instances for c in group)
-            summary.append(ProbeSummary(target=target, variant=variant, cases=len(group), change_rate=rate))
-    return ProbeReport(run_id="0003", variants=PROBE_VARIANTS, cells=cells, summary=summary)
-
-
-# Question sets
 
 
 # Policies
@@ -632,8 +627,6 @@ def build(root: Path) -> dict[str, BaseModel | str]:
             ],
         ),
         "get_runs_{id}.404.json": error("not_found", "No run 0999"),
-        "get_runs_{id}_probes.json": probe_report(),
-        "post_probes.json": RunCreated(id="0003"),
     }
 
 

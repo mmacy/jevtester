@@ -55,8 +55,13 @@ def fixture_stem(method: str, path: str) -> str:
     return f"{method.lower()}_{path.removeprefix('/api/').replace('/', '_')}"
 
 
+# The probe report needs the probe run.
+ROUTE_PARAMS = {"/api/runs/{id}/probes": {"id": "0003"}}
+
+
 def sample_path(path: str) -> str:
-    return re.sub(r"\{([^}]+)\}", lambda match: PATH_PARAMS[match.group(1)], path)
+    params = PATH_PARAMS | ROUTE_PARAMS.get(path, {})
+    return re.sub(r"\{([^}]+)\}", lambda match: params[match.group(1)], path)
 
 
 def test_saved_openapi_document_is_current() -> None:
