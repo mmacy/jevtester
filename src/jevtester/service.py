@@ -9,11 +9,16 @@ import os
 from collections.abc import AsyncIterator, Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal
 from urllib.parse import urlparse
 
 from jevtester.credentials import AzureCliToken, WranglerToken
 from jevtester.diff import diff_question_sets
 from jevtester.errors import ConflictError, InvalidRequestError, NotFoundError
+from jevtester.evaluate.checks import case_errors, wording_checks
+from jevtester.evaluate.metrics import calibration, confusion_matrix, run_changes, run_metrics
+from jevtester.evaluate.report import report_markdown
+from jevtester.evaluate.scoring import is_correct
 from jevtester.normalize import ResultError, TargetResult
 from jevtester.preflight import target_warnings
 from jevtester.providers import DecisionProvider, Health
@@ -23,9 +28,13 @@ from jevtester.runner.jobs import ask, not_sent
 from jevtester.runner.run import Job, RunHandle, Runner, final_event
 from jevtester.schemas import (
     ApiErrorBody,
+    Calibration,
     CaseCreated,
+    CaseResult,
+    ConfusionMatrix,
     DecideBody,
     DecideResponse,
+    ErrorDetail,
     ProgressEvent,
     QuestionSetBody,
     QuestionSetDetail,
@@ -34,12 +43,19 @@ from jevtester.schemas import (
     QuestionSetSummary,
     QuestionSetVersion,
     QuestionSetVersions,
+    Regression,
+    RunCase,
+    RunChanges,
+    RunComparison,
     RunCounts,
     RunCreate,
     RunCreated,
     RunEvent,
     RunList,
+    RunMetrics,
+    RunReport,
     RunSummary,
+    SuiteCheck,
     SuiteDetail,
     SuiteList,
     SuiteSummary,
@@ -48,9 +64,20 @@ from jevtester.schemas import (
     TargetList,
     TargetStatus,
 )
-from jevtester.spec import Case, Config, DecisionRequest, QuestionSet, Suite, Target, load_config
+from jevtester.spec import (
+    Case,
+    ChoiceQuestion,
+    Config,
+    DecisionRequest,
+    Question,
+    QuestionSet,
+    ScoreQuestion,
+    Suite,
+    Target,
+    load_config,
+)
 from jevtester.store.files import SuiteFiles, check_name
-from jevtester.store.runs import RunStore
+from jevtester.store.runs import RunStore, StoredResult
 
 CONFIG_ENV = "JEVTESTER_CONFIG"
 """An environment variable naming the config file. Without it, jevtester reads `jevtester.toml` here."""
@@ -346,6 +373,32 @@ class Service:
         suite = self.files.load_suite(name)
         return SuiteDetail(suite=suite, question_set=self._record(self.files.load_question_set(suite.question_set)))
 
+    def check_suite(self, name: str) -> SuiteCheck:
+        """Validate a suite and run the wording checks on its question set.
+
+        Args:
+            name: The suite's name.
+
+        Returns:
+            Whether the suite and its question set load and its cases fit the questions, with each error, and the
+            wording findings.
+
+        Raises:
+            NotFoundError: There's no such suite.
+        """
+        try:
+            suite = self.files.load_suite(name)
+        except InvalidRequestError as error:
+            return SuiteCheck(suite=name, valid=False, errors=[ErrorDetail(message=str(error))], checks=[])
+        try:
+            question_set = self.files.load_question_set(suite.question_set)
+        except (NotFoundError, InvalidRequestError) as error:
+            return SuiteCheck(
+                suite=name, valid=False, errors=[ErrorDetail(field="question_set", message=str(error))], checks=[]
+            )
+        errors = case_errors(suite, question_set)
+        return SuiteCheck(suite=name, valid=not errors, errors=errors, checks=wording_checks(question_set))
+
     def add_case(self, name: str, case: Case) -> CaseCreated:
         """Add a case to the end of a suite's file.
 
@@ -370,7 +423,11 @@ class Service:
     # Question sets
 
     def _question_set_detail(self, question_set: QuestionSet) -> QuestionSetDetail:
-        return QuestionSetDetail(question_set=question_set, suites=self._suites_using(question_set.name), checks=[])
+        return QuestionSetDetail(
+            question_set=question_set,
+            suites=self._suites_using(question_set.name),
+            checks=wording_checks(question_set),
+        )
 
     def list_question_sets(self) -> QuestionSetList:
         """List the question sets.
@@ -564,6 +621,7 @@ class Service:
             finished_at=None,
         )
         self.store.save_run(summary)
+        self.store.save_cases(summary.id, cases)
         handle = RunHandle(summary)
         self._handles[summary.id] = handle
         handle.task = asyncio.create_task(self._execute(handle, targets, jobs, no_cache=body.no_cache))
@@ -663,3 +721,205 @@ class Service:
             handle.task.cancel()
             await asyncio.gather(handle.task, return_exceptions=True)
         return self.get_run(run_id)
+
+    # Evaluation
+
+    def _context(self, run_id: str) -> tuple[RunSummary, list[StoredResult], dict[str, Question], dict[str, Case]]:
+        summary = self.get_run(run_id)
+        stored = self.store.get_version(summary.question_set, summary.question_set_version)
+        if stored is None:
+            raise NotFoundError(f"Run {run_id} used a question set version jevtester has no record of")
+        cases = self.store.cases(run_id)
+        if cases is None:
+            # Runs saved before jevtester kept each run's cases are scored against the suite as it is now.
+            cases = [case for case in self.files.load_suite(summary.suite).cases if case.provenance == "human"]
+        return summary, self.store.results(run_id), dict(stored.question_set.questions), {c.id: c for c in cases}
+
+    def _question(self, questions: dict[str, Question], question_id: str) -> Question:
+        question = questions.get(question_id)
+        if question is None:
+            raise InvalidRequestError(f"The run didn't ask {question_id}", field="question")
+        return question
+
+    def _run_target(self, summary: RunSummary, target: str) -> str:
+        if target not in summary.targets:
+            raise InvalidRequestError(f"Run {summary.id} didn't run {target}", field="target")
+        return target
+
+    def run_metrics(self, run_id: str) -> RunMetrics:
+        """Compute a run's metrics for each target and question.
+
+        Args:
+            run_id: The run's id.
+
+        Returns:
+            The metrics.
+
+        Raises:
+            NotFoundError: There's no such run.
+        """
+        summary, results, questions, cases = self._context(run_id)
+        return run_metrics(summary, results, questions, cases, self.config.targets)
+
+    def run_confusion(self, run_id: str, question: str, target: str) -> ConfusionMatrix:
+        """Build the confusion matrix for one choice question and one target.
+
+        Args:
+            run_id: The run's id.
+            question: A choice question's id.
+            target: A target the run ran.
+
+        Returns:
+            Expected options against answered options.
+
+        Raises:
+            NotFoundError: There's no such run.
+            InvalidRequestError: The question isn't a choice the run asked, or the run didn't run the target.
+        """
+        summary, results, questions, cases = self._context(run_id)
+        found = self._question(questions, question)
+        if not isinstance(found, ChoiceQuestion):
+            raise InvalidRequestError(f"{question} is a {found.type} question, not a choice", field="question")
+        return confusion_matrix(run_id, self._run_target(summary, target), question, found, results, cases)
+
+    def run_calibration(self, run_id: str, question: str, target: str, bins: int) -> Calibration:
+        """Build a reliability table for one noul or choice question and one target.
+
+        Args:
+            run_id: The run's id.
+            question: A noul or choice question's id.
+            target: A target the run ran.
+            bins: The number of probability bins.
+
+        Returns:
+            The bins and the expected calibration error.
+
+        Raises:
+            NotFoundError: There's no such run.
+            InvalidRequestError: The question is a score or isn't asked, the run didn't run the target, or `bins` is
+                out of range.
+        """
+        if not 1 <= bins <= 100:
+            raise InvalidRequestError("bins must be 1 to 100", field="bins")
+        summary, results, questions, cases = self._context(run_id)
+        found = self._question(questions, question)
+        if isinstance(found, ScoreQuestion):
+            raise InvalidRequestError(f"{question} is a score question, which has no calibration", field="question")
+        return calibration(run_id, self._run_target(summary, target), question, found, results, cases, bins)
+
+    def run_changes(self, run_id: str, baseline: str) -> RunChanges:
+        """List the answers that changed from a baseline run.
+
+        Args:
+            run_id: The run's id.
+            baseline: The baseline run's id.
+
+        Returns:
+            The changed answers, with McNemar's test for each target both runs ran.
+
+        Raises:
+            NotFoundError: Either run doesn't exist.
+        """
+        summary, results, questions, cases = self._context(run_id)
+        try:
+            before = self.get_run(baseline)
+        except NotFoundError as error:
+            raise NotFoundError(str(error), field="baseline") from error
+        return run_changes(summary, before, results, self.store.results(baseline), cases, questions)
+
+    def compare_runs(self, run_id: str, baseline: str, max_drop: float | None = None) -> RunComparison:
+        """Compare a run with a baseline: both runs' metrics, the changed answers, and any regressions.
+
+        Args:
+            run_id: The run's id.
+            baseline: The baseline run's id.
+            max_drop: The largest allowed drop in accuracy. `None` uses the config's `defaults.max_drop`.
+
+        Returns:
+            The comparison. A regression is a target and question whose accuracy (within-tolerance accuracy, for a
+            score) dropped by more than `max_drop`.
+
+        Raises:
+            NotFoundError: Either run doesn't exist.
+        """
+        allowed = self.config.defaults.max_drop if max_drop is None else max_drop
+        now, before = self.run_metrics(run_id), self.run_metrics(baseline)
+        regressions: list[Regression] = []
+        for target in now.targets:
+            old = next((t for t in before.targets if t.target == target.target), None)
+            if old is None:
+                continue
+            for question in target.questions:
+                previous = next((q for q in old.questions if q.question == question.question), None)
+                if previous is None:
+                    continue
+                metric: Literal["accuracy", "within_tolerance"] = (
+                    "within_tolerance" if question.type == "score" else "accuracy"
+                )
+                value, base = getattr(question, metric), getattr(previous, metric)
+                if isinstance(value, float) and isinstance(base, float) and base - value > allowed:
+                    regressions.append(
+                        Regression(
+                            target=target.target,
+                            question=question.question,
+                            metric=metric,
+                            baseline=base,
+                            value=value,
+                            drop=base - value,
+                        )
+                    )
+        return RunComparison(
+            run_metrics=now,
+            baseline_metrics=before,
+            changes=self.run_changes(run_id, baseline),
+            max_drop=allowed,
+            regressions=regressions,
+        )
+
+    def run_case(self, run_id: str, case_id: str) -> RunCase:
+        """Return one case in a run with every target's full result.
+
+        Args:
+            run_id: The run's id.
+            case_id: The case's id.
+
+        Returns:
+            The case, the questions, and each result with whether each answer met its expectation.
+
+        Raises:
+            NotFoundError: There's no such run, or the run has no such case.
+        """
+        _, results, questions, cases = self._context(run_id)
+        case = cases.get(case_id)
+        if case is None:
+            raise NotFoundError(f"Run {run_id} has no case {case_id}")
+        rows = [
+            CaseResult(
+                target=stored.target,
+                repeat=stored.repeat,
+                variant=stored.variant,
+                cached=stored.cached,
+                correct={key: is_correct(case.expected.get(key), stored.result.answers.get(key)) for key in questions},
+                result=stored.result,
+            )
+            for stored in results
+            if stored.case_id == case_id
+        ]
+        return RunCase(run_id=run_id, case=case, questions=questions, results=rows)
+
+    def run_report(self, run_id: str) -> RunReport:
+        """Report a run's summary and metrics, with its changes from its baseline when it has one.
+
+        Args:
+            run_id: The run's id.
+
+        Returns:
+            The summary, the metrics, and the same report as Markdown.
+
+        Raises:
+            NotFoundError: There's no such run.
+        """
+        summary = self.get_run(run_id)
+        metrics = self.run_metrics(run_id)
+        changes = self.run_changes(run_id, summary.baseline) if summary.baseline else None
+        return RunReport(summary=summary, metrics=metrics, markdown=report_markdown(summary, metrics, changes))

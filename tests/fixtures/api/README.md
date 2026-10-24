@@ -18,6 +18,6 @@ A file name is the method and the path after `/api/`, joined with underscores, w
 
 ## What's real
 
-The `goblin-bribe` results for `decision-1@foundry` and `clef-flash@workers-ai` are real responses to the plan's request. The Workers AI one shows Clef-flash's own confidence formula: its `server_confidence` for `intent` differs from jevtester's `confidence`. Every other answer, metric, and run is made up, but consistent across files: the `parley` suite has four cases and one Claude draft, run `0142` ran it on three targets with run `0141` as its baseline, `0143` is a probe run in progress, and `0144` was cancelled. Real responses replace the made-up ones as each target goes live.
+The `goblin-bribe` results for `decision-1@foundry` and `clef-flash@workers-ai` are real responses to the plan's request. The Workers AI one shows Clef-flash's own confidence formula: its `server_confidence` for `intent` differs from jevtester's `confidence`. The other answers are made up, but consistent across files. Every run fixture comes from a real pass through the runner and the evaluation code with fake providers: the `parley` suite has four cases and one Claude draft, run `0001` asked an older question set version without the `wait` option, and run `0002` asked the plan's questions on three targets with `0001` as its baseline. `0003` is a probe run in progress and `0004` was cancelled, both stored as summaries. The fixtures ask the plan's questions, whatever `suites/question-sets/parley.yaml` has become.
 
-The policy YAML is a placeholder. The policy format arrives in build step 7.
+The probe and policy fixtures are still made by hand. The policy YAML is a placeholder until the policy format arrives in build step 7.

@@ -22,11 +22,11 @@ ROUTES = [route for route in router.routes if isinstance(route, APIRoute)]
 FRESH_FIXTURES = {"/api/targets": "get_targets.unchecked.json"}
 OLD_VERSION = api_fixtures.OLD_QUESTION_SET.version[:12]
 NEW_VERSION = api_fixtures.QUESTION_SET.version[:12]
-PATH_PARAMS = {"id": "0142", "name": "parley", "version": OLD_VERSION, "case_id": "goblin-bribe"}
+PATH_PARAMS = {"id": "0002", "name": "parley", "version": OLD_VERSION, "case_id": "goblin-bribe"}
 QUERY = {
     "question": "intent",
-    "target": "decision-1@foundry",
-    "baseline": "0141",
+    "target": "clef-flash@workers-ai",
+    "baseline": "0001",
     "from": OLD_VERSION,
     "to": NEW_VERSION,
 }
@@ -34,7 +34,7 @@ QUERY = {
 
 @pytest.fixture
 def client(tmp_path: Path) -> Iterator[TestClient]:
-    """A client for a service in the state the fixtures were made in: after run 0142."""
+    """A client for a service in the state the fixtures were made in: after runs 0001 and 0002."""
     service, _ = api_fixtures.prepared_service(tmp_path)
     with TestClient(create_app(service, static=None)) as test_client:
         yield test_client
@@ -190,7 +190,7 @@ def test_post_routes_answer_with_their_status(client: TestClient) -> None:
 
 
 def test_run_events_stream_named_events(client: TestClient) -> None:
-    with client.stream("GET", "/api/runs/0142/events") as response:
+    with client.stream("GET", "/api/runs/0002/events") as response:
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
         text = "".join(response.iter_text())
@@ -232,7 +232,7 @@ def test_ui_is_served_outside_the_api(tmp_path: Path) -> None:
     (tmp_path / "assets" / "app.js").write_text("console.log(1)")
     ui = TestClient(create_app(static=tmp_path))
     assert ui.get("/").text == "<html>ui</html>"
-    assert ui.get("/runs/0142").text == "<html>ui</html>"
+    assert ui.get("/runs/0002").text == "<html>ui</html>"
     assert ui.get("/assets/app.js").text == "console.log(1)"
     assert ui.get("/../../etc/passwd").text == "<html>ui</html>"
     assert ui.get("/api/targets").status_code == 200
