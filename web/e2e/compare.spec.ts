@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { fixture } from './fixtures.ts'
+
+const conflict = fixture<{ error: { details: { message: string }[] } }>(
+  'post_suites_{name}_cases.409.json',
+)
+
 const STATE = JSON.stringify({
   party: 'Three adventurers, torches lit',
   monsters: 'Six goblins, weapons drawn, 40 feet away',
@@ -205,7 +211,7 @@ test('a case id the suite has shows on the id field', async ({ page }) => {
   const dialog = page.getByRole('dialog', { name: 'Save as case' })
   await expect(dialog.getByLabel('Case id')).toHaveValue('case-6')
   await dialog.getByRole('button', { name: 'Save case' }).click()
-  await expect(dialog).toContainText('Taken')
+  await expect(dialog).toContainText(conflict.error.details[0].message)
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
 })
