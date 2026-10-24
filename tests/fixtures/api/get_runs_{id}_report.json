@@ -5,8 +5,8 @@
     "suite": "parley",
     "question_set": "parley",
     "question_set_version": "95e251b70a75ea722a0c62ce89024a58c6bdb1a3ebde485db30bba925ffc0cb6",
-    "policy": null,
-    "policy_version": null,
+    "policy": "parley",
+    "policy_version": "bc95cc4f4030850fa5ba4383e3beabd1dd1a513e0b01e7d2ecd4c64d4009485e",
     "targets": [
       "decision-1@foundry",
       "clef-flash@workers-ai",
@@ -126,7 +126,13 @@
             "consistency": null
           }
         ],
-        "decision": null
+        "decision": {
+          "n": 4,
+          "accuracy": 1.0,
+          "decided_share": 1.0,
+          "error_rate": 0.0,
+          "cost": 0.0
+        }
       },
       {
         "target": "clef-flash@workers-ai",
@@ -185,7 +191,13 @@
             "consistency": null
           }
         ],
-        "decision": null
+        "decision": {
+          "n": 4,
+          "accuracy": 0.75,
+          "decided_share": 0.75,
+          "error_rate": 0.0,
+          "cost": 1.0
+        }
       },
       {
         "target": "clef-flash@ollama",
@@ -202,5 +214,5 @@
       }
     ]
   },
-  "markdown": "# Run 0002: parley\n\n- Status: finished\n- Question set: `parley` version `95e251b70a75`\n- Cases: 4, repeats: 1\n- Jobs: 12, sent 6, from cache 2, failed 0, skipped 4\n- Cost: $0.000014\n- Baseline: run 0001\n\n## Targets\n\n| Target | Results | Errors | Skipped | p50 latency (ms) | p95 latency (ms) | Cost per 1,000 |\n|---|---|---|---|---|---|---|\n| decision-1@foundry | 4 | 0 | 0 | 1519 | 1596 |  |\n| clef-flash@workers-ai | 4 | 0 | 0 | 2430 | 2533 | $0.009443 |\n| clef-flash@ollama | 0 | 0 | 4 |  |  |  |\n\n## intent\n\n| Target | n | Accuracy | Macro-F1 | MAE | Within tolerance | Brier | Log loss | AUROC | ECE |\n|---|---|---|---|---|---|---|---|---|---|\n| decision-1@foundry | 4 | 1.000 | 1.000 |  |  |  |  |  | 0.054 |\n| clef-flash@workers-ai | 4 | 0.750 | 0.667 |  |  |  |  |  | 0.189 |\n| clef-flash@ollama | 0 | | | | | | | | |\n\n## bribe\n\n| Target | n | Accuracy | Macro-F1 | MAE | Within tolerance | Brier | Log loss | AUROC | ECE |\n|---|---|---|---|---|---|---|---|---|---|\n| decision-1@foundry | 4 | 1.000 |  |  |  | 0.000 | 0.006 | 1.000 | 0.006 |\n| clef-flash@workers-ai | 4 | 1.000 |  |  |  | 0.001 | 0.025 | 1.000 | 0.025 |\n| clef-flash@ollama | 0 | | | | | | | | |\n\n## reaction\n\n| Target | n | Accuracy | Macro-F1 | MAE | Within tolerance | Brier | Log loss | AUROC | ECE |\n|---|---|---|---|---|---|---|---|---|---|\n| decision-1@foundry | 4 | 0.750 |  | 0.440 | 1.000 |  |  |  |  |\n| clef-flash@workers-ai | 4 | 0.750 |  | 0.562 | 0.750 |  |  |  |  |\n| clef-flash@ollama | 0 | | | | | | | | |\n\n## Changes from run 0001\n\n| Case | Target | Question | Baseline | Now | Expected | Status |\n|---|---|---|---|---|---|---|\n| gnoll-watch | decision-1@foundry | intent | evade | wait | wait | fixed |\n| kobold-retreat | clef-flash@workers-ai | intent | evade | wait | evade | broken |\n| gnoll-watch | clef-flash@workers-ai | intent | evade | wait | wait | fixed |\n\n| Target | Fixed | Broken | Changed | McNemar p |\n|---|---|---|---|---|\n| decision-1@foundry | 1 | 0 | 0 | 1.000 |\n| clef-flash@workers-ai | 1 | 1 | 0 | 1.000 |\n"
+  "markdown": "# Run 0002: parley\n\n- Status: finished\n- Question set: `parley` version `95e251b70a75`\n- Cases: 4, repeats: 1\n- Jobs: 12, sent 6, from cache 2, failed 0, skipped 4\n- Cost: $0.000014\n- Baseline: run 0001\n\n## Targets\n\n| Target | Results | Errors | Skipped | p50 latency (ms) | p95 latency (ms) | Cost per 1,000 |\n|---|---|---|---|---|---|---|\n| decision-1@foundry | 4 | 0 | 0 | 1519 | 1596 |  |\n| clef-flash@workers-ai | 4 | 0 | 0 | 2430 | 2533 | $0.009443 |\n| clef-flash@ollama | 0 | 0 | 4 |  |  |  |\n\n## intent\n\n| Target | n | Accuracy | Macro-F1 | MAE | Within tolerance | Brier | Log loss | AUROC | ECE |\n|---|---|---|---|---|---|---|---|---|---|\n| decision-1@foundry | 4 | 1.000 | 1.000 |  |  |  |  |  | 0.054 |\n| clef-flash@workers-ai | 4 | 0.750 | 0.667 |  |  |  |  |  | 0.189 |\n| clef-flash@ollama | 0 | | | | | | | | |\n\n## bribe\n\n| Target | n | Accuracy | Macro-F1 | MAE | Within tolerance | Brier | Log loss | AUROC | ECE |\n|---|---|---|---|---|---|---|---|---|---|\n| decision-1@foundry | 4 | 1.000 |  |  |  | 0.000 | 0.006 | 1.000 | 0.006 |\n| clef-flash@workers-ai | 4 | 1.000 |  |  |  | 0.001 | 0.025 | 1.000 | 0.025 |\n| clef-flash@ollama | 0 | | | | | | | | |\n\n## reaction\n\n| Target | n | Accuracy | Macro-F1 | MAE | Within tolerance | Brier | Log loss | AUROC | ECE |\n|---|---|---|---|---|---|---|---|---|---|\n| decision-1@foundry | 4 | 0.750 |  | 0.440 | 1.000 |  |  |  |  |\n| clef-flash@workers-ai | 4 | 0.750 |  | 0.562 | 0.750 |  |  |  |  |\n| clef-flash@ollama | 0 | | | | | | | | |\n\n## Decisions with policy `parley`\n\n| Target | n | Accuracy | Decided | Error rate when decided | Cost |\n|---|---|---|---|---|---|\n| decision-1@foundry | 4 | 1.000 | 1.000 | 0.000 | 0.0 |\n| clef-flash@workers-ai | 4 | 0.750 | 0.750 | 0.000 | 1.0 |\n\n## Changes from run 0001\n\n| Case | Target | Question | Baseline | Now | Expected | Status |\n|---|---|---|---|---|---|---|\n| gnoll-watch | decision-1@foundry | intent | evade | wait | wait | fixed |\n| kobold-retreat | clef-flash@workers-ai | intent | evade | wait | evade | broken |\n| gnoll-watch | clef-flash@workers-ai | intent | evade | wait | wait | fixed |\n\n| Target | Fixed | Broken | Changed | McNemar p |\n|---|---|---|---|---|\n| decision-1@foundry | 1 | 0 | 0 | 1.000 |\n| clef-flash@workers-ai | 1 | 1 | 0 | 1.000 |\n"
 }

@@ -8,11 +8,14 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from jevtester.errors import InvalidRequestError, NotFoundError
+from jevtester.schemas import ErrorDetail
 from jevtester.spec import QuestionSet, Suite
+from jevtester.spec.policy import Policy
 
 NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 """Suite, question set, and policy names: lowercase letters, digits, `-`, and `_`, so a name is a safe file name."""
 QUESTION_SETS = "question-sets"
+POLICIES = "policies"
 
 
 def check_name(name: str, kind: str) -> str:
@@ -48,6 +51,43 @@ def _read[M: BaseModel](path: Path, model: type[M]) -> M:
         return model.model_validate(data)
     except ValidationError as error:
         raise InvalidRequestError(_describe(path, error)) from error
+
+
+def parse_policy(text: str, name: str) -> Policy:
+    """Parse and validate a policy's YAML text.
+
+    Args:
+        text: The YAML.
+        name: The name the policy must have.
+
+    Returns:
+        The policy.
+
+    Raises:
+        InvalidRequestError: The text isn't valid YAML, doesn't match the policy format, or names another policy.
+            `details` lists every error.
+    """
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as error:
+        mark = getattr(error, "problem_mark", None)
+        line = mark.line + 1 if isinstance(mark, yaml.Mark) else None
+        problem = getattr(error, "problem", None) or str(error)
+        message = f"Line {line}: {problem}" if line else f"The policy isn't valid YAML: {problem}"
+        raise InvalidRequestError(message, details=[ErrorDetail(message=message, line=line)]) from error
+    try:
+        policy = Policy.model_validate(data)
+    except ValidationError as error:
+        details: list[ErrorDetail] = []
+        for item in error.errors(include_url=False):
+            location = ".".join(str(part) for part in item["loc"]) or None
+            details.append(ErrorDetail(field=location, message=item["msg"]))
+        first = details[0]
+        message = f"{first.field}: {first.message}" if first.field else first.message
+        raise InvalidRequestError(message, field=first.field, details=details) from error
+    if policy.name != name:
+        raise InvalidRequestError(f"The policy is named {policy.name}, not {name}", field="name")
+    return policy
 
 
 def _dump(data: dict[str, Any]) -> str:
@@ -126,7 +166,11 @@ class SuiteFiles:
             suite: The suite.
         """
         data = suite.model_dump(mode="json", exclude_defaults=True)
+        # The suite's settings come first and its cases last, however the model orders them.
+        cases = data.pop("cases", None)
         data = {"name": suite.name, "question_set": suite.question_set, **data}
+        if cases is not None:
+            data["cases"] = cases
         self.suite_path(suite.name).write_text(_dump(data))
 
     def list_question_sets(self) -> list[QuestionSet]:
@@ -173,3 +217,67 @@ class SuiteFiles:
             key: question.model_dump(mode="json", exclude_none=True) for key, question in question_set.questions.items()
         }
         path.write_text(_dump({"name": question_set.name, "questions": questions}))
+
+    def policy_path(self, name: str) -> Path:
+        """The file for a policy.
+
+        Args:
+            name: The policy's name.
+
+        Returns:
+            `<root>/policies/<name>.yaml`.
+        """
+        return self.root / POLICIES / f"{check_name(name, 'policy')}.yaml"
+
+    def list_policies(self) -> list[tuple[Policy, str]]:
+        """Read every policy.
+
+        Returns:
+            Each policy and its YAML text, by name.
+
+        Raises:
+            InvalidRequestError: A policy file is invalid.
+        """
+        found: list[tuple[Policy, str]] = []
+        for path in sorted((self.root / POLICIES).glob("*.yaml")):
+            text = path.read_text()
+            found.append((parse_policy(text, path.stem), text))
+        return found
+
+    def load_policy(self, name: str) -> tuple[Policy, str]:
+        """Read one policy.
+
+        Args:
+            name: The policy's name.
+
+        Returns:
+            The policy and its YAML text.
+
+        Raises:
+            NotFoundError: There's no such policy.
+            InvalidRequestError: The file is invalid.
+        """
+        path = self.policy_path(name)
+        if not path.is_file():
+            raise NotFoundError(f"No policy named {name}")
+        text = path.read_text()
+        return parse_policy(text, name), text
+
+    def save_policy(self, name: str, text: str) -> Policy:
+        """Validate a policy's YAML text and write it as it is, comments and all.
+
+        Args:
+            name: The policy's name.
+            text: The YAML.
+
+        Returns:
+            The policy.
+
+        Raises:
+            InvalidRequestError: The text is invalid. Nothing is written.
+        """
+        policy = parse_policy(text, name)
+        path = self.policy_path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text if text.endswith("\n") else f"{text}\n")
+        return policy

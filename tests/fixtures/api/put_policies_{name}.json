@@ -1,31 +1,31 @@
 {
   "name": "parley",
-  "version": "6c1f0a9e5b7d4c3a2f1e0d9c8b7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a",
-  "yaml": "# Turns the parley questions into a referee action. The policy format arrives in build step 7.\nname: parley\nbands:\n  intent: {act: 0.8, confirm: 0.5}\ncomposites:\n  goodwill:\n    bribe: 0.6\n    reaction: 0.4\nrules:\n  - when: intent == \"fight\"\n    action: battle\n  - when: intent == \"evade\"\n    action: evade\n  - when: intent == \"wait\"\n    action: wait\n  - when: intent == \"parley\" and goodwill >= goodwill_threshold\n    action: parley_succeeds\n  - when: intent == \"parley\"\n    action: parley_fails\nthresholds:\n  goodwill_threshold: 0.6\n  per_target:\n    clef-flash@workers-ai: {goodwill_threshold: 0.55}\ncosts:\n  parley_succeeds: {parley_fails: 5, escalate: 1}\n",
+  "version": "bc95cc4f4030850fa5ba4383e3beabd1dd1a513e0b01e7d2ecd4c64d4009485e",
+  "yaml": "# Turns the parley questions into a referee action for the encounter.\nname: parley\n\nthresholds:\n  # Intent confidence at or above act decides; below confirm escalates to the referee.\n  act: 0.8\n  confirm: 0.5\n  # How well the monsters must take the offer for a parley to succeed, from 0 to 1.\n  goodwill: 0.55\n\nper_target:\n  clef-flash@workers-ai:\n    goodwill: 0.5\n\nbands:\n  intent: {act: act, confirm: confirm}\n\ncomposites:\n  # The chance of a bribe and the reaction level, each from 0 to 1.\n  goodwill:\n    bribe: 0.5\n    reaction: 0.5\n\nrules:\n  - action: battle\n    when: {intent: fight}\n  - action: evade\n    when: {intent: evade}\n  - action: wait\n    when: {intent: wait}\n  - action: escalate\n    when: {intent: cannot_tell}\n  - action: parley_succeeds\n    when: {intent: parley, goodwill: {at_least: goodwill}}\n  - action: parley_fails\n    when: {intent: parley}\n\n# The cost of each wrong action, as costs[expected][chosen]. Any other wrong action costs 1.\ncosts:\n  parley_succeeds:\n    battle: 5\n    parley_fails: 2\n  battle:\n    parley_succeeds: 5\n",
   "actions": [
     "battle",
     "evade",
     "wait",
+    "escalate",
     "parley_succeeds",
-    "parley_fails",
-    "escalate"
+    "parley_fails"
   ],
   "thresholds": [
     {
-      "name": "intent.act",
+      "name": "act",
       "value": 0.8,
       "per_target": {}
     },
     {
-      "name": "intent.confirm",
+      "name": "confirm",
       "value": 0.5,
       "per_target": {}
     },
     {
-      "name": "goodwill_threshold",
-      "value": 0.6,
+      "name": "goodwill",
+      "value": 0.55,
       "per_target": {
-        "clef-flash@workers-ai": 0.55
+        "clef-flash@workers-ai": 0.5
       }
     }
   ],

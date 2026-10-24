@@ -2260,6 +2260,14 @@
           "internal"
         ]
       },
+      "BandLevel": {
+        "type": "string",
+        "enum": [
+          "act",
+          "confirm",
+          "escalate"
+        ]
+      },
       "Calibration": {
         "properties": {
           "run_id": {
@@ -2734,6 +2742,16 @@
             "type": "object",
             "title": "Correct"
           },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyDecision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "result": {
             "$ref": "#/components/schemas/TargetResult"
           }
@@ -2746,6 +2764,7 @@
           "variant",
           "cached",
           "correct",
+          "decision",
           "result"
         ],
         "title": "CaseResult",
@@ -3203,13 +3222,25 @@
           "message": {
             "type": "string",
             "title": "Message"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "field",
-          "message"
+          "message",
+          "line"
         ],
         "title": "ErrorDetail",
         "description": "One validation error."
@@ -3556,6 +3587,69 @@
         ],
         "title": "PolicyBody",
         "description": "A policy's new YAML text."
+      },
+      "PolicyDecision": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "band": {
+            "$ref": "#/components/schemas/BandLevel"
+          },
+          "escalated": {
+            "type": "boolean",
+            "title": "Escalated"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "composites": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Composites"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "action",
+          "band",
+          "escalated",
+          "rule",
+          "composites",
+          "reason"
+        ],
+        "title": "PolicyDecision",
+        "description": "The action a policy chose from one result's answers."
       },
       "PolicyDetail": {
         "properties": {

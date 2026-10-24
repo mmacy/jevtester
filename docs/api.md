@@ -13,7 +13,7 @@ Every route returns a fixture from [`tests/fixtures/api/`](../tests/fixtures/api
 | `decide`, `targets` | Live for every target except Claude |
 | `suites`, `question-sets`, `runs`, run events, `cancel` | Live. Wording checks (`checks`) are empty until step 6. |
 | `metrics`, `confusion`, `calibration`, `changes`, `compare`, `cases`, `report`, suite `check` | Live |
-| `policies`, `sweep` | Step 7 |
+| `policies`, `sweep` | Live |
 | `probes` | Step 8 |
 
 ## Conventions
@@ -228,6 +228,25 @@ Calibration uses targets that return probabilities. For a noul, the prediction i
 `changes` compares the first repeat of each case on the targets both runs ran. `mcnemar_p` is McNemar's exact two-sided test on the fixed and broken pairs. `compare` adds both runs' metrics and the regressions: each target and question whose accuracy (`within_tolerance`, for a score) dropped by more than `max_drop`, which defaults to the config's `defaults.max_drop` of 0.05. `jevtester compare` exits with 1 when there's a regression.
 
 The wording checks are heuristics, each a prompt to look at a question: `multiple_dimensions` (more than one question mark), `degree_words` (criteria like "very" or "somewhat"), `bare_number_levels` (score levels that are only numbers), `no_abstention`, and `duplicate_options`.
+
+## Policies
+
+A policy turns a result's answers into an action, like `parley_succeeds`. It's YAML in `suites/policies/`, named by a suite's `policy` field. `suites/policies/parley.yaml` is the example. A policy has these parts:
+
+- `thresholds`: named numbers, so a sweep can move them, and `per_target` values for any target whose probabilities run differently.
+- `bands`: for each question, `act` and `confirm` levels for its confidence. At `act` or above the policy decides. Between `confirm` and `act` it decides, and the decision's `band` is `confirm`. Below `confirm`, or with no answer, it escalates.
+- `composites`: weighted sums. A noul adds its probability of yes, a score its `score` divided by its top level, and a choice the probability of its choice.
+- `rules`: checked in order, and the first whose `when` conditions all hold gives the action. A condition is an option name or a list of them for a choice, `true` or `false` for a noul, or `{at_least, at_most}` for a noul's probability, a score's `score`, or a composite. A bound is a number or a threshold's name.
+- `default`: the action when no rule matches. `escalate` is the action a band gives.
+- `costs`: optional, as `costs[expected][chosen]`. A wrong action that isn't listed costs 1.
+
+Conditions are data, not expressions, so a policy can't run code. The plan's Python hook for game code isn't built: a hook named in a file the API can write would need an allowlist in `jevtester.toml` first.
+
+A run keeps its suite's policy as it was when the run started, and `policy_version` is its hash. `TargetMetrics.decision` measures that policy's actions against each case's `expected_action`: `accuracy` over every such case, `decided_share` for the cases decided without a band escalation, `error_rate` among those, and `cost` when the policy has costs. A failed result counts as an escalation. Each `CaseResult.decision` gives the action, the band, the rule that matched, and the composites.
+
+`PUT /api/policies/{name}` saves the YAML text as sent, comments included, after it validates. An invalid policy is a 422 with every error in `details`, and nothing is saved. `POST /api/policies/{name}/sweep` uses the policy as it is now, against a finished run's results, so a threshold can be tuned without running the suite again. Each swept value replaces the threshold for the sweep's target, whether the policy sets a shared value or a `per_target` one, and `current` is the target's value now. A sweep has at most 1,000 points.
+
+A YAML syntax error is a 422 whose `details` entry has the `line` it's on, from 1.
 
 ## Fixtures
 
