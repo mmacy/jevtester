@@ -64,11 +64,28 @@ describe('api client', () => {
   })
 
   it('turns a response without the envelope into an internal error', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Bad gateway', { status: 502 })))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('Teapot', { status: 418 })))
     await expect(api.listTargets()).rejects.toMatchObject({
-      status: 502,
+      status: 418,
       code: 'internal',
-      message: 'GET /api/targets returned 502',
+      message: 'GET /api/targets returned 418',
+    })
+  })
+
+  it.each([502, 503, 504])(
+    'treats a %i without the envelope as an unreachable server, as the dev proxy sends',
+    async (status) => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status })))
+      await expect(api.listTargets()).rejects.toBeInstanceOf(ServerUnreachableError)
+      expect(useServer.getState().unreachable).toBe(true)
+    },
+  )
+
+  it('throws when a success has a body that is not JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>', { status: 200 })))
+    await expect(api.listTargets()).rejects.toMatchObject({
+      code: 'internal',
+      message: "GET /api/targets returned a body that isn't JSON",
     })
   })
 
