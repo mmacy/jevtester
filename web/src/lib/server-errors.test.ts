@@ -8,7 +8,7 @@ function rejected(fields: (string | null)[]) {
     code: 'invalid_request',
     message: 'Invalid',
     field: fields[0],
-    details: fields.map((field) => ({ field, message: `bad ${field}` })),
+    details: fields.map((field) => ({ field, message: `bad ${field}`, line: null })),
   })
 }
 

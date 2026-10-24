@@ -76,6 +76,9 @@ export function ErrorState({ code, message, details = [], onRetry }: ErrorStateP
         <ul className="m-0 mt-2 list-none p-0 text-sm">
           {details.map((detail) => (
             <li key={`${detail.field}:${detail.message}`}>
+              {detail.line !== null ? (
+                <code className="font-mono text-err">Line {detail.line}</code>
+              ) : null}
               {detail.field ? <code className="font-mono text-err">{detail.field}</code> : null}{' '}
               {detail.message}
             </li>

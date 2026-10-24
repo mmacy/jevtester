@@ -10,6 +10,8 @@ import type {
   ErrorDetail,
   Calibration,
   ConfusionMatrix,
+  PolicyDetail,
+  PolicyList,
   QuestionInput,
   QuestionSetDetail,
   QuestionSetDiff,
@@ -25,6 +27,8 @@ import type {
   RunSummary,
   SuiteDetail,
   SuiteList,
+  SweepBody,
+  SweepResult,
   TargetList,
 } from './types'
 import { useServer } from './server-store'
@@ -130,6 +134,13 @@ export const api = {
       'GET',
       `/question-sets/${encodeURIComponent(name)}/diff?${query({ from, to })}`,
     ),
+  listPolicies: () => request<PolicyList>('GET', '/policies'),
+  getPolicy: (name: string) =>
+    request<PolicyDetail>('GET', `/policies/${encodeURIComponent(name)}`),
+  savePolicy: (name: string, yaml: string) =>
+    request<PolicyDetail>('PUT', `/policies/${encodeURIComponent(name)}`, { yaml }),
+  sweep: (name: string, body: SweepBody) =>
+    request<SweepResult>('POST', `/policies/${encodeURIComponent(name)}/sweep`, body),
   listVersions: (questionSet: string) =>
     request<QuestionSetVersions>(
       'GET',

@@ -73,8 +73,9 @@ describe('ErrorState', () => {
         code="invalid_request"
         message="The request isn't valid."
         details={[
-          { field: 'questions.intent.criteria', message: 'Needs at least 2 options' },
-          { field: 'state', message: 'Required' },
+          { field: 'questions.intent.criteria', message: 'Needs at least 2 options', line: null },
+          { field: 'state', message: 'Required', line: null },
+          { field: null, message: 'Mapping values are not allowed here', line: 12 },
         ]}
       />,
     )
@@ -83,6 +84,7 @@ describe('ErrorState', () => {
     expect(alert).toHaveTextContent("The request isn't valid.")
     expect(alert).toHaveTextContent('questions.intent.criteria Needs at least 2 options')
     expect(alert).toHaveTextContent('state Required')
+    expect(alert).toHaveTextContent('Line 12 Mapping values are not allowed here')
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
