@@ -17,6 +17,7 @@ import type {
   QuestionSetVersions,
   RunCase,
   RunChanges,
+  RunComparison,
   RunCreate,
   RunCreated,
   RunList,
@@ -151,6 +152,8 @@ export const api = {
     ),
   getChanges: (id: string, baseline: string) =>
     request<RunChanges>('GET', `/runs/${encodeURIComponent(id)}/changes?${query({ baseline })}`),
+  compareRuns: (id: string, baseline: string) =>
+    request<RunComparison>('GET', `/runs/${encodeURIComponent(id)}/compare?${query({ baseline })}`),
   getRunCase: (id: string, caseId: string) =>
     request<RunCase>('GET', `/runs/${encodeURIComponent(id)}/cases/${encodeURIComponent(caseId)}`),
 }
