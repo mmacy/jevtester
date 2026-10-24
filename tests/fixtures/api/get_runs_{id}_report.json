@@ -140,10 +140,10 @@
         "errors": 0,
         "skipped": 0,
         "probabilities": true,
-        "latency_p50_ms": 894.5,
-        "latency_p95_ms": 1004.65,
-        "cost_usd": 2.7626e-05,
-        "cost_per_1k_usd": 0.0069064999999999994,
+        "latency_p50_ms": 2430.5,
+        "latency_p95_ms": 2532.9,
+        "cost_usd": 3.7772e-05,
+        "cost_per_1k_usd": 0.009443,
         "questions": [
           {
             "question": "intent",
@@ -156,7 +156,7 @@
             "brier": null,
             "log_loss": null,
             "auroc": null,
-            "ece": 0.18767499999999998,
+            "ece": 0.18929999999999997,
             "abstention_rate": null,
             "consistency": null
           },
@@ -168,10 +168,10 @@
             "macro_f1": null,
             "mae": null,
             "within_tolerance": null,
-            "brier": 0.00020070750000000012,
-            "log_loss": 0.013326499879782676,
+            "brier": 0.0009293699999999991,
+            "log_loss": 0.02517999810068118,
             "auroc": 1.0,
-            "ece": 0.013225000000000008,
+            "ece": 0.024699999999999993,
             "abstention_rate": null,
             "consistency": null
           },
@@ -179,10 +179,10 @@
             "question": "reaction",
             "type": "score",
             "n": 4,
-            "accuracy": 1.0,
+            "accuracy": 0.75,
             "macro_f1": null,
-            "mae": 0.472375,
-            "within_tolerance": 1.0,
+            "mae": 0.56185,
+            "within_tolerance": 0.75,
             "brier": null,
             "log_loss": null,
             "auroc": null,
@@ -214,5 +214,5 @@
       }
     ]
   },
-  "markdown": "# Run 0142: parley\n\nQuestion set `parley` version `95e251b70a75`, 4 cases, 3 targets, baseline run 0141.\n\n| Target | Intent accuracy | Bribe Brier | Reaction MAE | p50 latency |\n|---|---|---|---|---|\n| decision-1@foundry | 1.00 | 0.0001 | 0.44 | 1519 ms |\n| clef-flash@workers-ai | 0.75 | 0.0002 | 0.47 | 894 ms |\n| clef-flash@ollama | Skipped | | | |\n"
+  "markdown": "# Run 0142: parley\n\nQuestion set `parley` version `95e251b70a75`, 4 cases, 3 targets, baseline run 0141.\n\n| Target | Intent accuracy | Bribe Brier | Reaction MAE | p50 latency |\n|---|---|---|---|---|\n| decision-1@foundry | 1.00 | 0.0001 | 0.44 | 1519 ms |\n| clef-flash@workers-ai | 0.75 | 0.0009 | 0.56 | 2430 ms |\n| clef-flash@ollama | Skipped | | | |\n"
 }

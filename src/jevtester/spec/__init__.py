@@ -20,6 +20,7 @@ from jevtester.spec.targets import (
     Defaults,
     ImageFormat,
     ProviderName,
+    Runtime,
     Target,
     load_config,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "Question",
     "QuestionSet",
     "QuestionType",
+    "Runtime",
     "ScoreQuestion",
     "State",
     "Suite",
