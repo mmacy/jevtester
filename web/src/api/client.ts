@@ -8,9 +8,16 @@ import type {
   DecideBody,
   DecideResponse,
   ErrorDetail,
+  Calibration,
+  ConfusionMatrix,
   QuestionSetVersions,
+  RunCase,
+  RunChanges,
   RunCreate,
   RunCreated,
+  RunList,
+  RunMetrics,
+  RunSummary,
   SuiteDetail,
   SuiteList,
   TargetList,
@@ -114,4 +121,26 @@ export const api = {
       `/question-sets/${encodeURIComponent(questionSet)}/versions`,
     ),
   startRun: (body: RunCreate) => request<RunCreated>('POST', '/runs', body),
+  listRuns: () => request<RunList>('GET', '/runs'),
+  getRun: (id: string) => request<RunSummary>('GET', `/runs/${encodeURIComponent(id)}`),
+  cancelRun: (id: string) => request<RunSummary>('POST', `/runs/${encodeURIComponent(id)}/cancel`),
+  getMetrics: (id: string) => request<RunMetrics>('GET', `/runs/${encodeURIComponent(id)}/metrics`),
+  getConfusion: (id: string, question: string, target: string) =>
+    request<ConfusionMatrix>(
+      'GET',
+      `/runs/${encodeURIComponent(id)}/confusion?${query({ question, target })}`,
+    ),
+  getCalibration: (id: string, question: string, target: string) =>
+    request<Calibration>(
+      'GET',
+      `/runs/${encodeURIComponent(id)}/calibration?${query({ question, target })}`,
+    ),
+  getChanges: (id: string, baseline: string) =>
+    request<RunChanges>('GET', `/runs/${encodeURIComponent(id)}/changes?${query({ baseline })}`),
+  getRunCase: (id: string, caseId: string) =>
+    request<RunCase>('GET', `/runs/${encodeURIComponent(id)}/cases/${encodeURIComponent(caseId)}`),
+}
+
+function query(params: Record<string, string>): string {
+  return new URLSearchParams(params).toString()
 }
