@@ -150,3 +150,30 @@ export function fitsQuickTest(draft: RequestDraft, targetCount: number): boolean
     targetCount <= 1
   )
 }
+
+/** Question cards for a saved question set's questions, in order. */
+export function draftsFrom(questions: Record<string, QuestionOutput>): QuestionDraft[] {
+  return Object.entries(questions).map(([id, question]) => {
+    const draft = newQuestion(id, question.type)
+    draft.instructions = question.instructions
+    if (question.type === 'choice') {
+      draft.options = Object.entries(question.criteria).map(([name, description]) => ({
+        name,
+        description,
+      }))
+    }
+    if (question.type === 'score') draft.levels = [...question.criteria]
+    return draft
+  })
+}
+
+/** A request draft for a saved state and question set. */
+export function draftFor(state: State, questions: Record<string, QuestionOutput>): RequestDraft {
+  return typeof state === 'string'
+    ? { stateMode: 'text', stateText: state, questions: draftsFrom(questions) }
+    : {
+        stateMode: 'json',
+        stateText: JSON.stringify(state, null, 2),
+        questions: draftsFrom(questions),
+      }
+}

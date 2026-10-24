@@ -7,11 +7,13 @@ import { ServerUnreachable } from './components/states'
 import { TopBar } from './components/top-bar'
 import { useTargets } from './store/targets'
 import { CompareView } from './views/compare-view'
+import { SuitesView } from './views/suites-view'
 import { TargetsView } from './views/targets-view'
 import { VIEWS } from './nav'
 
 const BUILT: Record<string, () => React.JSX.Element> = {
   '/compare': CompareView,
+  '/suites': SuitesView,
   '/targets': TargetsView,
 }
 

@@ -29,3 +29,25 @@ export function formatUsd(value: number): string {
   if (value >= 0.01) return `$${value.toFixed(value >= 1 ? 2 : 3)}`
   return `$${value.toPrecision(2)}`
 }
+
+/** A version hash as the API says to show it: its first 12 characters. */
+export function shortVersion(version: string): string {
+  return version.slice(0, 12)
+}
+
+/** A local date and time, like `24 Oct 14:02`. */
+export function formatDateTime(iso: string): string {
+  const date = new Date(iso)
+  const day = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+  return `${day} ${formatClock(iso)}`
+}
+
+/** One line of a state: its text, or the text values of a JSON state. */
+export function stateSummary(state: unknown): string {
+  if (typeof state === 'string') return state
+  if (Array.isArray(state)) return state.map(stateSummary).filter(Boolean).join(' · ')
+  if (state && typeof state === 'object') {
+    return Object.values(state).map(stateSummary).filter(Boolean).join(' · ')
+  }
+  return state == null ? '' : String(state)
+}

@@ -5,6 +5,9 @@ import { fixture } from './fixtures.ts'
 const conflict = fixture<{ error: { details: { message: string }[] } }>(
   'post_suites_{name}_cases.409.json',
 )
+const saved = fixture<{ suite: string; case: { id: string }; case_count: number }>(
+  'post_suites_{name}_cases.json',
+)
 
 const STATE = JSON.stringify({
   party: 'Three adventurers, torches lit',
@@ -191,7 +194,9 @@ test('a request saves as a case with its expected answers', async ({ page }) => 
   await dialog.getByLabel('reaction').selectOption('3')
   await dialog.getByRole('button', { name: 'Save case' }).click()
 
-  await expect(dialog).toContainText('Saved bugbear-toll to parley, 5 cases')
+  await expect(dialog).toContainText(
+    `Saved ${saved.case.id} to ${saved.suite}, ${saved.case_count} cases`,
+  )
   expect(posted).toMatchObject({
     id: 'goblin-silver',
     tags: ['bribe', 'goblins'],
