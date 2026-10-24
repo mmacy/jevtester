@@ -4,7 +4,7 @@ Two Claude Code sessions build jevtester at the same time: one builds the backen
 
 ## State on 2026-10-24
 
-- `main` contains the plan, these handoff notes, and four UI mockups. There's no code yet, and the repository has no remote.
+- `main` contains the plan, these handoff notes, `AGENTS.md`, a short README, and four UI mockups. There's no code yet.
 - The user chose the heat matrix UI direction: [`mockups/3-matrix.html`](../mockups/3-matrix.html).
 - Two hosted targets are verified with real calls:
   - `decision-1@foundry`: Microsoft-Decision-1 on Azure Foundry, through the TypeSafe SDK with `compression=False`.
@@ -37,16 +37,19 @@ After a download finishes, delete any `__pycache__` directory in the model repos
 
 ## Git
 
-Each session works on a separate branch, in a separate worktree next to the main checkout. Create the worktrees from `main`:
+The repository is private on GitHub at <https://github.com/mmacy/jevtester>, and `main` takes pull requests. [AGENTS.md](../AGENTS.md) has the pull request rules.
+
+Each session works on a separate branch, in a separate worktree next to the main checkout. Cut each branch from `origin/main`:
 
 ```sh
-git -C ~/repos/jevtester worktree add ../jevtester-backend -b backend main
-git -C ~/repos/jevtester worktree add ../jevtester-frontend -b frontend main
+git -C ~/repos/jevtester fetch origin
+git -C ~/repos/jevtester worktree add ../jevtester-backend -b backend/<step> origin/main
+git -C ~/repos/jevtester worktree add ../jevtester-frontend -b frontend/<step> origin/main
 ```
 
 Work only in your worktree. The main checkout at `~/repos/jevtester` stays on `main`.
 
-When a step passes its gate, merge your branch into `main` from the main checkout, then tell the other session the commit hash. To pick up the other session's work, merge `main` into your branch. If the user adds a GitHub remote, switch to pull requests and follow the user's pull request rules.
+When a step passes its gates, open a pull request, merge it once the gates pass, and tell the other session the pull request number. To pick up the other session's work, fetch and merge `origin/main` into your branch.
 
 ## The API contract
 
@@ -55,7 +58,7 @@ The backend session owns the contract. Write it before you implement it, so the 
 1. Write the API's pydantic request and response models and a FastAPI app whose routes return fixtures.
 2. Export the OpenAPI document to `docs/openapi.json`, and write `docs/api.md`, which lists the endpoints and the event format.
 3. Save one fixture for each response in `tests/fixtures/api/`. Use real responses where a target is available. The two verified responses in the plan are the first fixtures.
-4. Merge into `main` and message the frontend session.
+4. Merge the pull request and message the frontend session.
 
 After that, change the contract in the same order: models, `docs/openapi.json`, fixtures, then a message that says what changed.
 
@@ -151,12 +154,12 @@ UI text follows two rules from the user:
 
 ## Messages between the sessions
 
-The sessions are named `JEVTESTER-BACKEND` and `JEVTESTER-FRONTEND`. Use the `ListAgents` tool to find the other session by that name, and `SendMessage` to write to it. The user starts the backend session first, so the frontend session may find the contract already on `main`. Send a message when:
+The sessions are named `JEVTESTER-BACKEND` and `JEVTESTER-FRONTEND`. Use the `ListAgents` tool to find the other session by that name, and `SendMessage` to write to it. The user starts the backend session first, so the frontend session may find the contract already on `origin/main`. Send a message when:
 
 - The backend changes the contract or makes an endpoint live. Include the commit hash and the endpoints affected.
 - The frontend needs a field or an endpoint the contract doesn't have. Say which view needs it and why.
 - Either session finds a bug in the other's work. Include the request, the response, and what you expected.
-- Either session merges into `main`.
+- Either session merges a pull request.
 
 Keep each message to what changed, where (a file or a commit), and what you need. Don't change the other session's files. Ask instead.
 
