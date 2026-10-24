@@ -97,7 +97,15 @@ export function MetricsPanel({ run, metrics }: { run: RunSummary; metrics: RunMe
                         t.questions.find((m) => m.question === question),
                       ),
                     )
-                  const shade = rankShade(all, value, c.higherBetter)
+                  const shade =
+                    c.higherBetter === null ? null : rankShade(all, value, c.higherBetter)
+                  if (value !== null && shade === null) {
+                    return (
+                      <td key={c.label} className="h-10 rounded-[2px] bg-surface px-2 text-right">
+                        {c.format(value)}
+                      </td>
+                    )
+                  }
                   if (value === null || shade === null) {
                     return (
                       <td

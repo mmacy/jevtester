@@ -64,7 +64,8 @@ export function progressSegments(counts: RunCounts): ProgressSegment[] {
 
 export interface MetricColumn {
   label: string
-  higherBetter: boolean
+  /** Which way is better, or null for a metric with no better direction, which isn't ranked. */
+  higherBetter: boolean | null
   /** What a cell reads when its value is null. */
   missing: string
   value: (target: TargetMetrics, question: QuestionMetrics | undefined) => number | null
@@ -77,7 +78,7 @@ const ms = (v: number) => `${formatCount(Math.round(v))} ms`
 const quality = (
   label: string,
   key: keyof QuestionMetrics,
-  higherBetter: boolean,
+  higherBetter: boolean | null,
   format: (v: number) => string = ratio,
 ): MetricColumn => ({
   label,
@@ -92,7 +93,8 @@ const QUALITY: Record<QuestionType, MetricColumn[]> = {
     quality('Accuracy', 'accuracy', true),
     quality('Macro-F1', 'macro_f1', true),
     quality('Calibration error', 'ece', false),
-    quality('Abstention', 'abstention_rate', false),
+    // An abstention can be the expected answer, so its rate isn't better either way.
+    quality('Abstention', 'abstention_rate', null),
     quality('Consistency', 'consistency', true),
   ],
   noul: [
