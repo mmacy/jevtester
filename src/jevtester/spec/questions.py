@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Mapping
 from typing import Annotated, Any, Literal, cast
 
 from pydantic import Field, JsonValue, computed_field, model_validator
@@ -96,7 +97,7 @@ class DecisionRequest(Model):
     images: list[str] = Field(default_factory=list[str])
     """Paths of image files sent with the state."""
 
-    def system_one_body(self, model: str, *, extra: dict[str, JsonValue] | None = None) -> dict[str, Any]:
+    def system_one_body(self, model: str, *, extra: Mapping[str, JsonValue] | None = None) -> dict[str, Any]:
         """Build the System One request body for one target.
 
         Args:

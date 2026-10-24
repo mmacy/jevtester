@@ -92,6 +92,8 @@ class TargetList(Model):
     """Every configured target."""
 
     targets: list[TargetInfo]
+    default_targets: list[str]
+    """The targets a request goes to when it names none, from the config's `defaults.targets`, in order."""
     checked_at: datetime | None = None
     """When the last health check ran. `None` before the first one."""
 
