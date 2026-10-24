@@ -284,6 +284,12 @@ function Sweep({ policy }: { policy: PolicyDetail }) {
           , {decision.n} cases
         </p>
       ) : null}
+      {decision && run?.policy_version && run.policy_version !== policy.version ? (
+        <p className="m-0 mt-1 text-[13px] text-warn">
+          Run {run.id} used policy version {shortVersion(run.policy_version)}. The sweep uses the
+          current version, {shortVersion(policy.version)}.
+        </p>
+      ) : null}
       {error ? (
         <div className="mt-3">
           <ApiErrorState error={error} />
