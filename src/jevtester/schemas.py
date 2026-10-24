@@ -7,8 +7,9 @@ agents, and the UI parse one format. `docs/api.md` describes them, and `docs/ope
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from jevtester.model import Model
 from jevtester.normalize import ResultError, ResultWarning, TargetResult
 from jevtester.spec import (
     Capabilities,
@@ -21,12 +22,7 @@ from jevtester.spec import (
     Suite,
 )
 
-
-class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-type Answer = bool | str | int
+type AnswerValue = bool | str | int
 """A comparable answer: `True` or `False` for a noul, an option name for a choice, or a level for a score."""
 
 # Errors
@@ -36,7 +32,7 @@ type ApiErrorCode = Literal["invalid_request", "not_found", "conflict", "not_rea
 """Why a request failed. The HTTP status matches: 422, 404, 409, 409, and 500."""
 
 
-class ErrorDetail(_Model):
+class ErrorDetail(Model):
     """One validation error."""
 
     field: str | None = None
@@ -44,7 +40,7 @@ class ErrorDetail(_Model):
     message: str
 
 
-class ApiErrorBody(_Model):
+class ApiErrorBody(Model):
     """What went wrong."""
 
     code: ApiErrorCode
@@ -55,7 +51,7 @@ class ApiErrorBody(_Model):
     """Every validation error, for a form or editor that shows them all."""
 
 
-class ApiError(_Model):
+class ApiError(Model):
     """The body of every 4xx and 5xx response."""
 
     error: ApiErrorBody
@@ -69,7 +65,7 @@ type TargetStatus = Literal["ready", "warning", "down", "unchecked"]
 otherwise, and `unchecked` before the first health check."""
 
 
-class TargetInfo(_Model):
+class TargetInfo(Model):
     """A target, its capabilities, and its last health check."""
 
     name: str
@@ -92,7 +88,7 @@ class TargetInfo(_Model):
     capabilities: Capabilities
 
 
-class TargetList(_Model):
+class TargetList(Model):
     """Every configured target."""
 
     targets: list[TargetInfo]
@@ -112,7 +108,7 @@ class DecideBody(DecisionRequest):
     """Seconds to wait for each target. `None` uses the config's default."""
 
 
-class DecideResponse(_Model):
+class DecideResponse(Model):
     """One result per target, in the order the targets were named."""
 
     request: DecisionRequest
@@ -125,7 +121,7 @@ class DecideResponse(_Model):
 # Suites and cases
 
 
-class SuiteSummary(_Model):
+class SuiteSummary(Model):
     """A suite in the list of suites."""
 
     name: str
@@ -140,20 +136,20 @@ class SuiteSummary(_Model):
     """Cases with `provenance: "claude-draft"`."""
 
 
-class SuiteList(_Model):
+class SuiteList(Model):
     """Every suite under `suites/`."""
 
     suites: list[SuiteSummary]
 
 
-class SuiteDetail(_Model):
+class SuiteDetail(Model):
     """A suite with its cases and its question set."""
 
     suite: Suite
     question_set: QuestionSet
 
 
-class CaseCreated(_Model):
+class CaseCreated(Model):
     """A case saved to a suite."""
 
     suite: str
@@ -167,7 +163,7 @@ type WordingCheckCode = Literal[
 """Which of the vendors' question-writing rules a question may break."""
 
 
-class WordingCheck(_Model):
+class WordingCheck(Model):
     """A finding from the question-wording checks."""
 
     question: str
@@ -175,7 +171,7 @@ class WordingCheck(_Model):
     message: str
 
 
-class SuiteCheck(_Model):
+class SuiteCheck(Model):
     """The result of `jevtester suite check`."""
 
     suite: str
@@ -188,7 +184,7 @@ class SuiteCheck(_Model):
 # Question sets
 
 
-class QuestionSetSummary(_Model):
+class QuestionSetSummary(Model):
     """A question set in the list of question sets."""
 
     name: str
@@ -200,13 +196,13 @@ class QuestionSetSummary(_Model):
     """When the current version was first seen."""
 
 
-class QuestionSetList(_Model):
+class QuestionSetList(Model):
     """Every question set under `suites/`."""
 
     question_sets: list[QuestionSetSummary]
 
 
-class QuestionSetDetail(_Model):
+class QuestionSetDetail(Model):
     """A question set's current version, the suites that use it, and its wording checks."""
 
     question_set: QuestionSet
@@ -214,13 +210,13 @@ class QuestionSetDetail(_Model):
     checks: list[WordingCheck]
 
 
-class QuestionSetBody(_Model):
+class QuestionSetBody(Model):
     """The questions to save as a question set's new version."""
 
     questions: dict[str, Question] = Field(min_length=1)
 
 
-class QuestionSetVersion(_Model):
+class QuestionSetVersion(Model):
     """One version of a question set."""
 
     version: str
@@ -232,7 +228,7 @@ class QuestionSetVersion(_Model):
     """Whether this is the version in the YAML file now."""
 
 
-class QuestionSetVersions(_Model):
+class QuestionSetVersions(Model):
     """A question set's versions, newest first."""
 
     name: str
@@ -242,7 +238,7 @@ class QuestionSetVersions(_Model):
 type DiffStatus = Literal["added", "removed", "changed", "unchanged"]
 
 
-class OptionDiff(_Model):
+class OptionDiff(Model):
     """How one option or level changed."""
 
     key: str
@@ -252,7 +248,7 @@ class OptionDiff(_Model):
     after: str | None
 
 
-class QuestionDiff(_Model):
+class QuestionDiff(Model):
     """How one question changed between two versions."""
 
     id: str
@@ -266,7 +262,7 @@ class QuestionDiff(_Model):
     """Whether the options that both versions have are in a different order."""
 
 
-class QuestionSetDiff(_Model):
+class QuestionSetDiff(Model):
     """The differences between two versions of a question set."""
 
     name: str
@@ -283,7 +279,7 @@ type RunStatus = Literal["queued", "running", "finished", "cancelled", "failed"]
 type ProbeVariant = Literal["option_order", "key_order", "bare_levels", "pad_state"]
 
 
-class RunCreate(_Model):
+class RunCreate(Model):
     """A run to start."""
 
     suite: str
@@ -299,7 +295,7 @@ class RunCreate(_Model):
     """A run to compare with when this one finishes."""
 
 
-class ProbeCreate(_Model):
+class ProbeCreate(Model):
     """A probe run to start."""
 
     suite: str
@@ -309,13 +305,13 @@ class ProbeCreate(_Model):
     no_cache: bool = False
 
 
-class RunCreated(_Model):
+class RunCreated(Model):
     """A run that has started."""
 
     id: str
 
 
-class TargetCounts(_Model):
+class TargetCounts(Model):
     """One target's job counts in a run."""
 
     target: str
@@ -328,7 +324,7 @@ class TargetCounts(_Model):
     """Why the target's jobs were skipped, like `Ollama isn't running`."""
 
 
-class RunCounts(_Model):
+class RunCounts(Model):
     """Job counts for a run. `done` is `sent + cached + failed + skipped`."""
 
     jobs: int
@@ -340,7 +336,7 @@ class RunCounts(_Model):
     targets: list[TargetCounts]
 
 
-class RunSummary(_Model):
+class RunSummary(Model):
     """A run's settings, status, and counts."""
 
     id: str
@@ -368,7 +364,7 @@ class RunSummary(_Model):
     """Why the run failed, when `status` is `failed`."""
 
 
-class RunList(_Model):
+class RunList(Model):
     """Runs, newest first."""
 
     runs: list[RunSummary]
@@ -377,7 +373,7 @@ class RunList(_Model):
 # Run events
 
 
-class ProgressEvent(_Model):
+class ProgressEvent(Model):
     """The run's status and counts. Sent first on every connection, and whenever the status changes."""
 
     type: Literal["progress"] = "progress"
@@ -386,7 +382,7 @@ class ProgressEvent(_Model):
     counts: RunCounts
 
 
-class ResultEvent(_Model):
+class ResultEvent(Model):
     """One job finished."""
 
     type: Literal["result"] = "result"
@@ -403,7 +399,7 @@ class ResultEvent(_Model):
     counts: RunCounts
 
 
-class TargetSkippedEvent(_Model):
+class TargetSkippedEvent(Model):
     """A target's jobs were skipped, because it isn't ready or a preflight check failed for every case."""
 
     type: Literal["target_skipped"] = "target_skipped"
@@ -413,7 +409,7 @@ class TargetSkippedEvent(_Model):
     counts: RunCounts
 
 
-class FinishedEvent(_Model):
+class FinishedEvent(Model):
     """The run finished. The stream ends after this event."""
 
     type: Literal["finished"] = "finished"
@@ -422,7 +418,7 @@ class FinishedEvent(_Model):
     summary: RunSummary
 
 
-class CancelledEvent(_Model):
+class CancelledEvent(Model):
     """The run was cancelled. The stream ends after this event."""
 
     type: Literal["cancelled"] = "cancelled"
@@ -431,7 +427,7 @@ class CancelledEvent(_Model):
     summary: RunSummary
 
 
-class RunErrorEvent(_Model):
+class RunErrorEvent(Model):
     """The run failed. The stream ends after this event."""
 
     type: Literal["error"] = "error"
@@ -451,7 +447,7 @@ type RunEvent = Annotated[
 # Metrics
 
 
-class QuestionMetrics(_Model):
+class QuestionMetrics(Model):
     """One target's metrics for one question. A metric that doesn't apply to the question's type is `None`."""
 
     question: str
@@ -479,7 +475,7 @@ class QuestionMetrics(_Model):
     """The share of cases whose answer was the same in every repeat. `None` with one repeat."""
 
 
-class DecisionMetrics(_Model):
+class DecisionMetrics(Model):
     """One target's decision metrics, for a suite with a policy."""
 
     n: int
@@ -493,7 +489,7 @@ class DecisionMetrics(_Model):
     """The total error cost from the policy's cost matrix. `None` when it has none."""
 
 
-class TargetMetrics(_Model):
+class TargetMetrics(Model):
     """One target's metrics in a run."""
 
     target: str
@@ -512,7 +508,7 @@ class TargetMetrics(_Model):
     """`None` when the suite has no policy."""
 
 
-class RunMetrics(_Model):
+class RunMetrics(Model):
     """Metrics for each target in a run."""
 
     run_id: str
@@ -521,7 +517,7 @@ class RunMetrics(_Model):
     targets: list[TargetMetrics]
 
 
-class ConfusionMatrix(_Model):
+class ConfusionMatrix(Model):
     """Expected options against answered options, for one choice question and one target."""
 
     run_id: str
@@ -537,7 +533,7 @@ class ConfusionMatrix(_Model):
     """Recall for each option. `None` for an option no case expected."""
 
 
-class CalibrationBin(_Model):
+class CalibrationBin(Model):
     """One probability bin of a reliability table."""
 
     lower: float
@@ -549,7 +545,7 @@ class CalibrationBin(_Model):
     """`None` when the bin is empty."""
 
 
-class Calibration(_Model):
+class Calibration(Model):
     """A reliability table for one question and one target.
 
     For a noul question the predicted value is the probability of yes. For a choice question it's the probability of
@@ -569,23 +565,23 @@ type ChangeStatus = Literal["fixed", "broken", "changed"]
 case has no expectation."""
 
 
-class AnswerChange(_Model):
+class AnswerChange(Model):
     """A case whose answer changed from the baseline run."""
 
     case_id: str
     target: str
     question: str
-    expected: Answer | None
-    baseline_answer: Answer | None
+    expected: AnswerValue | None
+    baseline_answer: AnswerValue | None
     """`None` when the baseline has no answer."""
     baseline_probability: float | None
     """The probability of the baseline's answer."""
-    answer: Answer | None
+    answer: AnswerValue | None
     probability: float | None
     status: ChangeStatus
 
 
-class ChangeSummary(_Model):
+class ChangeSummary(Model):
     """One target's changes from the baseline, with McNemar's test on the paired results."""
 
     target: str
@@ -596,7 +592,7 @@ class ChangeSummary(_Model):
     """The exact two-sided p-value. `None` when nothing was fixed or broken."""
 
 
-class RunChanges(_Model):
+class RunChanges(Model):
     """The answers that changed between a run and a baseline run, for the targets both ran."""
 
     run_id: str
@@ -605,7 +601,7 @@ class RunChanges(_Model):
     summary: list[ChangeSummary]
 
 
-class CaseResult(_Model):
+class CaseResult(Model):
     """One job's result for a case."""
 
     target: str
@@ -617,7 +613,7 @@ class CaseResult(_Model):
     result: TargetResult
 
 
-class RunCase(_Model):
+class RunCase(Model):
     """A case in a run, with every target's result."""
 
     run_id: str
@@ -627,7 +623,7 @@ class RunCase(_Model):
     results: list[CaseResult]
 
 
-class RunReport(_Model):
+class RunReport(Model):
     """The result of `jevtester report`."""
 
     summary: RunSummary
@@ -639,7 +635,7 @@ class RunReport(_Model):
 # Probes
 
 
-class ProbeCell(_Model):
+class ProbeCell(Model):
     """How often one case's answers changed under one variant on one target."""
 
     case_id: str
@@ -652,7 +648,7 @@ class ProbeCell(_Model):
     change_rate: float | None
 
 
-class ProbeSummary(_Model):
+class ProbeSummary(Model):
     """The change rate of one variant on one target, across every case."""
 
     target: str
@@ -661,7 +657,7 @@ class ProbeSummary(_Model):
     change_rate: float | None
 
 
-class ProbeReport(_Model):
+class ProbeReport(Model):
     """A probe run's results."""
 
     run_id: str
@@ -673,7 +669,7 @@ class ProbeReport(_Model):
 # Policies
 
 
-class PolicyThreshold(_Model):
+class PolicyThreshold(Model):
     """A threshold a policy uses, with any per-target values."""
 
     name: str
@@ -681,7 +677,7 @@ class PolicyThreshold(_Model):
     per_target: dict[str, float]
 
 
-class PolicySummary(_Model):
+class PolicySummary(Model):
     """A policy in the list of policies."""
 
     name: str
@@ -691,13 +687,13 @@ class PolicySummary(_Model):
     """Suites that use this policy."""
 
 
-class PolicyList(_Model):
+class PolicyList(Model):
     """Every policy under `suites/`."""
 
     policies: list[PolicySummary]
 
 
-class PolicyDetail(_Model):
+class PolicyDetail(Model):
     """A policy's YAML text and what it defines."""
 
     name: str
@@ -709,13 +705,13 @@ class PolicyDetail(_Model):
     suites: list[str]
 
 
-class PolicyBody(_Model):
+class PolicyBody(Model):
     """A policy's new YAML text."""
 
     yaml: str
 
 
-class SweepBody(_Model):
+class SweepBody(Model):
     """A threshold sweep over a finished run's answers."""
 
     run_id: str
@@ -726,7 +722,7 @@ class SweepBody(_Model):
     step: float = Field(default=0.05, gt=0)
 
 
-class SweepPoint(_Model):
+class SweepPoint(Model):
     """The policy's outcome at one threshold value."""
 
     value: float
@@ -735,7 +731,7 @@ class SweepPoint(_Model):
     cost: float | None
 
 
-class SweepResult(_Model):
+class SweepResult(Model):
     """The trade-off between cases decided and errors as a threshold moves."""
 
     policy: str
@@ -748,8 +744,8 @@ class SweepResult(_Model):
 
 
 __all__ = [
-    "Answer",
     "AnswerChange",
+    "AnswerValue",
     "ApiError",
     "ApiErrorBody",
     "ApiErrorCode",
