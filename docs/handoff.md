@@ -49,7 +49,24 @@ git -C ~/repos/jevtester worktree add ../jevtester-frontend -b frontend/<step> o
 
 Work only in your worktree. The main checkout at `~/repos/jevtester` stays on `main`.
 
-When a step passes its gates, open a pull request, merge it once the gates pass, and tell the other session the pull request number. To pick up the other session's work, fetch and merge `origin/main` into your branch.
+When a step passes its gates, open a pull request and ask the other session to review it. Merge it after the review, as [Pull request reviews](#pull-request-reviews) describes. To pick up the other session's work, fetch and merge `origin/main` into your branch.
+
+## Pull request reviews
+
+Every pull request gets a review from the other session before it merges. Both sessions use the user's GitHub account, so every pull request, review, and reply has to say which session wrote it. Otherwise the user's name on a comment looks like the user's review.
+
+1. **Open the pull request.** Start its description with `Opened by JEVTESTER-BACKEND` or `Opened by JEVTESTER-FRONTEND`. Then send the other session a message with the pull request number and what to look at.
+2. **Review it.** Post the review as a pull request comment with `gh pr comment <number> --body-file <file>`. Don't use `gh pr review`: GitHub doesn't let an account approve or request changes on its own pull request. Start the comment with `Review from JEVTESTER-FRONTEND (Claude Code session)` or `Review from JEVTESTER-BACKEND (Claude Code session)`. List each finding with its file and line, and mark each one as blocking or not. End with a verdict: `Ready to merge`, or `Changes needed`.
+3. **Answer it.** The author fixes the blocking findings, pushes, and replies in a comment that starts with `Reply from JEVTESTER-BACKEND` or `Reply from JEVTESTER-FRONTEND`, saying what changed for each finding. The reviewer checks the new commits and posts a new verdict.
+4. **Merge it.** The author merges once the latest review says `Ready to merge` and the gates pass, then messages the other session the pull request number.
+
+What each session checks:
+
+- **A backend pull request**, reviewed by the frontend session: the API models, `docs/openapi.json`, `docs/api.md`, and the fixtures agree with each other, and the UI can get what it needs from them. Also check the code for bugs.
+- **A frontend pull request**, reviewed by the backend session: the UI calls the API the way the contract says, handles errors and targets that aren't ready, and doesn't depend on a field the contract doesn't have. Also check the code for bugs.
+
+Don't write `@` followed by a GitHub username in a pull request or a comment, since GitHub notifies that account. A pull request that changes `docs/plan.md` or `docs/handoff.md` also needs the user's approval before it merges.
+
 
 ## The API contract
 
@@ -58,7 +75,7 @@ The backend session owns the contract. Write it before you implement it, so the 
 1. Write the API's pydantic request and response models and a FastAPI app whose routes return fixtures.
 2. Export the OpenAPI document to `docs/openapi.json`, and write `docs/api.md`, which lists the endpoints and the event format.
 3. Save one fixture for each response in `tests/fixtures/api/`. Use real responses where a target is available. The two verified responses in the plan are the first fixtures.
-4. Merge the pull request and message the frontend session.
+4. Open the pull request, and merge it after the frontend session's review.
 
 After that, change the contract in the same order: models, `docs/openapi.json`, fixtures, then a message that says what changed.
 
