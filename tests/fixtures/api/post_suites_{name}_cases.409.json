@@ -6,7 +6,8 @@
     "details": [
       {
         "field": "id",
-        "message": "The suite already has a case goblin-bribe"
+        "message": "The suite already has a case goblin-bribe",
+        "line": null
       }
     ]
   }

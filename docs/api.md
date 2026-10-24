@@ -244,7 +244,9 @@ Conditions are data, not expressions, so a policy can't run code. The plan's Pyt
 
 A run keeps its suite's policy as it was when the run started, and `policy_version` is its hash. `TargetMetrics.decision` measures that policy's actions against each case's `expected_action`: `accuracy` over every such case, `decided_share` for the cases decided without a band escalation, `error_rate` among those, and `cost` when the policy has costs. A failed result counts as an escalation. Each `CaseResult.decision` gives the action, the band, the rule that matched, and the composites.
 
-`PUT /api/policies/{name}` saves the YAML text as sent, comments included, after it validates. An invalid policy is a 422 with every error in `details`, and nothing is saved. `POST /api/policies/{name}/sweep` uses the policy as it is now, against a finished run's results, so a threshold can be tuned without running the suite again. A sweep has at most 1,000 points.
+`PUT /api/policies/{name}` saves the YAML text as sent, comments included, after it validates. An invalid policy is a 422 with every error in `details`, and nothing is saved. `POST /api/policies/{name}/sweep` uses the policy as it is now, against a finished run's results, so a threshold can be tuned without running the suite again. Each swept value replaces the threshold for the sweep's target, whether the policy sets a shared value or a `per_target` one, and `current` is the target's value now. A sweep has at most 1,000 points.
+
+A YAML syntax error is a 422 whose `details` entry has the `line` it's on, from 1.
 
 ## Fixtures
 

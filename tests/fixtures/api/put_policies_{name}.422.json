@@ -6,11 +6,13 @@
     "details": [
       {
         "field": "thresholds.goodwill",
-        "message": "Input should be a valid number, unable to parse string as a number"
+        "message": "Input should be a valid number, unable to parse string as a number",
+        "line": null
       },
       {
         "field": "rules.0.action",
-        "message": "String should have at least 1 character"
+        "message": "String should have at least 1 character",
+        "line": null
       }
     ]
   }

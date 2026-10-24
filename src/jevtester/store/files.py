@@ -70,7 +70,11 @@ def parse_policy(text: str, name: str) -> Policy:
     try:
         data = yaml.safe_load(text)
     except yaml.YAMLError as error:
-        raise InvalidRequestError(f"The policy isn't valid YAML: {error}") from error
+        mark = getattr(error, "problem_mark", None)
+        line = mark.line + 1 if isinstance(mark, yaml.Mark) else None
+        problem = getattr(error, "problem", None) or str(error)
+        message = f"Line {line}: {problem}" if line else f"The policy isn't valid YAML: {problem}"
+        raise InvalidRequestError(message, details=[ErrorDetail(message=message, line=line)]) from error
     try:
         policy = Policy.model_validate(data)
     except ValidationError as error:
