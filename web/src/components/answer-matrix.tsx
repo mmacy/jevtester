@@ -161,7 +161,7 @@ export function AnswerMatrix({ columns, rows, targets, expected = {}, onMark }: 
           <col className="w-[220px]" />
           {columns.map((column) => (
             <col
-              key={column.target}
+              key={column.key ?? column.target}
               className={column.state === 'failed' ? 'w-[132px]' : undefined}
             />
           ))}
@@ -172,7 +172,7 @@ export function AnswerMatrix({ columns, rows, targets, expected = {}, onMark }: 
             <th />
             {columns.map((column) => (
               <th
-                key={column.target}
+                key={column.key ?? column.target}
                 scope="col"
                 className="bg-bg px-1.5 pt-1.5 pb-2 text-left align-top font-normal"
               >
@@ -183,7 +183,7 @@ export function AnswerMatrix({ columns, rows, targets, expected = {}, onMark }: 
                   {column.target}
                 </span>
                 <span className="mt-0.5 block truncate text-xs text-dim">
-                  {labels.get(column.target)}
+                  {column.label ?? labels.get(column.target)}
                 </span>
                 <ColumnStatus column={column} />
               </th>
@@ -232,10 +232,10 @@ export function AnswerMatrix({ columns, rows, targets, expected = {}, onMark }: 
                     {columns.map((column, i) => {
                       const cell = row.cells[i]
                       if (column.state !== 'ok' || cell.value === null)
-                        return <Blank key={column.target} column={column} />
+                        return <Blank key={column.key ?? column.target} column={column} />
                       return (
                         <HeatCell
-                          key={column.target}
+                          key={column.key ?? column.target}
                           value={cell.value}
                           digits={row.digits}
                           picked={cell.picked}
@@ -254,8 +254,14 @@ export function AnswerMatrix({ columns, rows, targets, expected = {}, onMark }: 
                     {columns.map((column, i) => {
                       const score = row.cells[i]
                       if (column.state !== 'ok' || score === null)
-                        return <Blank key={column.target} column={column} />
-                      return <ScoreCell key={column.target} score={score} levels={row.levels} />
+                        return <Blank key={column.key ?? column.target} column={column} />
+                      return (
+                        <ScoreCell
+                          key={column.key ?? column.target}
+                          score={score}
+                          levels={row.levels}
+                        />
+                      )
                     })}
                     <SpreadCell value={row.spread} digits={2} />
                   </tr>
@@ -269,10 +275,10 @@ export function AnswerMatrix({ columns, rows, targets, expected = {}, onMark }: 
                     {columns.map((column, i) => {
                       const text = row.cells[i]
                       if (column.state !== 'ok' || text === null)
-                        return <Blank key={column.target} column={column} />
+                        return <Blank key={column.key ?? column.target} column={column} />
                       return (
                         <td
-                          key={column.target}
+                          key={column.key ?? column.target}
                           className={`h-8 rounded-[2px] bg-surface px-2 text-right ${row.warn[i] ? 'text-warn' : 'text-text'}`}
                         >
                           {text}
