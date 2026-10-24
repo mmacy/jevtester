@@ -90,7 +90,22 @@ A target that fails during `decide` or a run isn't an HTTP error. Its result has
 | `PUT /api/policies/{name}` | `PolicyBody` | `PolicyDetail` |
 | `POST /api/policies/{name}/sweep` | `SweepBody` | `SweepResult` |
 
-Each CLI command maps to these routes: `decide` to `POST /api/decide`, `targets list` and `targets check` to the targets routes, `run` to `POST /api/runs` and its events, `compare` to `compare`, `report` to `report`, `probe` to `POST /api/probes`, `case add` to `POST /api/suites/{name}/cases`, and `suite check` to `GET /api/suites/{name}/check`.
+Each CLI command has a route that does the same thing, and its `--format json` output is that route's response:
+
+| Command | Route |
+|---|---|
+| `jevtester decide` | `POST /api/decide` |
+| `jevtester targets list` | `GET /api/targets` |
+| `jevtester targets check` | `POST /api/targets/check` |
+| `jevtester run <suite>` | `POST /api/runs`, then `GET /api/runs/{id}/events` |
+| `jevtester compare <run> <baseline>` | `GET /api/runs/{id}/compare` |
+| `jevtester report <run>` | `GET /api/runs/{id}/report` |
+| `jevtester probe <suite>` | `POST /api/probes`, then `GET /api/runs/{id}/probes` |
+| `jevtester case add <suite>` | `POST /api/suites/{name}/cases` |
+| `jevtester suite check <suite>` | `GET /api/suites/{name}/check` |
+| `jevtester policy sweep <policy>` | `POST /api/policies/{name}/sweep` |
+
+`jevtester case add --from-decide decide.json --expect-from <target>` promotes a `jevtester decide --format json` result to a case, with that target's answers as the expected ones.
 
 ## Targets
 

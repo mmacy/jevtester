@@ -19,8 +19,10 @@ from pydantic import BaseModel, ValidationError
 
 from jevtester import __version__
 from jevtester.errors import ServiceError
+from jevtester.evaluate.scoring import answer_value
 from jevtester.normalize import ChoiceAnswer, NoulAnswer, ScoreAnswer, TargetResult
 from jevtester.schemas import (
+    AnswerValue,
     DecideBody,
     DecideResponse,
     ProbeCreate,
@@ -35,6 +37,7 @@ from jevtester.schemas import (
     TargetSkippedEvent,
 )
 from jevtester.service import Service
+from jevtester.spec import Case
 
 EXIT_OK = 0
 EXIT_CHECK_FAILED = 1
@@ -169,6 +172,32 @@ def build_parser() -> argparse.ArgumentParser:
     sweep.add_argument("--stop", type=float, default=1.0, help="The last value. Defaults to 1.")
     sweep.add_argument("--step", type=float, default=0.05, help="The step. Defaults to 0.05.")
     add_format(sweep)
+
+    case = commands.add_parser("case", help="Work with a suite's cases.")
+    case_commands = case.add_subparsers(dest="case_command", metavar="<command>", required=True)
+    add = case_commands.add_parser(
+        "add",
+        help="Save a case to a suite, including one promoted from a decide call.",
+        description=(
+            "Save a case to the end of a suite's file. Give the state with --state, or promote a decide call with "
+            "--from-decide, which reads `jevtester decide --format json` output. --expect-from takes the expected "
+            "answers from one target's answers in that output."
+        ),
+    )
+    add.add_argument("suite", help="The suite's name, or the path of its YAML file.")
+    add.add_argument("--id", required=True, help="The case's id.")
+    add.add_argument("--state", help="The state: text, @path to read a file (parsed as JSON if it is), or - for stdin.")
+    add.add_argument("--from-decide", metavar="PATH", help="A decide response as JSON, or - for stdin.")
+    add.add_argument("--expect-from", metavar="TARGET", help="Expect the answers this target gave in --from-decide.")
+    add.add_argument(
+        "--expect", action="append", default=[], metavar="QUESTION=ANSWER", help="An expected answer. Repeat."
+    )
+    add.add_argument(
+        "--tolerance", action="append", default=[], metavar="QUESTION=LEVELS", help="Score levels of slack. Repeat."
+    )
+    add.add_argument("--expected-action", help="The action the suite's policy should choose.")
+    add.add_argument("--tag", action="append", default=[], help="A tag. Repeat.")
+    add_format(add)
 
     serve = commands.add_parser("serve", help="Start the API and the web UI on 127.0.0.1.")
     serve.add_argument("--port", type=int, default=None, help="The port. Defaults to 8640.")
@@ -534,6 +563,89 @@ def _policy_sweep(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _answer_value(text: str) -> AnswerValue:
+    lowered = text.strip().lower()
+    if lowered in ("true", "yes"):
+        return True
+    if lowered in ("false", "no"):
+        return False
+    try:
+        return int(text)
+    except ValueError:
+        return text
+
+
+def _pairs(values: list[str], flag: str) -> dict[str, str]:
+    pairs: dict[str, str] = {}
+    for value in values:
+        key, separator, item = value.partition("=")
+        if not separator or not key:
+            raise _InputError(f"{flag} needs QUESTION=VALUE, got {value!r}.")
+        pairs[key] = item
+    return pairs
+
+
+def _case_from_args(args: argparse.Namespace) -> Case:
+    if bool(args.state) == bool(args.from_decide):
+        raise _InputError("Give --state or --from-decide.")
+    expected: dict[str, dict[str, Any]] = {}
+    if args.from_decide:
+        try:
+            response = DecideResponse.model_validate_json(
+                _read_input(args.from_decide if args.from_decide == "-" else f"@{args.from_decide}")
+            )
+        except ValidationError as error:
+            raise _InputError(f"That isn't a decide response:\n{_describe_validation(error)}") from error
+        state: Any = response.request.state
+        if args.expect_from:
+            result = next((r for r in response.results if r.target == args.expect_from), None)
+            if result is None or not result.ok:
+                raise _InputError(f"The decide response has no answers from {args.expect_from}.")
+            for key, answer in result.answers.items():
+                value = answer_value(answer)
+                if value is not None:
+                    expected[key] = {"answer": value}
+    else:
+        if args.expect_from:
+            raise _InputError("--expect-from needs --from-decide.")
+        state = _read_state(args.state)
+    for key, value in _pairs(args.expect, "--expect").items():
+        expected[key] = {**expected.get(key, {}), "answer": _answer_value(value)}
+    for key, value in _pairs(args.tolerance, "--tolerance").items():
+        try:
+            expected.setdefault(key, {})["tolerance"] = int(value)
+        except ValueError as error:
+            raise _InputError(f"--tolerance needs a whole number of levels, got {value!r}.") from error
+    return Case.model_validate(
+        {
+            "id": args.id,
+            "state": state,
+            "expected": expected,
+            "expected_action": args.expected_action,
+            "tags": list(args.tag),
+        }
+    )
+
+
+def _case_add(args: argparse.Namespace) -> int:
+    try:
+        case = _case_from_args(args)
+    except _InputError as error:
+        _fail(str(error))
+    except ValidationError as error:
+        _fail(f"The case is invalid:\n{_describe_validation(error)}")
+    service = _load_service(args.config)
+    try:
+        created = service.add_case(_suite_name(args.suite), case)
+    except ServiceError as error:
+        _fail(str(error))
+    if args.format == "json":
+        _print_json(created)
+    else:
+        print(f"Added case {created.case.id} to suite {created.suite} ({created.case_count} cases)")
+    return EXIT_OK
+
+
 def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -572,6 +684,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _suite_check(args)
         case "policy":
             return _policy_sweep(args)
+        case "case":
+            return _case_add(args)
         case "serve":
             return _serve(args)
         case _:
