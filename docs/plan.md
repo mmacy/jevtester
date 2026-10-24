@@ -12,7 +12,7 @@ Two terms are used throughout:
 ## What the app must do
 
 - Run a test from two inputs, a state and a question, with every other field defaulted. A question with no options becomes a yes/no question.
-- Scale the same test up to a full comparison: many cases, several question set versions, several models, repeats, robustness probes, and a decision policy. A quick test is promoted to a saved case without entering anything again.
+- Scale the same test up to a full comparison: many cases, several question set versions, several models, repeats, robustness probes, and a decision policy. Let a person promote a quick test to a saved case without entering anything again.
 - Support all three question types (`noul`, `choice`, and `score`) on every target that accepts them.
 - Compare local and hosted models side by side on the same requests.
 - Measure answer quality, calibration, latency, and cost, and measure decision quality separately from answer quality.
@@ -21,7 +21,7 @@ Two terms are used throughout:
 
 ## Decision models and the System One API
 
-Every model jevtester targets accepts the same request format, called the *System One API*. A request has a `model`, a `state` (text or JSON), and up to 64 `questions` keyed by an id you choose. The id isn't sent to the model.
+Every decision model jevtester targets accepts the same request format, called the *System One API*. A request has a `model`, a `state` (text or JSON), and up to 64 `questions` keyed by an id you choose. Each answer comes back under its question's id. According to TypeSafe's docs, the id isn't sent to the model, so put everything the model needs in `instructions`.
 
 ```json
 {
@@ -109,9 +109,9 @@ The three question types:
 - **`choice`** - pick one option from a map of option names to descriptions. The answer has the chosen option, a probability for each option, and a `confidence`.
 - **`score`** - place the state on an ordered list of levels, lowest first. The answer has `score` (the probability-weighted level index, so it can fall between levels), a probability for each level, a `legend`, and a `confidence`.
 
-`confidence` describes how concentrated the probabilities are, not whether the answer is correct. TypeSafe documents the formula for a choice as `(p_max - 1/n) / (1 - 1/n)`, and for a noul as `|2p - 1|`. Compute those two yourself so every target is compared on the same measure. For a score, store the server's value: the TypeSafe docs describe the score formula only in words.
+`confidence` describes how concentrated the probabilities are, not whether the answer is correct. TypeSafe documents the formula for a choice as `(p_max - 1/n) / (1 - 1/n)`, and for a noul as `|2p - 1|`. Compute those two yourself so jevtester compares every target on the same measure. For a score, store the server's value, because the TypeSafe docs describe the score formula only in words.
 
-Question-writing guidance from the vendors, which the app's question checks should test for:
+The vendors give this guidance for writing questions. The app's question checks should test for it:
 
 - Ask about one dimension per question. Combine dimensions in code, with weights.
 - Describe concrete situations in criteria, not degrees like "moderately severe". Score levels that are only numbers (`"0"`, `"1"`, `"2"`) perform poorly, because the model sees the descriptions and not the level numbers.
@@ -131,7 +131,7 @@ These facts were checked on 2026-10-24. Recheck anything a step depends on.
 | Azure | Signed in to the Visual Studio Enterprise subscription. Deployment `decision-1` of Microsoft-Decision-1 exists on `goldbox-resource` (resource group `rg-01`, eastus2), `DataZoneStandard`, capacity 1. |
 | Cloudflare | Wrangler is signed in with OAuth for account `ac01e4453275b1832bbebe1c82c5b356`, with the `ai (write)` scope. No API token for the app exists yet. |
 | Anthropic | No `ANTHROPIC_API_KEY` is set. |
-| TypeSafe | No account. Jev itself is out of scope unless you add an OpenRouter key later. |
+| TypeSafe | No account. TypeSafe's hosted decision model, Jev, is out of scope unless you add an OpenRouter key later. |
 
 The `decision-1` deployment at capacity 1 allows 1 request and 1,000 tokens per minute. Raise the capacity before you run a suite against it. The subscription's quota for this model is 4,500 units.
 
@@ -145,7 +145,7 @@ A *target* is one model on one runtime, with its settings. The plan supports the
 | Clef-flash | Ollama, local | `http://localhost:11434/v1/systemone` | TypeSafe SDK | Needs the Ollama upgrade and a model pull (11-12 GB) |
 | Clef-flash, 4-bit or 8-bit | MLX, local | `http://127.0.0.1:8000/v1/systemone` from `python clef_mlx.py serve` | TypeSafe SDK | Needs a model download |
 | Clef (27B), 8-bit | MLX, local | Same server, a different model | TypeSafe SDK | Needs a download (peak memory about 31-33 GB) |
-| Clef, Clef-flash, Clef-omni | Cloudflare Workers AI | `https://api.cloudflare.com/client/v4/accounts/<account>/ai/run/@cf/cloudflare/<model>`, with `"model": "<model>"` in the body | Our adapter | Needs an API token |
+| Clef, Clef-flash, Clef-omni | Cloudflare Workers AI | `https://api.cloudflare.com/client/v4/accounts/<account>/ai/run/@cf/cloudflare/<model>`, with `"model": "<model>"` in the body | jevtester's adapter | Needs an API token |
 | Claude | Anthropic API | Messages API | `anthropic` SDK | Needs an API key |
 
 ### TypeSafe SDK
@@ -157,7 +157,7 @@ Four behaviors affect jevtester:
 - **Compression.** On Python 3.14 the SDK compresses request bodies of 1 KB or more with zstd by default. Foundry rejects those requests with `400 ... Request body could not be parsed as JSON`. Always construct the client with `compression=False`.
 - **Strict parsing.** The response models validate strictly. If a server returns a slightly different answer format, parsing fails. Fall back to parsing `raw_http_response` and record the failure.
 - **Images.** The SDK sends images as named `assets` referenced from the state. Clef on Workers AI expects an `images` array. Send image requests to Clef servers as direct HTTP until you've confirmed what each server accepts.
-- **Version.** The SDK is at 0.x. Wrap it in one module so a breaking release changes one file.
+- **Version.** The SDK is at 0.x. Wrap it in one module, so a breaking release means changing only one file.
 
 A verified call to Foundry:
 
@@ -183,10 +183,10 @@ print(response.choices["intent"].choice)
 
 - **Foundry.** `goldbox-resource` has API keys disabled, so authenticate with Entra ID. Request a token for the scope `https://cognitiveservices.azure.com/.default` through `azure-identity`, and refresh it before it expires (tokens last about an hour). The request's `model` is the deployment name. The response's `model` is the underlying model name, `microsoft-decision-1`. Microsoft-Decision-1 is in preview, and its catalog entry shows inference retiring on 2027-02-04. It's built on Qwen3.5-9B, the same base model as Clef-flash.
 - **Ollama.** Ollama's library page lists 1-64 questions per request and 2-26 options or levels, and Pydantic AI's docs list a 64 KiB request limit. Decision models aren't available in the Ollama CLI or its client libraries, only over HTTP.
-- **MLX.** Use `mlx-community/clef-flash-4bit`, `clef-flash-8bit`, or `clef-8bit`, with the bundled `clef_mlx.py` loader (`pip install "mlx-vlm>=0.7.4,<0.8" huggingface_hub`). Generic MLX tools and LM Studio load the backbone and produce meaningless text. The server binds to `127.0.0.1`, has no authentication, and handles one request at a time. By default it truncates input at 16,384 tokens without telling you. The model card documents `truncate=False`, which returns HTTP 413 for a long input instead. Find out how the `serve` command sets that option before you rely on it. The repository contains custom Python code, so read it before you run it.
+- **MLX.** Use `mlx-community/clef-flash-4bit`, `clef-flash-8bit`, or `clef-8bit`, with the `clef_mlx.py` loader included in the model repository on Hugging Face. The loader is confirmed for `clef-8bit`, so check that the flash builds include it too. Install its dependencies with `pip install "mlx-vlm>=0.7.4,<0.8" huggingface_hub`. Generic MLX tools and LM Studio load the backbone and produce meaningless text. The server binds to `127.0.0.1`, has no authentication, and handles one request at a time. By default it truncates input at 16,384 tokens without telling you. The model card documents `truncate=False`, which returns HTTP 413 for a long input instead. Find out how the `serve` command sets that option before you rely on it. The loader is custom Python code, so read it before you run it.
 - **GGUF builds.** Community GGUF quantizations of Clef don't include the decision head (the part that scores options), so llama.cpp and LM Studio generate text instead of answers. Don't add them as targets.
 - **Workers AI.** The request body is the System One body. Cloudflare's REST API normally wraps responses in a `result` envelope. Confirm that against a real response, then unwrap it and validate it with the SDK's `SystemOneResponse` model so the answer types match every other target. The Clef-flash model page lists a 24,576-token context window and says the server truncates `state` to fit, while the launch changelog says 64K. Images go in an `images` array: at most 4, PNG, JPEG, or WebP, 4 MiB each, 8 MiB in total. Input costs $0.038 per million tokens for Clef-flash, and output is free.
-- **Claude.** Claude isn't a decision model, and the Messages API returns no token probabilities. Use it as a text-reasoning baseline: send each question with structured outputs constrained to the allowed options, and record the answer with no probabilities. Sampling parameters return a 400 on current models, so don't try to estimate a distribution by sampling repeatedly. Exclude Claude targets from calibration metrics. Use `claude-opus-5-5` unless the user names another model.
+- **Claude.** Claude isn't a decision model, and the Messages API returns no token probabilities. Use it as a text-reasoning baseline: send each question with structured outputs constrained to the allowed options, and record the answer with no probabilities. On current models, the API returns a 400 for sampling parameters, so don't try to estimate a distribution by sampling repeatedly. Exclude Claude targets from calibration metrics. Use `claude-opus-5-5` unless the user names another model.
 
 ## Architecture
 
@@ -212,7 +212,7 @@ jevtester/
 
 The CLI and the API are thin layers over `service.py`. Put every operation there first, so the UI, the CLI, and agents can all do the same things.
 
-Use Python 3.14 with uv, pydantic v2, FastAPI, SQLite, `typesafe-sdk`, `httpx2` (already a dependency of the SDK) for the Workers AI adapter, `azure-identity`, and `anthropic`. Match the osr-suite projects' gates: `ruff format --check`, `ruff check`, `pyright`, and `pytest`.
+Use Python 3.14 with uv, pydantic v2, FastAPI, SQLite, `typesafe-sdk`, `httpx2` (already a dependency of the SDK) for the Workers AI adapter, `azure-identity`, and `anthropic`. Match the gates (the checks that must pass) of the osr-suite projects in `~/repos/osr-suite`: `ruff format --check`, `ruff check`, `pyright`, and `pytest`.
 
 ### Data model
 
@@ -290,7 +290,7 @@ class DecisionProvider(Protocol):
 - **WorkersAI** - an `httpx2` call to `/ai/run/@cf/cloudflare/<model>` with a bearer token from `CLOUDFLARE_API_TOKEN`. It unwraps the envelope and validates the result with `SystemOneResponse`.
 - **Claude** - one Messages API call per request, with a structured-output schema that has one enum property per question: the option names for a choice, `true` or `false` for a noul, and the level indexes for a score. It returns answers with `probabilities` set to `None`.
 
-The pattern matches `NarrativeProvider` in osr-web's `server/llm.py`: a protocol, stateless implementations, and a health check that reports why a target is unavailable.
+Follow the pattern of `NarrativeProvider` in osr-web's `server/llm.py`: a protocol, stateless implementations, and a health check that reports why a target is unavailable.
 
 ### Normalizer
 
@@ -298,7 +298,7 @@ Map every response to one canonical answer per question. Recompute choice and no
 
 ### Preflight
 
-Before a request is sent, check it against the target's capabilities:
+Check each request against the target's capabilities before sending it:
 
 - The number of questions, and the number of options or levels in each question.
 - Image count, format, and size.
@@ -308,9 +308,9 @@ Report silent truncation as a warning on the result: Workers AI truncates `state
 
 ### Runner
 
-- Expand a run into jobs: case × question set version × target × repeat.
+- Expand a run into jobs, one for each combination of case, question set version, target, and repeat.
 - Respect each target's concurrency limit and rate limit. The MLX server handles one request at a time, and the Foundry deployment's rate limit depends on its capacity.
-- Cache results by a hash of the target and the request body, so a rerun of an unchanged job costs nothing. A flag bypasses the cache.
+- Cache results by a hash of the target and the request body, so a rerun of an unchanged job costs nothing. Add a flag that bypasses the cache.
 - Retry with backoff on 429 and 5xx responses.
 - Report progress as events that the CLI prints and the API streams over server-sent events (SSE).
 - Support cancellation.
@@ -351,7 +351,7 @@ A policy turns answers into a decision. Write it in YAML:
 - Composite scores: weighted sums of normalized answers.
 - Rules that choose an action from answers and composite scores.
 
-Cases can include an `expected_action`. The evaluator reports decision accuracy, the share of cases the policy decided without escalating, and the error rate among those. A threshold sweep plots those two numbers as a threshold moves, and a cost matrix weights each kind of error (for example, a wrong "parley succeeds" costs more than an unneeded escalation). Thresholds are stored per target, since probabilities differ between models. A Python hook lets a policy call real game code later.
+Cases can include an `expected_action`. The evaluator reports decision accuracy, the share of cases the policy decided without escalating, and the error rate among those. A threshold sweep plots the share decided and the error rate as a threshold moves. A cost matrix weights each kind of error (for example, a wrong "parley succeeds" costs more than an unneeded escalation). Store thresholds per target, since probabilities differ between models. A Python hook lets a policy call real game code later.
 
 ### Assist
 
@@ -363,7 +363,7 @@ When `ANTHROPIC_API_KEY` is set, Claude can:
 - Write paraphrases for probes.
 - Suggest why two targets disagree on a case, since decision models return no reasoning.
 
-Everything Claude produces is saved with `provenance: "claude-draft"`. Evaluation ignores it until a person approves it.
+Save everything Claude produces with `provenance: "claude-draft"`. Evaluation ignores it until a person approves it.
 
 ### State builders
 
@@ -417,7 +417,7 @@ Exit codes:
 
 ### Agents
 
-Anthropic has no decision model, but an agent can still get decisions: `claude -p` runs Claude Code headless, and Claude calls `jevtester decide` and acts on the JSON. For example, a referee script can ask Claude to run an encounter and allow it to call the CLI:
+Anthropic has no decision model, but an agent can still get decisions: `claude -p` runs Claude Code headless, and Claude calls `jevtester decide` and acts on the JSON. For example, a referee script can ask Claude to run an encounter and let Claude call the CLI:
 
 ```sh
 claude -p --allowedTools "Bash(uv run jevtester decide:*)" \
@@ -440,7 +440,7 @@ osrlib (in `~/repos/osr-suite/osrlib-python`) is a deterministic rules engine an
 | Score | How do the monsters react to the parley, on the B/X reaction bands? | The 2d6 reaction bands in osrlib-python's `src/osrlib/crawl/encounter.py` |
 | Score | How good is a narration passage, on a rubric? | osr-web's narration beats |
 
-Start with the parley suite. The B/X reaction bands are an ordered scale, and each band describes behavior instead of a degree, which is what the vendors recommend for score levels. The request in [Decision models and the System One API](#decision-models-and-the-system-one-api) is the first case.
+Start with the parley suite. The B/X reaction bands are an ordered scale, and each band describes behavior instead of a degree. The vendors recommend that for score levels. The request in [Decision models and the System One API](#decision-models-and-the-system-one-api) is the first case.
 
 ## What the UI must show
 
@@ -463,12 +463,12 @@ Follow the user's UI rule: sentence case for every label, button, card, tab, and
 
 ## Build order
 
-Each step ends with a command that shows it works. Write the contracts (models and protocol signatures) and their tests before the implementation, as the osr-suite projects do.
+Each step ends with a command that shows the step works. Write the contracts (models and protocol signatures) and their tests before the implementation, as the osr-suite projects do.
 
 1. **Project setup.** Create the uv project, the package layout, `jevtester.toml`, and the gates. Done when `uv run ruff check`, `uv run pyright`, and `uv run pytest` pass.
 2. **Contracts.** Write the spec models, `DecisionProvider`, `Capabilities`, and the canonical answer types. Test request serialization against the request above, and normalization against the Foundry response above. Done when those tests pass.
 3. **Foundry provider and `decide`.** Implement the SystemOne provider with Entra tokens, and `jevtester decide` and `targets check`. Done when `uv run jevtester decide --target decision-1@foundry ...` returns the canonical JSON.
-4. **Other providers.** Add Workers AI, Claude, Ollama, and MLX, each as its credentials or install become available. Done when `targets check` reports each target ready or gives the reason it isn't.
+4. **Other providers.** Add Workers AI, Claude, Ollama, and MLX, each as its credentials or installation becomes available. Done when `targets check` reports each target ready or gives the reason it isn't.
 5. **Suites, storage, and the runner.** Add YAML suites, SQLite runs, caching, concurrency limits, and progress events. Done when `jevtester run suites/parley.yaml` records a run, and a second run of the same suite uses the cache.
 6. **Evaluation and comparisons.** Add the scorers, metrics, reports, `compare`, and the regression check. Done when `jevtester compare` lists changed answers between two question set versions.
 7. **Policies.** Add YAML policies, decision accuracy, threshold sweeps, and the cost matrix. Done when a suite with expected actions reports decision accuracy.
@@ -478,7 +478,7 @@ Each step ends with a command that shows it works. Write the contracts (models a
 
 ## Decisions for the user
 
-- **Foundry capacity.** Raise `decision-1` from capacity 1 (1 request per minute) before suite runs. The model's catalog entry lists 1 request and 1,000 tokens per minute for each unit of capacity, so capacity 100 should allow 100 requests and 100,000 tokens per minute.
+- **Foundry capacity.** Raise `decision-1` from capacity 1 (1 request per minute) before running suites. The model's catalog entry lists 1 request and 1,000 tokens per minute for each unit of capacity, so capacity 100 should allow 100 requests and 100,000 tokens per minute.
 - **Local models.** Upgrade Ollama and pull `clef-flash`, download the MLX builds, or both.
 - **Cloudflare.** Create an API token with Workers AI access for the app.
 - **Anthropic.** Provide an API key for the Claude baseline and the assist features.
