@@ -18,9 +18,18 @@ from typing import Any, NoReturn, cast
 from pydantic import BaseModel, ValidationError
 
 from jevtester import __version__
+from jevtester.errors import ServiceError
 from jevtester.normalize import ChoiceAnswer, NoulAnswer, ScoreAnswer, TargetResult
-from jevtester.schemas import DecideBody, DecideResponse, TargetList
-from jevtester.service import Service, UnknownTargetError
+from jevtester.schemas import (
+    DecideBody,
+    DecideResponse,
+    ResultEvent,
+    RunCreate,
+    RunSummary,
+    TargetList,
+    TargetSkippedEvent,
+)
+from jevtester.service import Service
 
 EXIT_OK = 0
 EXIT_INVALID = 2
@@ -80,6 +89,19 @@ def build_parser() -> argparse.ArgumentParser:
     target_commands = targets.add_subparsers(dest="targets_command", metavar="<command>", required=True)
     add_format(target_commands.add_parser("list", help="List configured targets and their capabilities."))
     add_format(target_commands.add_parser("check", help="Run each target's health check."))
+
+    run = commands.add_parser(
+        "run",
+        help="Run a suite and print the run's id and counts.",
+        description="Run a suite on its targets. Progress goes to stderr, and the run's summary to stdout.",
+    )
+    run.add_argument("suite", help="The suite's name, or the path of its YAML file, like suites/parley.yaml.")
+    run.add_argument("--target", action="append", default=[], help="A target name. Repeat. Defaults to the suite's.")
+    run.add_argument("--repeats", type=int, help="Times to send each request. Defaults to the config's.")
+    run.add_argument("--question-set-version", help="A question set version to run instead of the current one.")
+    run.add_argument("--baseline", help="A run to compare with.")
+    run.add_argument("--no-cache", action="store_true", help="Send every request, even when a cached result exists.")
+    add_format(run)
 
     serve = commands.add_parser("serve", help="Start the API and the web UI on 127.0.0.1.")
     serve.add_argument("--port", type=int, default=None, help="The port. Defaults to 8640.")
@@ -221,7 +243,7 @@ def _decide(args: argparse.Namespace) -> int:
     service = _load_service(args.config)
     try:
         response = asyncio.run(service.decide(body))
-    except UnknownTargetError as error:
+    except ServiceError as error:
         _fail(str(error))
     if args.format == "json":
         _print_json(response)
@@ -238,6 +260,64 @@ def _targets(args: argparse.Namespace) -> int:
     else:
         _print_targets(targets)
     return EXIT_OK
+
+
+def _suite_name(value: str) -> str:
+    path = Path(value)
+    return path.stem if path.suffix in (".yaml", ".yml") else value
+
+
+def _print_run(summary: RunSummary) -> None:
+    counts = summary.counts
+    cost = f"${summary.cost_usd:.6f}" if summary.cost_usd is not None else "cost unknown"
+    print(
+        f"Run {summary.id} {summary.status}: {counts.jobs} jobs, {counts.sent} sent, {counts.cached} from cache, "
+        f"{counts.failed} failed, {counts.skipped} skipped, {cost}"
+    )
+    for row in counts.targets:
+        note = f"  skipped: {row.skip_reason}" if row.skip_reason else ""
+        print(f"  {row.target}  {row.sent} sent, {row.cached} cached, {row.failed} failed{note}")
+
+
+async def _run_and_follow(service: Service, body: RunCreate) -> RunSummary:
+    created = await service.start_run(body)
+    print(f"Run {created.id} started", file=sys.stderr)
+    async for event in service.run_events(created.id):
+        match event:
+            case ResultEvent():
+                state = "cached" if event.cached else "ok" if event.result.ok else "failed"
+                done = f"{event.counts.done}/{event.counts.jobs}"
+                print(f"{done}  {event.case_id}  {event.target}  {state}", file=sys.stderr)
+            case TargetSkippedEvent():
+                print(f"Skipped {event.target}: {event.reason}", file=sys.stderr)
+            case _:
+                pass
+    return await service.wait_run(created.id)
+
+
+def _run(args: argparse.Namespace) -> int:
+    try:
+        body = RunCreate(
+            suite=_suite_name(args.suite),
+            targets=list(args.target),
+            repeats=args.repeats,
+            question_set_version=args.question_set_version,
+            baseline=args.baseline,
+            no_cache=args.no_cache,
+        )
+    except ValidationError as error:
+        _fail(f"The run is invalid:\n{_describe_validation(error)}")
+    service = _load_service(args.config)
+    try:
+        summary = asyncio.run(_run_and_follow(service, body))
+    except ServiceError as error:
+        _fail(str(error))
+    if args.format == "json":
+        _print_json(summary)
+    else:
+        _print_run(summary)
+    counts = summary.counts
+    return EXIT_ALL_FAILED if counts.jobs and counts.sent + counts.cached == 0 else EXIT_OK
 
 
 def _serve(args: argparse.Namespace) -> int:
@@ -266,6 +346,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _decide(args)
         case "targets":
             return _targets(args)
+        case "run":
+            return _run(args)
         case "serve":
             return _serve(args)
         case _:
