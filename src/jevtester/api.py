@@ -1,16 +1,17 @@
 """The jevtester HTTP API.
 
-Every route answers from a fixture in `tests/fixtures/api/` until the build step that makes its data real replaces it
-with a call into `service.py`. The routes, their models, and `docs/openapi.json` are the contract either way.
+The targets and decide routes call `service.py`. Every other route answers from a fixture in `tests/fixtures/api/`
+until the build step that makes its data real replaces it with a service call. The routes, their models, and
+`docs/openapi.json` are the contract either way.
 """
 
 import json
 import sys
 from collections.abc import AsyncIterator, Sequence
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, FastAPI, Query, Request, status
+from fastapi import APIRouter, Depends, FastAPI, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -56,6 +57,7 @@ from jevtester.schemas import (
     SweepResult,
     TargetList,
 )
+from jevtester.service import Service, UnknownTargetError
 from jevtester.spec import Case, QuestionSet
 
 HOST = "127.0.0.1"
@@ -154,29 +156,53 @@ def parse_sse(text: str) -> list[ServerSentEvent]:
     return events
 
 
+class _ServiceHolder:
+    """The app's service, loaded from the config on first use."""
+
+    def __init__(self, service: Service | None) -> None:
+        self._service = service
+
+    def get(self) -> Service:
+        if self._service is None:
+            self._service = Service.load()
+        return self._service
+
+
+def _service(request: Request) -> Service:
+    holder = cast(_ServiceHolder, request.app.state.service)
+    return holder.get()
+
+
+type ServiceDep = Annotated[Service, Depends(_service)]
+
 router = APIRouter(prefix="/api", responses=_ERRORS)
 
 
 @router.get("/targets", tags=["targets"])
-async def list_targets() -> TargetList:
+async def list_targets(service: ServiceDep) -> TargetList:
     """List targets, their capabilities, and their last health check."""
-    return _fixture("get_targets", TargetList)
+    return service.list_targets()
 
 
 @router.post("/targets/check", tags=["targets"])
-async def check_targets() -> TargetList:
+async def check_targets(service: ServiceDep) -> TargetList:
     """Run every target's health check and return the targets with the results."""
-    return _fixture("post_targets_check", TargetList)
+    return await service.check_targets()
 
 
 @router.post("/decide", tags=["decide"])
-async def decide(body: DecideBody) -> DecideResponse:
+async def decide(body: DecideBody, service: ServiceDep) -> DecideResponse:
     """Send one request to each chosen target and return one result per target.
 
     A target that can't take the request, because it isn't ready or a preflight check fails, still has a result,
     with `ok: false` and an error.
     """
-    return _fixture("post_decide", DecideResponse)
+    try:
+        return await service.decide(body)
+    except UnknownTargetError as error:
+        raise ApiException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "invalid_request", str(error), field=error.field
+        ) from error
 
 
 @router.get("/suites", tags=["suites"])
@@ -410,10 +436,11 @@ def _serve_ui(app: FastAPI, static: Path) -> None:
     app.add_api_route("/{path:path}", ui, methods=["GET"], include_in_schema=False)
 
 
-def create_app(static: Path | None = STATIC) -> FastAPI:
+def create_app(service: Service | None = None, static: Path | None = STATIC) -> FastAPI:
     """Build the jevtester API app.
 
     Args:
+        service: The service the routes call. `None` loads it from the config on the first request.
         static: The built web UI to serve outside `/api`. Nothing is served there when it has no `index.html`.
 
     Returns:
@@ -427,6 +454,7 @@ def create_app(static: Path | None = STATIC) -> FastAPI:
         # Operation ids are the route functions' names, like `list_targets`, for readable generated clients.
         generate_unique_id_function=lambda route: route.name,
     )
+    app.state.service = _ServiceHolder(service)
     app.add_middleware(CORSMiddleware, allow_origins=DEV_ORIGINS, allow_methods=["*"], allow_headers=["*"])
     app.add_exception_handler(ApiException, _handle_api_exception)
     app.add_exception_handler(HTTPException, _handle_http_exception)

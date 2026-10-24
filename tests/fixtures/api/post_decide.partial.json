@@ -182,7 +182,7 @@
       "warnings": [
         {
           "code": "state_may_truncate",
-          "message": "Workers AI cuts the state to fit 24,576 tokens",
+          "message": "Cuts the state to fit its 24,576-token window",
           "question": null
         }
       ],
@@ -329,7 +329,41 @@
         "status": null
       },
       "answers": {},
-      "request_body": null,
+      "request_body": {
+        "model": "clef-flash",
+        "state": {
+          "party": "Three adventurers, torches lit",
+          "monsters": "Six goblins, weapons drawn, 40 feet away",
+          "player_says": "We come in peace. Take this sack of silver and let us pass to the stairs."
+        },
+        "questions": {
+          "intent": {
+            "type": "choice",
+            "instructions": "What is the player trying to do?",
+            "criteria": {
+              "parley": "Talk, bargain, bribe, or negotiate",
+              "evade": "Run away or avoid the monsters",
+              "fight": "Attack the monsters",
+              "wait": "Hold position and watch"
+            }
+          },
+          "bribe": {
+            "type": "noul",
+            "instructions": "Does the player offer the monsters something of value?"
+          },
+          "reaction": {
+            "type": "score",
+            "instructions": "How are goblins likely to react to this offer?",
+            "criteria": [
+              "Attack at once",
+              "Hostile, may attack",
+              "Uncertain, hold and posture",
+              "Indifferent, may let them pass",
+              "Friendly, accept the offer"
+            ]
+          }
+        }
+      },
       "raw": null
     }
   ]

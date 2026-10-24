@@ -225,7 +225,7 @@
         "warnings": [
           {
             "code": "state_may_truncate",
-            "message": "Workers AI cuts the state to fit 24,576 tokens",
+            "message": "Cuts the state to fit its 24,576-token window",
             "question": null
           }
         ],

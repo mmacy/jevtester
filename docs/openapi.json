@@ -5455,6 +5455,13 @@
             "type": "array",
             "title": "Targets"
           },
+          "default_targets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Default Targets"
+          },
           "checked_at": {
             "anyOf": [
               {
@@ -5472,6 +5479,7 @@
         "type": "object",
         "required": [
           "targets",
+          "default_targets",
           "checked_at"
         ],
         "title": "TargetList",

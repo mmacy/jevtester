@@ -12,7 +12,7 @@
       "detail": null,
       "credential": "Azure CLI, refreshes in 41 min",
       "warnings": [],
-      "checked_at": "2026-10-24T14:02:00Z",
+      "checked_at": "2026-10-24T14:03:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -50,7 +50,7 @@
       "detail": "Run ollama pull clef-flash (11-12 GB)",
       "credential": null,
       "warnings": [],
-      "checked_at": "2026-10-24T14:02:00Z",
+      "checked_at": "2026-10-24T14:03:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -88,7 +88,7 @@
       "detail": "The model download isn't finished",
       "credential": null,
       "warnings": [],
-      "checked_at": "2026-10-24T14:02:00Z",
+      "checked_at": "2026-10-24T14:03:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -126,7 +126,7 @@
       "detail": "The model download isn't finished",
       "credential": null,
       "warnings": [],
-      "checked_at": "2026-10-24T14:02:00Z",
+      "checked_at": "2026-10-24T14:03:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -164,7 +164,7 @@
       "detail": "The model download isn't finished",
       "credential": null,
       "warnings": [],
-      "checked_at": "2026-10-24T14:02:00Z",
+      "checked_at": "2026-10-24T14:03:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -204,11 +204,11 @@
       "warnings": [
         {
           "code": "state_may_truncate",
-          "message": "Workers AI cuts the state to fit its context window",
+          "message": "Cuts the state to fit its 24,576-token window",
           "question": null
         }
       ],
-      "checked_at": "2026-10-24T14:02:00Z",
+      "checked_at": "2026-10-24T14:03:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -252,11 +252,11 @@
       "warnings": [
         {
           "code": "state_may_truncate",
-          "message": "Workers AI cuts the state to fit its context window",
+          "message": "Cuts the state to fit its context window",
           "question": null
         }
       ],
-      "checked_at": "2026-10-24T14:02:00Z",
+      "checked_at": "2026-10-24T14:03:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -296,11 +296,11 @@
       "warnings": [
         {
           "code": "state_may_truncate",
-          "message": "Workers AI cuts the state to fit its context window",
+          "message": "Cuts the state to fit its context window",
           "question": null
         }
       ],
-      "checked_at": "2026-10-24T14:02:00Z",
+      "checked_at": "2026-10-24T14:03:00Z",
       "capabilities": {
         "probabilities": true,
         "question_types": [
@@ -327,5 +327,8 @@
       }
     }
   ],
-  "checked_at": "2026-10-24T14:02:00Z"
+  "default_targets": [
+    "decision-1@foundry"
+  ],
+  "checked_at": "2026-10-24T14:03:00Z"
 }
