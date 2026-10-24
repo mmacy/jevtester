@@ -12,7 +12,7 @@ npm run dev:fixtures   # answers /api from tests/fixtures/api/, no backend neede
 
 Both serve at <http://127.0.0.1:5173>.
 
-In fixture mode, a fixture's file name is the method and the path after `/api`, joined with underscores. A `{name}` part matches any one path segment, and a `.sse` or `.txt` file replays as server-sent events. For example, `get_runs_{id}_events.sse` answers `GET /api/runs/0142/events`. Set `JEVTESTER_FIXTURES` to use another directory.
+In fixture mode, a fixture's file name is the method and the path after `/api`, joined with underscores. A `{name}` part matches any one path segment, and a `.sse` or `.txt` file replays as server-sent events. For example, `get_runs_{id}_events.sse` answers `GET /api/runs/0142/events`. A variant adds a dot and a name after the route part, like `post_decide.partial.json` or `post_decide.422.json`. A request gets a variant only when its `X-Fixture` header names it, and a numeric variant is served with that HTTP status. Set `JEVTESTER_FIXTURES` to use another directory.
 
 ## API types
 

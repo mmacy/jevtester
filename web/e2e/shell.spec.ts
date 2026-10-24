@@ -43,6 +43,6 @@ test('fixture mode answers an unknown endpoint with the error envelope', async (
   const response = await request.get('/api/no-such-endpoint')
   expect(response.status()).toBe(404)
   expect(await response.json()).toEqual({
-    error: { code: 'no_fixture', message: 'No fixture for GET /api/no-such-endpoint' },
+    error: { code: 'not_found', message: 'No fixture for GET /api/no-such-endpoint' },
   })
 })

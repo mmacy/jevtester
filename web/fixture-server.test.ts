@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { matchFixture, splitEvents } from './fixture-server.ts'
+import { fixtureStatus, matchFixture, parseFixtureName, splitEvents } from './fixture-server.ts'
 
 const FILES = [
   'get_targets.json',
@@ -11,6 +11,9 @@ const FILES = [
   'get_runs_0142.json',
   'get_runs_{id}_events.sse',
   'get_question-sets_{name}_diff.json',
+  'get_runs_{id}_cases_{case_id}.json',
+  'post_decide.partial.json',
+  'post_decide.422.json',
   'README.md',
 ]
 
@@ -29,6 +32,12 @@ describe('matchFixture', () => {
     )
   })
 
+  it('matches a placeholder whose name has an underscore', () => {
+    expect(matchFixture('GET', '/api/runs/0142/cases/parley-07', FILES)).toBe(
+      'get_runs_{id}_cases_{case_id}.json',
+    )
+  })
+
   it('lets a segment value contain underscores', () => {
     expect(matchFixture('GET', '/api/runs/parley_07', FILES)).toBe('get_runs_{id}.json')
   })
@@ -41,6 +50,43 @@ describe('matchFixture', () => {
     expect(matchFixture('GET', '/api/policies/parley', FILES)).toBeNull()
     expect(matchFixture('DELETE', '/api/targets', FILES)).toBeNull()
     expect(matchFixture('GET', '/api/runs/0142/events/extra', FILES)).toBeNull()
+  })
+})
+
+describe('parseFixtureName', () => {
+  it('keeps a placeholder with an underscore as one part', () => {
+    expect(parseFixtureName('get_runs_{id}_cases_{case_id}.json')).toEqual({
+      method: 'get',
+      parts: ['runs', '{id}', 'cases', '{case_id}'],
+      variant: null,
+    })
+  })
+
+  it('reads a variant after the first dot', () => {
+    expect(parseFixtureName('post_decide.422.json')).toEqual({
+      method: 'post',
+      parts: ['decide'],
+      variant: '422',
+    })
+  })
+
+  it('skips files that are not fixtures', () => {
+    expect(parseFixtureName('README.md')).toBeNull()
+  })
+})
+
+describe('variants', () => {
+  it('serves a variant only when the request names it', () => {
+    expect(matchFixture('POST', '/api/decide', FILES)).toBe('post_decide.json')
+    expect(matchFixture('POST', '/api/decide', FILES, 'partial')).toBe('post_decide.partial.json')
+    expect(matchFixture('POST', '/api/decide', FILES, '422')).toBe('post_decide.422.json')
+    expect(matchFixture('POST', '/api/decide', FILES, 'missing')).toBeNull()
+  })
+
+  it('serves a numeric variant with that status', () => {
+    expect(fixtureStatus('post_decide.422.json')).toBe(422)
+    expect(fixtureStatus('post_decide.partial.json')).toBe(200)
+    expect(fixtureStatus('post_decide.json')).toBe(200)
   })
 })
 
