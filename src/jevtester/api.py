@@ -455,7 +455,7 @@ def _openapi(app: FastAPI) -> dict[str, Any]:
 
 def _serve_ui(app: FastAPI, static: Path) -> None:
     # Any path outside /api is the UI's: a built file if one exists, or else index.html, so the UI's own routes
-    # like /runs/0142 load on reload.
+    # like /runs/0002 load on reload. Vite puts the built files under /assets/, so a miss there is a 404.
     root = static.resolve()
 
     async def ui(path: str) -> FileResponse:
@@ -464,6 +464,9 @@ def _serve_ui(app: FastAPI, static: Path) -> None:
         candidate = (root / path).resolve()
         if path and candidate.is_relative_to(root) and candidate.is_file():
             return FileResponse(candidate)
+        if path.startswith("assets/"):
+            # A missing built file is a stale or broken build, not one of the UI's routes.
+            raise HTTPException(status.HTTP_404_NOT_FOUND, f"No file /{path}")
         return FileResponse(root / "index.html")
 
     app.add_api_route("/{path:path}", ui, methods=["GET"], include_in_schema=False)
