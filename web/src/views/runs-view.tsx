@@ -5,6 +5,7 @@ import { api } from '../api/client'
 import type { RunSummary } from '../api/types'
 import { ApiErrorState } from '../components/api-error'
 import { PanelHeading } from '../components/panel-heading'
+import { ProbeGrid } from '../components/probe-grid'
 import { RunBar } from '../components/run-bar'
 import {
   CalibrationPanel,
@@ -154,14 +155,23 @@ function RunPage() {
     if (!summary) return
     setActionError(null)
     try {
-      const run = await api.startRun({
-        suite: summary.suite,
-        targets: summary.targets,
-        question_set_version: summary.question_set_version,
-        repeats: summary.repeats,
-        no_cache: true,
-        baseline: summary.baseline,
-      })
+      const run =
+        summary.kind === 'probe'
+          ? await api.startProbes({
+              suite: summary.suite,
+              targets: summary.targets,
+              variants: summary.variants,
+              question_set_version: summary.question_set_version,
+              no_cache: true,
+            })
+          : await api.startRun({
+              suite: summary.suite,
+              targets: summary.targets,
+              question_set_version: summary.question_set_version,
+              repeats: summary.repeats,
+              no_cache: true,
+              baseline: summary.baseline,
+            })
       navigate(`/runs/${encodeURIComponent(run.id)}`)
     } catch (e) {
       setActionError(e)
@@ -185,12 +195,19 @@ function RunPage() {
             onCancel={() => void cancel()}
             onRerun={() => void rerun()}
           />
-          {metrics.error ? (
+          {summary.kind === 'probe' ? (
+            <div className="mt-6">
+              <Panel title="Probes">
+                <ProbeGrid runId={id} version={version} />
+              </Panel>
+            </div>
+          ) : null}
+          {summary.kind === 'suite' && metrics.error ? (
             <div className="mt-6">
               <ApiErrorState error={metrics.error} onRetry={metrics.reload} />
             </div>
           ) : null}
-          {metrics.data ? (
+          {summary.kind === 'suite' && metrics.data ? (
             <>
               <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
                 <Panel title="Metrics">
@@ -209,7 +226,7 @@ function RunPage() {
                 </Panel>
               </div>
             </>
-          ) : metrics.loading ? (
+          ) : summary.kind === 'suite' && metrics.loading ? (
             <div className="mt-6">
               <Spinner label="Loading metrics" />
             </div>
