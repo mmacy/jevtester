@@ -28,7 +28,10 @@ class ChoiceAnswer(BaseModel):
     choice: str
     """The option the server chose."""
     probabilities: dict[str, float]
-    """The probability of each option, in the question's option order."""
+    """The probability of each option, in the question's option order. An option the server sent no probability
+    for is left out, with a `missing_probability` warning."""
+    unknown_probabilities: dict[str, float] = Field(default_factory=dict[str, float])
+    """Probabilities the server sent for options the question doesn't have, with an `unknown_option` warning."""
     confidence: float
     """`(p_max - 1/n) / (1 - 1/n)` over the question's `n` options, computed by jevtester."""
     server_confidence: float | None = None
@@ -41,8 +44,12 @@ class ScoreAnswer(BaseModel):
     type: Literal["score"] = "score"
     score: float
     """The probability-weighted level index. It can fall between levels."""
-    probabilities: list[float]
-    """The probability of each level, lowest first."""
+    level: int | None
+    """The most probable level, and the lowest of any tied. Evaluation compares this level with the expected one.
+    `None` when the server sent no level probabilities."""
+    probabilities: list[float | None]
+    """The probability of each level, lowest first. `None` for a level the server sent no probability for, with a
+    `missing_probability` warning."""
     legend: list[str]
     """The question's level descriptions, lowest first."""
     confidence: float | None = None
