@@ -84,16 +84,22 @@ function questionErrors(question: QuestionDraft, ids: string[]): string[] {
   return errors
 }
 
+/** Problems with each question card, keyed by card key. The key `''` holds problems with the list. */
+export function validateQuestions(questions: readonly QuestionDraft[]): Record<string, string[]> {
+  const errors: Record<string, string[]> = {}
+  if (questions.length === 0) errors[''] = ['Needs at least 1 question']
+  const ids = questions.map((q) => q.id.trim())
+  for (const question of questions) {
+    const found = questionErrors(question, ids)
+    if (found.length > 0) errors[question.key] = found
+  }
+  return errors
+}
+
 export function validateDraft(draft: RequestDraft): DraftErrors {
-  const errors: DraftErrors = { questions: {} }
+  const errors: DraftErrors = { questions: validateQuestions(draft.questions) }
   const parsed = parseState(draft.stateMode, draft.stateText)
   if ('error' in parsed) errors.state = parsed.error
-  if (draft.questions.length === 0) errors.questions[''] = ['Needs at least 1 question']
-  const ids = draft.questions.map((q) => q.id.trim())
-  for (const question of draft.questions) {
-    const found = questionErrors(question, ids)
-    if (found.length > 0) errors.questions[question.key] = found
-  }
   return errors
 }
 
@@ -122,13 +128,15 @@ export interface RequestBody {
 }
 
 /** The state and questions to send. Call only on a draft with no errors. */
+/** The questions to send, keyed by id, in card order. */
+export function toQuestions(questions: readonly QuestionDraft[]): Record<string, QuestionInput> {
+  return Object.fromEntries(questions.map((q) => [q.id.trim(), toQuestion(q)]))
+}
+
 export function toRequest(draft: RequestDraft): RequestBody {
   const parsed = parseState(draft.stateMode, draft.stateText)
   if ('error' in parsed) throw new Error(parsed.error)
-  return {
-    state: parsed.state,
-    questions: Object.fromEntries(draft.questions.map((q) => [q.id.trim(), toQuestion(q)])),
-  }
+  return { state: parsed.state, questions: toQuestions(draft.questions) }
 }
 
 /** The request as the API echoes it, to label the matrix before any answer arrives. */
