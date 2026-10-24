@@ -1,8 +1,7 @@
 """The jevtester HTTP API.
 
-The targets and decide routes call `service.py`. Every other route answers from a fixture in `tests/fixtures/api/`
-until the build step that makes its data real replaces it with a service call. The routes, their models, and
-`docs/openapi.json` are the contract either way.
+The routes call `service.py`, except the probe and policy routes, which answer from fixtures in `tests/fixtures/api/`
+until steps 7 and 8 make them real. The routes, their models, and `docs/openapi.json` are the contract either way.
 """
 
 import json
@@ -44,6 +43,7 @@ from jevtester.schemas import (
     QuestionSetVersions,
     RunCase,
     RunChanges,
+    RunComparison,
     RunCreate,
     RunCreated,
     RunEvent,
@@ -247,9 +247,9 @@ async def get_suite(name: str, service: ServiceDep) -> SuiteDetail:
 
 
 @router.get("/suites/{name}/check", tags=["suites"])
-async def check_suite(name: str) -> SuiteCheck:
+async def check_suite(name: str, service: ServiceDep) -> SuiteCheck:
     """Validate a suite and run the question-wording checks on its question set."""
-    return _fixture("get_suites_{name}_check", SuiteCheck)
+    return service.check_suite(name)
 
 
 @router.post("/suites/{name}/cases", status_code=status.HTTP_201_CREATED, tags=["suites"], responses=_CONFLICT)
@@ -337,39 +337,51 @@ async def cancel_run(id: str, service: ServiceDep) -> RunSummary:
 
 
 @router.get("/runs/{id}/metrics", tags=["runs"])
-async def get_run_metrics(id: str) -> RunMetrics:
+async def get_run_metrics(id: str, service: ServiceDep) -> RunMetrics:
     """Return metrics for each target and question."""
-    return _fixture("get_runs_{id}_metrics", RunMetrics)
+    return service.run_metrics(id)
 
 
 @router.get("/runs/{id}/confusion", tags=["runs"])
-async def get_run_confusion(id: str, question: str, target: str) -> ConfusionMatrix:
+async def get_run_confusion(id: str, question: str, target: str, service: ServiceDep) -> ConfusionMatrix:
     """Return the confusion matrix for one choice question and one target."""
-    return _fixture("get_runs_{id}_confusion", ConfusionMatrix)
+    return service.run_confusion(id, question, target)
 
 
 @router.get("/runs/{id}/calibration", tags=["runs"])
-async def get_run_calibration(id: str, question: str, target: str, bins: int = 10) -> Calibration:
+async def get_run_calibration(id: str, question: str, target: str, service: ServiceDep, bins: int = 10) -> Calibration:
     """Return a reliability table for one noul or choice question and one target."""
-    return _fixture("get_runs_{id}_calibration", Calibration)
+    return service.run_calibration(id, question, target, bins)
 
 
 @router.get("/runs/{id}/changes", tags=["runs"])
-async def get_run_changes(id: str, baseline: str) -> RunChanges:
+async def get_run_changes(id: str, baseline: str, service: ServiceDep) -> RunChanges:
     """Return the answers that changed from a baseline run, with McNemar's test for each target."""
-    return _fixture("get_runs_{id}_changes", RunChanges)
+    return service.run_changes(id, baseline)
+
+
+@router.get("/runs/{id}/compare", tags=["runs"])
+async def compare_runs(
+    id: str, baseline: str, service: ServiceDep, max_drop: Annotated[float | None, Query(ge=0)] = None
+) -> RunComparison:
+    """Compare a run with a baseline: both runs' metrics, the changed answers, and any regressions.
+
+    A regression is a target and question whose accuracy, or within-tolerance accuracy for a score, dropped by more
+    than `max_drop`. Without `max_drop`, the config's `defaults.max_drop` applies.
+    """
+    return service.compare_runs(id, baseline, max_drop)
 
 
 @router.get("/runs/{id}/cases/{case_id}", tags=["runs"])
-async def get_run_case(id: str, case_id: str) -> RunCase:
+async def get_run_case(id: str, case_id: str, service: ServiceDep) -> RunCase:
     """Return one case in a run, with every target's full result."""
-    return _fixture("get_runs_{id}_cases_{case_id}", RunCase)
+    return service.run_case(id, case_id)
 
 
 @router.get("/runs/{id}/report", tags=["runs"])
-async def get_run_report(id: str) -> RunReport:
+async def get_run_report(id: str, service: ServiceDep) -> RunReport:
     """Return a run's summary and metrics, and the same report as Markdown."""
-    return _fixture("get_runs_{id}_report", RunReport)
+    return service.run_report(id)
 
 
 @router.get("/runs/{id}/probes", tags=["probes"])

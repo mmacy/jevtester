@@ -8,12 +8,13 @@ questions:
       evade: Run away or avoid the monsters
       fight: Attack the monsters
       wait: Hold position and watch
+      cannot_tell: The player's words and actions don't show what they're trying to do
   bribe:
     type: noul
     instructions: Does the player offer the monsters something of value?
   reaction:
     type: score
-    instructions: How are goblins likely to react to this offer?
+    instructions: How are the monsters likely to react to what the player says and does?
     criteria:
     - Attack at once
     - Hostile, may attack

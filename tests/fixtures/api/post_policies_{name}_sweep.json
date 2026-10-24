@@ -1,6 +1,6 @@
 {
   "policy": "parley",
-  "run_id": "0142",
+  "run_id": "0002",
   "target": "decision-1@foundry",
   "threshold": "goodwill_threshold",
   "current": 0.6,

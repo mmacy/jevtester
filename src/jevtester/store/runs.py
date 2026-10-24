@@ -9,10 +9,12 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+from pydantic import TypeAdapter
+
 from jevtester.model import Model
 from jevtester.normalize import TargetResult
 from jevtester.schemas import RunSummary
-from jevtester.spec import QuestionSet
+from jevtester.spec import Case, QuestionSet
 
 _SCHEMA = """
 create table if not exists runs (
@@ -37,6 +39,10 @@ create table if not exists cache (
     created_at text not null,
     result text not null
 );
+create table if not exists run_cases (
+    run_id text primary key,
+    cases text not null
+);
 create table if not exists question_set_versions (
     name text not null,
     version text not null,
@@ -45,6 +51,9 @@ create table if not exists question_set_versions (
     primary key (name, version)
 );
 """
+
+
+_CASES = TypeAdapter(list[Case])
 
 
 class StoredResult(Model):
@@ -127,6 +136,31 @@ class RunStore:
         with self._lock:
             rows = self._db.execute("select summary from runs order by created_at desc, id desc").fetchall()
         return [RunSummary.model_validate_json(row[0]) for row in rows]
+
+    def save_cases(self, run_id: str, cases: list[Case]) -> None:
+        """Save the cases a run asks, so later edits to the suite don't change how the run is scored.
+
+        Args:
+            run_id: The run's id.
+            cases: The cases.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                "insert or replace into run_cases values (?, ?)", (run_id, _CASES.dump_json(cases).decode())
+            )
+
+    def cases(self, run_id: str) -> list[Case] | None:
+        """Read the cases a run asked.
+
+        Args:
+            run_id: The run's id.
+
+        Returns:
+            The cases, or `None` for a run saved without them.
+        """
+        with self._lock:
+            row = self._db.execute("select cases from run_cases where run_id = ?", (run_id,)).fetchone()
+        return _CASES.validate_json(row[0]) if row else None
 
     # Results
 
