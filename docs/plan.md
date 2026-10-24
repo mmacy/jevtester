@@ -457,7 +457,12 @@ Plan the UI after the API exists. The UI must let a person:
 - Review and approve Claude drafts before they count.
 - See which targets are available and why any aren't.
 
-Follow the user's UI rule: sentence case for every label, button, card, tab, and panel.
+Follow the user's rules for UI text:
+
+- Use sentence case for every label, button, card, tab, and panel.
+- Write each string as a label or a fact the person acts on. Cut words that explain the UI to the person, like "Nothing you typed is lost" or "Red cells are cases answered as the wrong option." A legend or an axis label covers what a color means.
+
+The user chose the heat matrix direction in `mockups/3-matrix.html`: every view is a grid, with targets as columns, options and levels as rows, and cell color for probability. Build the UI plan from that mockup. The other three mockups in `mockups/` are the directions the user didn't choose.
 
 ## Build order
 
@@ -483,6 +488,7 @@ The user made these decisions on 2026-10-24:
 - **osrlib.** State builders read exported JSON first. Importing osrlib is a later, optional extra.
 - **Evaluation library.** Build the evaluation code in jevtester instead of adopting pydantic-evals. jevtester's requests have several questions each and run across a matrix of targets, which a library built around evaluating one task function doesn't fit, and jevtester needs calibration and confusion-matrix metrics that pydantic-evals' docs don't show.
 - **Cloudflare.** Authenticate Workers AI with the Wrangler sign-in instead of creating an API token.
+- **UI direction.** The heat matrix mockup, `mockups/3-matrix.html`.
 - **Claude.** Build without the Claude provider and the assist features for now. Design the provider protocol so a Claude provider can be added later without changes elsewhere.
 
 ## References

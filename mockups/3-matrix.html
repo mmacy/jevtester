@@ -1,0 +1,495 @@
+<!doctype html>
+<!--
+  Direction 3: Heat matrix.
+  Every view is one grid where color is probability: targets are columns, every option and level is a row,
+  and a disagreement column flags where the targets split, so differences show up before you read a number.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jevtester matrix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Display:wdth,wght@62.5..100,300..800&family=Noto+Sans:wdth,wght@75..100,400..700&family=Noto+Sans+Mono:wght@400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #102029;
+  --surface: #152a35;
+  --raise: #1b3442;
+  --line: #234051;
+  --line-soft: #1c3644;
+  --text: #dbe8ef;
+  --dim: #8ea7b6;
+  --faint: #5e7a8b;
+  --pick: #f3c979;
+  --warn: #f0b45b;
+  --err: #ef7a6b;
+  --ok: #8fd3b0;
+  --display: "Noto Sans Display", "Noto Sans", sans-serif;
+  --sans: "Noto Sans", system-ui, sans-serif;
+  --mono: "Noto Sans Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 var(--sans); font-variant-numeric: tabular-nums; min-height: 100vh; }
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--pick); outline-offset: 2px; }
+.cond { font-family: var(--display); font-stretch: 72%; }
+
+/* top bar */
+.top { display: flex; align-items: center; gap: 28px; height: 56px; padding: 0 24px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; }
+.mark { font-family: var(--display); font-stretch: 62.5%; font-weight: 800; font-size: 26px; letter-spacing: 0.01em; line-height: 1; display: flex; gap: 8px; align-items: center; }
+.mark i { display: inline-grid; grid-template-columns: repeat(3, 6px); gap: 2px; }
+.mark i b { width: 6px; height: 6px; display: block; }
+.tabs { display: flex; gap: 4px; height: 100%; }
+.tabs button { border: 0; background: none; padding: 0 14px; cursor: pointer; color: var(--dim); font-family: var(--display); font-stretch: 80%; font-weight: 600; font-size: 16px; border-bottom: 3px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--pick); }
+.tabs button:hover { color: var(--text); }
+.top .sp { flex: 1; }
+.health { display: flex; gap: 4px; align-items: center; font-size: 12.5px; color: var(--dim); }
+.health span { width: 22px; height: 8px; background: var(--ok); }
+.health span.w { background: var(--warn); }
+.health span.e { background: var(--err); }
+.health em { font-style: normal; margin-left: 8px; }
+
+.view { display: none; }
+.view.on { display: block; }
+
+/* compare */
+.compare { display: grid; grid-template-columns: 360px minmax(0, 1fr); min-height: calc(100vh - 56px); }
+.req { border-right: 1px solid var(--line); padding: 20px; background: var(--surface); }
+.req h2, .panel-h { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 22px; margin: 0 0 14px; letter-spacing: 0.005em; }
+.lab { display: block; font-size: 12.5px; color: var(--dim); margin: 0 0 5px; }
+textarea, input[type=text] { width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 9px 10px; font-size: 14px; line-height: 1.5; resize: vertical; }
+textarea:focus, input:focus { outline: none; border-color: var(--pick); }
+.mono-in { font-family: var(--mono); font-size: 12.5px; }
+.go { display: flex; gap: 10px; align-items: center; margin-top: 14px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--raise); border-radius: 4px; padding: 7px 14px; cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--faint); }
+.btn.pri { background: var(--pick); color: #23200f; border-color: var(--pick); font-weight: 650; }
+.growbtn { width: 100%; margin-top: 18px; border: 1px dashed var(--faint); background: none; border-radius: 4px; padding: 10px; color: var(--dim); cursor: pointer; text-align: left; }
+.growbtn:hover { color: var(--text); border-color: var(--dim); }
+.growbtn strong { color: var(--text); font-weight: 600; display: block; }
+.fullform { display: none; }
+.req.full .quickform { display: none; }
+.req.full .fullform { display: block; }
+.qcard { border: 1px solid var(--line); border-radius: 4px; margin-top: 10px; background: var(--bg); }
+.qcard header { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-bottom: 1px solid var(--line-soft); }
+.qcard header b { font-family: var(--mono); font-weight: 400; font-size: 12.5px; color: var(--pick); }
+.qcard header .sp { flex: 1; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; font-size: 12px; }
+.seg button { border: 0; background: none; padding: 2px 8px; cursor: pointer; color: var(--dim); }
+.seg button[aria-pressed="true"] { background: var(--line); color: var(--text); }
+.qcard .ins { padding: 7px 10px 2px; font-size: 13.5px; }
+.qcard ol { margin: 4px 0 8px; padding: 0 10px 0 30px; font-size: 12.5px; color: var(--dim); }
+.qcard ol.opts { list-style: none; padding-left: 10px; }
+.qcard ol.opts li b, .qcard ol li b { color: var(--text); font-weight: 500; }
+.tgl { display: grid; grid-template-columns: 1fr; gap: 4px; margin-top: 8px; }
+.tgl label { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 8px; border: 1px solid var(--line-soft); border-radius: 4px; }
+.tgl label.off { color: var(--faint); }
+.tgl label small { margin-left: auto; color: var(--err); font-size: 12px; }
+.tgl input { accent-color: var(--pick); }
+
+.stage { padding: 20px 24px 40px; min-width: 0; }
+.stage-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+.stage-head p { margin: 0; color: var(--dim); font-size: 13px; }
+.key { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dim); margin-left: auto; }
+.key .ramp { width: 120px; height: 10px; border-radius: 2px; }
+.key .pk { width: 14px; height: 10px; border: 2px solid var(--pick); }
+
+table.mx { border-collapse: separate; border-spacing: 2px; width: 100%; min-width: 860px; table-layout: fixed; }
+.mx col.labc { width: 220px; }
+.mx col.spc { width: 96px; }
+.mx thead th { vertical-align: top; text-align: left; padding: 6px 6px 8px; font-weight: 400; position: sticky; top: 56px; background: var(--bg); z-index: 2; }
+.mx col.nac { width: 132px; }
+.mx .tn { font-family: var(--display); font-stretch: 62.5%; font-weight: 700; font-size: 17px; line-height: 1.15; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx .rt { font-size: 12px; color: var(--dim); display: block; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx .st { margin-top: 6px; display: block; font-size: 12px; line-height: 1.35; padding: 4px 6px; border-radius: 3px; background: var(--raise); color: var(--ok); height: 74px; overflow: hidden; }
+.mx .st.w { color: #f6dcb0; background: #3a3420; box-shadow: inset 3px 0 0 var(--warn); }
+.mx .st.e { color: #f8c8c0; background: #3b2626; box-shadow: inset 3px 0 0 var(--err); }
+.mx .st b { font-weight: 650; display: block; }
+.mx .st.w b { color: var(--warn); }
+.mx .st.e b { color: var(--err); }
+.mx tr.grp th { text-align: left; padding: 18px 8px 6px; font-weight: 400; border-bottom: 1px solid var(--line); }
+.mx tr.grp .qid { font-family: var(--mono); font-size: 12.5px; color: var(--pick); margin-right: 8px; }
+.mx tr.grp .qt { font-family: var(--display); font-stretch: 85%; font-weight: 600; font-size: 16px; }
+.mx tr.grp .ty { color: var(--faint); font-size: 12px; margin-left: 8px; }
+.mx td, .mx tbody th { height: 38px; padding: 0 8px; }
+.mx tbody th { text-align: left; font-weight: 400; line-height: 1.2; }
+.mx tbody th b { font-weight: 600; display: block; font-size: 13.5px; }
+.mx tbody th small { color: var(--faint); font-size: 11.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mx td.h { position: relative; border-radius: 2px; font-size: 14px; text-align: right; }
+.mx td.h.pk { box-shadow: inset 0 0 0 2px var(--pick); font-weight: 650; }
+.mx td.h .bar { position: absolute; left: 6px; right: 6px; bottom: 5px; height: 2px; background: rgba(255,255,255,0.12); }
+.mx td.h .bar i { display: block; height: 100%; background: currentColor; opacity: 0.7; }
+.mx td.na { background: repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--bg) 6px 12px); color: var(--faint); text-align: center; font-size: 12px; border-radius: 2px; }
+.mx td.plain { color: var(--text); text-align: right; font-size: 14px; background: var(--surface); border-radius: 2px; }
+.mx td.plain.lowc { color: var(--warn); }
+.mx td.sp { text-align: left; font-size: 12.5px; color: var(--dim); }
+.mx td.sp .sbar { display: inline-block; height: 8px; background: var(--warn); vertical-align: middle; margin-right: 6px; border-radius: 1px; }
+.mx td.sp.hi { color: var(--warn); }
+.mx tr.sub th, .mx tr.sub td { height: 32px; }
+.mx tr.sub th { color: var(--dim); font-size: 13px; }
+.scorecell { position: relative; }
+.scorecell .sc-axis { position: absolute; left: 8px; right: 8px; top: 50%; height: 1px; background: var(--line); }
+.scorecell .sc-mk { position: absolute; top: calc(50% - 7px); width: 3px; height: 14px; background: var(--pick); border-radius: 1px; }
+.scorecell .sc-v { position: relative; float: right; background: var(--surface); padding-left: 4px; font-weight: 650; color: var(--pick); }
+.legendline { margin: 10px 0 0 222px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; font-size: 11.5px; color: var(--dim); max-width: 640px; }
+.legendline span b { font-weight: 600; color: var(--text); margin-right: 4px; }
+.costrow td.plain small { color: var(--faint); font-size: 11.5px; margin-left: 3px; }
+.actions { display: flex; gap: 10px; margin-top: 22px; align-items: center; flex-wrap: wrap; }
+.actions p { margin: 0; color: var(--dim); font-size: 13px; }
+
+/* run */
+.wrap { padding: 20px 24px 48px; max-width: 1440px; }
+.runbar { display: grid; grid-template-columns: auto 1fr auto; gap: 18px; align-items: center; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; }
+.runbar h2 { margin: 0; font-family: var(--display); font-stretch: 70%; font-weight: 800; font-size: 30px; line-height: 1; }
+.facts { display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 13px; color: var(--dim); }
+.facts b { color: var(--text); font-weight: 600; }
+.prog { grid-column: 1 / -1; height: 6px; background: var(--bg); border-radius: 3px; overflow: hidden; display: flex; }
+.prog i { display: block; height: 100%; }
+.prog-key { grid-column: 1 / -1; display: flex; gap: 18px; font-size: 12px; color: var(--dim); margin-top: -8px; }
+.prog-key span::before { content: ""; display: inline-block; width: 10px; height: 6px; margin-right: 6px; vertical-align: middle; background: var(--c); }
+.grid2 { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 24px; margin-top: 24px; }
+.panel { min-width: 0; }
+.panel-h { display: flex; align-items: baseline; gap: 12px; }
+.panel-h small { font-family: var(--sans); font-stretch: 100%; font-weight: 400; font-size: 12.5px; color: var(--dim); }
+table.met { border-collapse: separate; border-spacing: 2px; width: 100%; table-layout: fixed; }
+.met th { font-weight: 500; font-size: 12.5px; color: var(--dim); text-align: right; padding: 4px 8px; line-height: 1.2; vertical-align: bottom; }
+.met th:first-child { text-align: left; width: 170px; }
+.met td { height: 40px; text-align: right; padding: 0 8px; border-radius: 2px; font-size: 14px; }
+.met td.nm { text-align: left; font-family: var(--display); font-stretch: 75%; font-weight: 650; font-size: 15px; background: none; }
+.met td.na { background: repeating-linear-gradient(135deg, var(--surface) 0 6px, var(--bg) 6px 12px); color: var(--err); text-align: left; font-size: 13px; }
+.met-note { font-size: 12px; color: var(--faint); margin-top: 6px; }
+.subtabs { display: inline-flex; gap: 2px; margin-bottom: 10px; flex-wrap: wrap; }
+.subtabs button { border: 1px solid var(--line); background: var(--surface); padding: 3px 9px; font-size: 12.5px; cursor: pointer; color: var(--dim); border-radius: 3px; }
+.subtabs button[aria-pressed="true"] { color: var(--text); border-color: var(--pick); }
+table.cm { border-collapse: separate; border-spacing: 3px; }
+.cm th { font-weight: 500; font-size: 12.5px; color: var(--dim); padding: 2px 8px; }
+.cm th.r { text-align: right; }
+.cm td { width: 64px; height: 50px; text-align: center; font-size: 16px; font-weight: 600; border-radius: 3px; }
+.cm .ax { font-family: var(--display); font-stretch: 80%; font-weight: 600; color: var(--faint); font-size: 13px; }
+.cmwrap { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.cmside { font-size: 13px; color: var(--dim); max-width: 220px; }
+.cmside b { color: var(--text); font-size: 26px; font-family: var(--display); font-stretch: 70%; font-weight: 800; display: block; line-height: 1.1; }
+table.chg { border-collapse: separate; border-spacing: 2px; width: 100%; margin-top: 6px; table-layout: fixed; }
+.chg th { font-weight: 500; font-size: 12.5px; color: var(--dim); text-align: left; padding: 4px 8px; }
+.chg td { height: 44px; padding: 0 8px; font-size: 13.5px; border-radius: 2px; }
+.chg td.cid { font-family: var(--mono); font-size: 12.5px; color: var(--pick); background: var(--surface); }
+.chg td.st { color: var(--dim); background: var(--surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chg td.q { font-family: var(--mono); font-size: 12.5px; background: var(--surface); }
+.chg td.res { font-weight: 650; text-align: center; }
+.chg td.res.f { background: #1f4537; color: var(--ok); }
+.chg td.res.b { background: #4a2a28; color: var(--err); }
+.mcn { display: flex; gap: 24px; align-items: center; margin-top: 12px; font-size: 13px; color: var(--dim); flex-wrap: wrap; }
+.mcn b { color: var(--text); }
+
+/* targets */
+table.cap { border-collapse: separate; border-spacing: 2px; width: 100%; table-layout: fixed; margin-top: 8px; }
+.cap thead th { text-align: left; padding: 0 10px 8px; vertical-align: bottom; font-weight: 400; }
+.cap thead th:first-child { width: 210px; }
+.cap tbody th { text-align: left; font-weight: 500; color: var(--dim); font-size: 13px; padding: 0 10px; }
+.cap td { height: 42px; padding: 6px 10px; background: var(--surface); border-radius: 2px; font-size: 13.5px; line-height: 1.35; }
+.cap td.ok { background: #1d4033; color: var(--ok); font-weight: 600; }
+.cap td.w { background: #3a3420; color: var(--warn); }
+.cap td.e { background: #3b2626; color: #f8c8c0; }
+.cap td.e b { color: var(--err); display: block; }
+.cap td.no { color: var(--faint); }
+.cap code { font-family: var(--mono); font-size: 12px; background: rgba(0,0,0,0.25); padding: 0 4px; border-radius: 2px; }
+
+@media (max-width: 1240px) {
+  .compare { grid-template-columns: 1fr; }
+  .req { border-right: 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+  .req > h2 { grid-column: 1 / -1; }
+  .req .quickform, .req .fullform { grid-column: 1 / -1; }
+  .quickform { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .quickform .span { grid-column: 1 / -1; }
+  .req.full .fullform { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .grid2 { grid-template-columns: 1fr; }
+  .mx col.labc { width: 180px; }
+  .legendline { margin-left: 182px; }
+  .health em { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="mark"><i aria-hidden="true"><b style="background:#c8ecd9"></b><b style="background:#2f7f93"></b><b style="background:#1f4a5e"></b><b style="background:#63b7b8"></b><b style="background:#c8ecd9"></b><b style="background:#2f7f93"></b><b style="background:#1f4a5e"></b><b style="background:#2f7f93"></b><b style="background:#c8ecd9"></b></i>jevtester</div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-v="compare">Compare targets</button>
+    <button role="tab" aria-selected="false" data-v="run">Run 0142</button>
+    <button role="tab" aria-selected="false" data-v="targets">Targets</button>
+  </nav>
+  <div class="sp"></div>
+  <div class="health" title="Target status" role="img" aria-label="4 of 5 targets ready, 1 with a warning, 1 down">
+    <span></span><span></span><span class="w"></span><span></span><span class="e"></span>
+    <em>4 of 5 targets ready. Ollama isn't running.</em>
+  </div>
+</header>
+
+<!-- Compare -->
+<section class="view on" id="v-compare">
+  <div class="compare">
+    <aside class="req" id="req">
+      <h2>Request</h2>
+      <div class="quickform">
+        <div>
+          <label class="lab" for="s1">State</label>
+          <textarea id="s1" rows="5">Three adventurers, torches lit. Six goblins, weapons drawn, 40 feet away. The player says: "We come in peace. Take this sack of silver and let us pass to the stairs."</textarea>
+        </div>
+        <div>
+          <label class="lab" for="q1" style="margin-top:12px">Question</label>
+          <input type="text" id="q1" value="Does the player offer the monsters something of value?">
+          <div class="go"><button class="btn pri">Ask</button><span style="color:var(--faint);font-size:12.5px">Yes or no, on decision-1@foundry</span></div>
+        </div>
+        <button class="growbtn span" id="grow"><strong>Full request</strong>Question type, options, more questions, more targets</button>
+      </div>
+      <div class="fullform">
+        <div>
+          <label class="lab" for="s2">State</label>
+          <textarea id="s2" class="mono-in" rows="6">{
+  "party": "Three adventurers, torches lit",
+  "monsters": "Six goblins, weapons drawn, 40 feet away",
+  "player_says": "We come in peace. Take this sack of silver and let us pass to the stairs."
+}</textarea>
+          <label class="lab" style="margin-top:14px">Targets</label>
+          <div class="tgl">
+            <label><input type="checkbox" checked> decision-1@foundry</label>
+            <label><input type="checkbox" checked> clef-flash@workers-ai</label>
+            <label><input type="checkbox" checked> clef-flash-4bit@mlx</label>
+            <label><input type="checkbox" checked> clef@mlx</label>
+            <label class="off"><input type="checkbox" disabled> clef-flash@ollama <small>Not running</small></label>
+          </div>
+        </div>
+        <div>
+          <div class="qcard"><header><b>intent</b><span class="sp"></span><div class="seg" role="group" aria-label="Type"><button aria-pressed="false">Yes or no</button><button aria-pressed="true">Choice</button><button aria-pressed="false">Score</button></div></header>
+            <div class="ins">What is the player trying to do?</div>
+            <ol class="opts"><li><b>parley</b> Talk, bargain, bribe, or negotiate</li><li><b>evade</b> Run away or avoid the monsters</li><li><b>fight</b> Attack the monsters</li><li><b>wait</b> Hold position and watch</li></ol></div>
+          <div class="qcard"><header><b>bribe</b><span class="sp"></span><div class="seg" role="group" aria-label="Type"><button aria-pressed="true">Yes or no</button><button aria-pressed="false">Choice</button><button aria-pressed="false">Score</button></div></header>
+            <div class="ins" style="padding-bottom:8px">Does the player offer the monsters something of value?</div></div>
+          <div class="qcard"><header><b>reaction</b><span class="sp"></span><div class="seg" role="group" aria-label="Type"><button aria-pressed="false">Yes or no</button><button aria-pressed="false">Choice</button><button aria-pressed="true">Score</button></div></header>
+            <div class="ins">How are goblins likely to react to this offer?</div>
+            <ol start="0"><li><b>Attack at once</b></li><li><b>Hostile, may attack</b></li><li><b>Uncertain, hold and posture</b></li><li><b>Indifferent, may let them pass</b></li><li><b>Friendly, accept the offer</b></li></ol></div>
+          <div class="go"><button class="btn pri">Ask 4 targets</button><button class="btn">Add question</button><button class="btn" id="shrink">Quick test</button></div>
+        </div>
+      </div>
+    </aside>
+
+    <div class="stage">
+      <div class="stage-head">
+        <h2 class="panel-h" style="margin:0">Answers</h2>
+        <p>Asked 14:02</p>
+        <div class="key"><span>Probability</span><span>0</span><span class="ramp" id="ramp"></span><span>1</span><span class="pk" style="margin-left:12px"></span><span>Chosen answer</span></div>
+      </div>
+      <table class="mx" id="mx"></table>
+      <div class="actions">
+        <button class="btn pri">Save as case</button>
+        <button class="btn">Mark expected answers</button>
+        <button class="btn">Copy as CLI command</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Run -->
+<section class="view" id="v-run">
+  <div class="wrap">
+    <div class="runbar">
+      <h2>Run 0142</h2>
+      <div class="facts">
+        <span>Suite <b>parley.yaml</b></span><span>Question set <b>v4 7f20bd</b> against baseline <b>v3 a1c94e</b></span><span><b>48</b> cases</span><span><b>192</b> jobs</span><span>Finished in <b>4 m 05 s</b></span><span>Cost <b>$0.0018</b></span>
+      </div>
+      <button class="btn">Rerun without cache</button>
+      <div class="prog" aria-label="155 sent, 37 from cache, 48 skipped"><i style="width:64.6%;background:#63b7b8"></i><i style="width:15.4%;background:#2f7f93"></i><i style="width:20%;background:repeating-linear-gradient(135deg,#3b2626 0 4px,#152a35 4px 8px)"></i></div>
+      <div class="prog-key"><span style="--c:#63b7b8">155 sent</span><span style="--c:#2f7f93">37 from cache</span><span style="--c:#ef7a6b">48 skipped on clef-flash@ollama</span></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h2 class="panel-h">Metrics <small>Brighter is better</small></h2>
+        <table class="met" id="met"></table>
+        <div class="met-note">Accuracy and macro-F1: intent. Brier score: bribe. Calibration error: intent and bribe.</div>
+      </div>
+      <div class="panel">
+        <h2 class="panel-h">Confusion matrix <small>intent</small></h2>
+        <div class="subtabs" id="cmTabs" role="group" aria-label="Target"></div>
+        <div class="cmwrap">
+          <table class="cm" id="cm"></table>
+          <div class="cmside" id="cmside"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:28px">
+      <h2 class="panel-h">Changed answers <small>v3 a1c94e to v4 7f20bd, decision-1@foundry</small></h2>
+      <table class="chg" id="chg"></table>
+      <div class="mcn"><span><b>5</b> fixed</span><span><b>1</b> broken</span><span>McNemar's <b>p = 0.22</b>, not significant</span><button class="btn">Step through changes</button></div>
+    </div>
+  </div>
+</section>
+
+<!-- Targets -->
+<section class="view" id="v-targets">
+  <div class="wrap">
+    <h2 class="panel-h">Targets <small>Checked 14:01, 4 of 5 ready</small></h2>
+    <table class="cap" id="cap"></table>
+    <div class="actions"><button class="btn pri">Check all targets</button><button class="btn">Edit jevtester.toml</button></div>
+  </div>
+</section>
+
+<script>
+const T = [
+  { id: "decision-1@foundry", rt: "Microsoft-Decision-1, Azure Foundry", ms: 1550, tin: 185, tout: 3, cost: "$0.0000074",
+    intent: [0.9996, 0.0002, 0.0001, 0.0001], iconf: 0.9995, bribe: 0.9988, score: 2.21, rp: [0.033, 0.191, 0.458, 0.169, 0.149], rconf: 0.323 },
+  { id: "clef-flash@workers-ai", rt: "Clef-flash, Workers AI", ms: 1940, tin: 435, tout: 0, cost: "$0.000017",
+    intent: [0.9867, 0.0045, 0.0040, 0.0048], iconf: 0.9648, bribe: 0.9405, score: 2.10, rp: [0.108, 0.241, 0.265, 0.212, 0.174], rconf: 0.019 },
+  { id: "clef-flash-4bit@mlx", rt: "Clef-flash 4-bit, MLX", ms: 820, tin: 431, tout: 3, cost: "$0", local: true,
+    warn: ["Truncation on", "Cuts state at 16,384 tokens"],
+    intent: [0.9812, 0.0061, 0.0059, 0.0068], iconf: 0.9749, bribe: 0.9327, score: 2.05, rp: [0.121, 0.252, 0.249, 0.211, 0.167], rconf: 0.021 },
+  { id: "clef@mlx", rt: "Clef 27B 8-bit, MLX", ms: 3410, tin: 431, tout: 3, cost: "$0", local: true,
+    intent: [0.9973, 0.0011, 0.0007, 0.0009], iconf: 0.9964, bribe: 0.9951, score: 2.36, rp: [0.041, 0.162, 0.371, 0.247, 0.179], rconf: 0.188 },
+  { id: "clef-flash@ollama", rt: "Clef-flash, Ollama", down: ["Ollama isn't running", "Needs 0.35.1 or later"] }
+];
+const OPT = [["parley", "Talk, bargain, bribe, or negotiate"], ["evade", "Run away or avoid the monsters"], ["fight", "Attack the monsters"], ["wait", "Hold position and watch"]];
+const LV = ["Attack at once", "Hostile, may attack", "Uncertain, hold and posture", "Indifferent, may let them pass", "Friendly, accept the offer"];
+
+// sequential ramp, surface to pale mint
+const stops = [[0, [24, 47, 59]], [0.15, [31, 74, 94]], [0.4, [47, 127, 147]], [0.7, [99, 183, 184]], [1, [200, 236, 217]]];
+function heat(v) {
+  for (let i = 1; i < stops.length; i++) {
+    if (v <= stops[i][0]) {
+      const [a, ca] = stops[i - 1], [b, cb] = stops[i], t = (v - a) / (b - a);
+      return `rgb(${ca.map((c, k) => Math.round(c + (cb[k] - c) * t)).join(",")})`;
+    }
+  }
+  return "rgb(200,236,217)";
+}
+const ink = v => v > 0.55 ? "#0e2029" : "#dbe8ef";
+document.getElementById("ramp").style.background = `linear-gradient(90deg, ${[0, 0.15, 0.4, 0.7, 1].map(heat).join(",")})`;
+
+const ready = T.filter(t => !t.down);
+const cell = (v, d, pick) => `<td class="h${pick ? " pk" : ""}" style="background:${heat(v)};color:${ink(v)}">${v.toFixed(d)}<span class="bar"><i style="width:${v * 100}%"></i></span></td>`;
+const na = () => `<td class="na"></td>`;
+function spread(vals, d = 3) {
+  const s = Math.max(...vals) - Math.min(...vals);
+  return `<td class="sp${s >= 0.05 ? " hi" : ""}"><span class="sbar" style="width:${Math.max(2, s * 120)}px"></span>${s.toFixed(d)}</td>`;
+}
+function row(label, sub, get, d, isPick) {
+  return `<tr><th><b>${label}</b>${sub ? `<small title="${sub}">${sub}</small>` : ""}</th>${T.map(t => t.down ? na() : cell(get(t), d, isPick(t))).join("")}${spread(ready.map(get), d === 4 ? 4 : 3)}</tr>`;
+}
+function plain(label, get, cls = () => "") {
+  return `<tr class="sub"><th>${label}</th>${T.map(t => t.down ? `<td class="na"></td>` : `<td class="plain ${cls(t)}">${get(t)}</td>`).join("")}<td></td></tr>`;
+}
+const grp = (id, q, ty) => `<tr class="grp"><th colspan="7"><span class="qid">${id}</span><span class="qt">${q}</span><span class="ty">${ty}</span></th></tr>`;
+const argmax = a => a.indexOf(Math.max(...a));
+
+let html = `<colgroup><col class="labc">${T.map(t => t.down ? '<col class="nac">' : "<col>").join("")}<col class="spc"></colgroup><thead><tr><th></th>${T.map(t => `<th><span class="tn" title="${t.id}">${t.id}</span><span class="rt">${t.rt}</span>${
+  t.down ? `<span class="st e"><b>${t.down[0]}</b>${t.down[1]}</span>` : t.warn ? `<span class="st w"><b>${t.warn[0]}</b>${t.warn[1]}</span>` : `<span class="st">Ready</span>`}</th>`).join("")}<th><span class="tn">Spread</span><span class="rt">max - min</span></th></tr></thead><tbody>`;
+html += grp("intent", "What is the player trying to do?", "choice");
+OPT.forEach(([o, d], i) => html += row(o, d, t => t.intent[i], 4, t => argmax(t.intent) === i));
+html += plain("Confidence", t => t.iconf.toFixed(4));
+html += grp("bribe", "Does the player offer the monsters something of value?", "noul");
+html += row("yes", "Probability of yes", t => t.bribe, 4, () => true);
+html += plain("Confidence", t => Math.abs(2 * t.bribe - 1).toFixed(4));
+html += grp("reaction", "How are goblins likely to react to this offer?", "score, 5 levels");
+LV.forEach((l, i) => html += row(`${i}`, l, t => t.rp[i], 3, t => argmax(t.rp) === i));
+html += `<tr class="sub"><th>Score</th>${T.map(t => t.down ? `<td class="na"></td>` : `<td class="plain scorecell"><span class="sc-axis"></span><span class="sc-mk" style="left:calc(8px + (100% - 16px) * ${t.score / 4})"></span><span class="sc-v">${t.score.toFixed(2)}</span></td>`).join("")}${spread(ready.map(t => t.score), 2).replace("sp hi", "sp hi")}</tr>`;
+html += plain("Confidence", t => t.rconf.toFixed(3), t => t.rconf < 0.1 ? "lowc" : "");
+html += grp("usage", "Speed and cost", "");
+html += plain("Latency", t => `${t.ms.toLocaleString()} ms`);
+html += plain("Input tokens", t => t.tin);
+html += plain("Output tokens", t => t.tout);
+html += `<tr class="sub costrow"><th>Cost</th>${T.map(t => t.down ? `<td class="na"></td>` : `<td class="plain">${t.cost}${t.local ? "<small>local</small>" : ""}</td>`).join("")}<td></td></tr>`;
+html += `</tbody>`;
+document.getElementById("mx").innerHTML = html;
+
+// metrics heat grid
+const M = [
+  ["decision-1@foundry", 0.917, 0.900, 0.061, 0.048, 1520, 2310, 0.008],
+  ["clef-flash@workers-ai", 0.896, 0.871, 0.074, 0.071, 1910, 3040, 0.017],
+  ["clef-flash-4bit@mlx", 0.875, 0.846, 0.083, 0.079, 790, 1140, 0],
+  ["clef@mlx", 0.938, 0.921, 0.052, 0.039, 3380, 4020, 0],
+];
+const heads = ["Accuracy", "Macro-F1", "Brier score", "Calibration", "p50 latency", "p95 latency", "Cost per 1,000"];
+const higher = [true, true, false, false, false, false, false];
+const fmtM = [v => v.toFixed(3), v => v.toFixed(3), v => v.toFixed(3), v => v.toFixed(3), v => `${v.toLocaleString()} ms`, v => `${v.toLocaleString()} ms`, v => v ? `$${v.toFixed(3)}` : "$0"];
+let mh = `<thead><tr><th>Target</th>${heads.map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>`;
+M.forEach(r => {
+  mh += `<tr><td class="nm">${r[0]}</td>${r.slice(1).map((v, k) => {
+    const col = M.map(x => x[k + 1]); const lo = Math.min(...col), hi = Math.max(...col);
+    let q = hi === lo ? 1 : (v - lo) / (hi - lo); if (!higher[k]) q = 1 - q;
+    const c = 0.12 + q * 0.75;
+    return `<td style="background:${heat(c)};color:${ink(c)}">${fmtM[k](v)}</td>`;
+  }).join("")}</tr>`;
+});
+mh += `<tr><td class="nm">clef-flash@ollama</td><td colspan="7" class="na">Skipped, Ollama isn't running</td></tr></tbody>`;
+document.getElementById("met").innerHTML = mh;
+
+// confusion matrices
+const CM = {
+  "decision-1@foundry": [[17, 0, 0, 1], [0, 9, 0, 1], [0, 0, 12, 0], [1, 0, 1, 6]],
+  "clef-flash@workers-ai": [[17, 1, 0, 0], [0, 9, 0, 1], [0, 0, 11, 1], [1, 0, 1, 6]],
+  "clef-flash-4bit@mlx": [[16, 1, 0, 1], [1, 8, 0, 1], [0, 0, 11, 1], [1, 0, 0, 7]],
+  "clef@mlx": [[18, 0, 0, 0], [0, 9, 0, 1], [0, 0, 12, 0], [1, 0, 1, 6]],
+};
+function drawCM(name) {
+  const m = CM[name], names = OPT.map(o => o[0]);
+  const right = m.reduce((a, r, i) => a + r[i], 0);
+  document.getElementById("cm").innerHTML = `<tr><td></td><th colspan="4" class="ax">Answered</th></tr><tr><th class="ax r">Expected</th>${names.map(n => `<th>${n}</th>`).join("")}</tr>` +
+    m.map((r, i) => { const tot = r.reduce((a, b) => a + b, 0);
+      return `<tr><th class="r">${names[i]}</th>${r.map((v, j) => {
+        if (i === j) { const s = v / tot; return `<td style="background:${heat(0.3 + s * 0.7)};color:${ink(0.3 + s * 0.7)}">${v}</td>`; }
+        return v ? `<td style="background:#4a2a28;color:#f8c8c0">${v}</td>` : `<td style="background:var(--surface);color:var(--faint)">0</td>`;
+      }).join("")}</tr>`; }).join("");
+  const worst = m.map((r, i) => [names[i], r[i] / r.reduce((a, b) => a + b, 0)]).sort((a, b) => a[1] - b[1])[0];
+  document.getElementById("cmside").innerHTML = `<b>${right} of 48</b>correct<br><br>Lowest recall: <strong style="color:var(--text)">${worst[0]}</strong>, ${Math.round(worst[1] * 100)}%`;
+  document.querySelectorAll("#cmTabs button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === name));
+}
+document.getElementById("cmTabs").innerHTML = Object.keys(CM).map(k => `<button data-t="${k}">${k}</button>`).join("");
+document.querySelectorAll("#cmTabs button").forEach(b => b.onclick = () => drawCM(b.dataset.t));
+drawCM("decision-1@foundry");
+
+// changed answers
+const C = [
+  ["parley-07", "We shout that we mean no harm and back toward the door.", "intent", ["evade", 0.58], ["parley", 0.71], "parley", 1],
+  ["parley-12", "Throw the rations at them and run for the stairs.", "intent", ["parley", 0.62], ["evade", 0.88], "evade", 1],
+  ["parley-19", "We stay where we are and watch what they do.", "intent", ["wait", 0.71], ["parley", 0.54], "wait", 0],
+  ["parley-23", "Offer them the dwarf's beard as a trophy.", "reaction", ["level 1", 0.46, "1.38"], ["level 2", 0.52, "2.04"], "level 2", 1],
+  ["parley-31", "I hold up the gold idol so they can see it.", "bribe", ["no", 0.59], ["yes", 0.77], "yes", 1],
+  ["parley-40", "I raise my shield and wait for them to move first.", "intent", ["fight", 0.55], ["wait", 0.81], "wait", 1],
+];
+const ac = ([a, p, s]) => `<td style="background:${heat(p)};color:${ink(p)}"><b style="font-weight:600">${a}</b> ${p.toFixed(2)}${s ? ` <small style="opacity:.75">score ${s}</small>` : ""}</td>`;
+document.getElementById("chg").innerHTML = `<colgroup><col style="width:96px"><col><col style="width:90px"><col style="width:150px"><col style="width:150px"><col style="width:96px"><col style="width:86px"></colgroup>
+  <thead><tr><th>Case</th><th>Player says</th><th>Question</th><th>v3 answer</th><th>v4 answer</th><th>Expected</th><th>Result</th></tr></thead><tbody>` +
+  C.map(([id, s, q, a, b, e, ok]) => `<tr><td class="cid">${id}</td><td class="st" title="${s}">${s}</td><td class="q">${q}</td>${ac(a)}${ac(b)}<td style="background:var(--surface)">${e}</td><td class="res ${ok ? "f" : "b"}">${ok ? "Fixed" : "Broken"}</td></tr>`).join("") + `</tbody>`;
+
+// capabilities
+const caps = [
+  ["Status", [["ok", "Ready"], ["ok", "Ready"], ["w", "Ready, truncation on"], ["ok", "Ready"], ["e", "<b>Ollama isn't running</b>No response from <code>localhost:11434</code>. Upgrade to 0.35.1 or later, start Ollama, and pull clef-flash (11-12 GB)."]]],
+  ["Credentials", [["", "Azure CLI, refreshes in 41 min"], ["", "Wrangler"], ["", "None, local"], ["", "None, local"], ["no", "None, local"]]],
+  ["Probabilities", [["", "Yes"], ["", "Yes, 4 decimal places"], ["", "Yes"], ["", "Yes"], ["no", "Yes"]]],
+  ["Images", [["", "No"], ["", "Up to 4, 8 MiB total"], ["", "Yes"], ["", "Yes"], ["no", "Yes"]]],
+  ["Context window", [["", "Not published"], ["", "24,576 tokens, truncates state"], ["w", "16,384 tokens, truncates state"], ["", "16,384 tokens, truncates state"], ["no", "Unknown"]]],
+  ["Questions per request", [["", "1 to 64"], ["", "1 to 64"], ["", "1 to 64"], ["", "1 to 64"], ["no", "1 to 64"]]],
+  ["Options or levels", [["", "2 to 26"], ["", "2 to 26"], ["", "2 to 26"], ["", "2 to 26"], ["no", "2 to 26"]]],
+  ["Concurrency", [["", "100 requests a minute"], ["", "8 at once"], ["", "1 at a time, shared"], ["", "1 at a time, shared"], ["no", "4 at once"]]],
+  ["Input cost per 1M tokens", [["", "$0.04"], ["", "$0.038"], ["", "Free"], ["", "Free"], ["no", "Free"]]],
+];
+document.getElementById("cap").innerHTML = `<thead><tr><th></th>${T.map(t => `<th><span class="tn cond" style="font-weight:700;font-size:17px;display:block">${t.id}</span><span style="font-size:12px;color:var(--dim)">${t.rt}</span></th>`).join("")}</tr></thead><tbody>` +
+  caps.map(([k, vals]) => `<tr><th>${k}</th>${vals.map(([c, v]) => `<td class="${c}">${v}</td>`).join("")}</tr>`).join("") + `</tbody>`;
+
+// tabs and grow
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + b.dataset.v));
+});
+const req = document.getElementById("req");
+document.getElementById("grow").onclick = () => req.classList.add("full");
+document.getElementById("shrink").onclick = () => req.classList.remove("full");
+document.querySelectorAll(".seg").forEach(g => g.querySelectorAll("button").forEach(b => b.onclick = () => g.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b))));
+</script>
+</body>
+</html>
