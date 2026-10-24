@@ -1,7 +1,7 @@
 """The jevtester HTTP API.
 
-The routes call `service.py`, except the probe routes, which answer from fixtures in `tests/fixtures/api/` until
-step 8 makes them real. The routes, their models, and `docs/openapi.json` are the contract either way.
+Every route calls `service.py`. The routes, their models, and `docs/openapi.json` are the contract, and
+`tests/fixtures/api/` has a saved response for each one.
 """
 
 import json
@@ -16,7 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.sse import EventSourceResponse, ServerSentEvent
-from pydantic import BaseModel, TypeAdapter
+from pydantic import TypeAdapter
 from starlette.exceptions import HTTPException
 
 from jevtester import __version__
@@ -66,7 +66,6 @@ PORT = 8640
 DEV_ORIGINS = ["http://127.0.0.1:5173"]
 """The Vite dev server, which calls the API from another origin while the UI is in development."""
 
-FIXTURES = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "api"
 STATIC = Path(__file__).resolve().parent / "static"
 """The built web UI. The frontend build writes it, and git ignores it."""
 
@@ -148,13 +147,6 @@ async def _handle_validation_error(request: Request, exc: Exception) -> JSONResp
     first = details[0] if details else ErrorDetail(message="The request is invalid.")
     body = ApiErrorBody(code="invalid_request", message=first.message, field=first.field, details=details)
     return _error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, body)
-
-
-def _fixture[M: BaseModel](name: str, model: type[M]) -> M:
-    path = FIXTURES / f"{name}.json"
-    if not path.is_file():
-        raise ApiException(status.HTTP_500_INTERNAL_SERVER_ERROR, "internal", f"No fixture {path.name}.")
-    return model.model_validate_json(path.read_text())
 
 
 def parse_sse(text: str) -> list[ServerSentEvent]:
@@ -385,15 +377,15 @@ async def get_run_report(id: str, service: ServiceDep) -> RunReport:
 
 
 @router.get("/runs/{id}/probes", tags=["probes"])
-async def get_run_probes(id: str) -> ProbeReport:
+async def get_run_probes(id: str, service: ServiceDep) -> ProbeReport:
     """Return how often each case's answers changed under each probe variant."""
-    return _fixture("get_runs_{id}_probes", ProbeReport)
+    return service.run_probes(id)
 
 
 @router.post("/probes", status_code=status.HTTP_202_ACCEPTED, tags=["probes"])
-async def start_probe(body: ProbeCreate) -> RunCreated:
+async def start_probe(body: ProbeCreate, service: ServiceDep) -> RunCreated:
     """Start a probe run. It streams events like any run, and `GET /api/runs/{id}/probes` returns its results."""
-    return _fixture("post_probes", RunCreated)
+    return await service.start_probe(body)
 
 
 @router.get("/policies", tags=["policies"])

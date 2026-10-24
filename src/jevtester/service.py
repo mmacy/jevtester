@@ -18,6 +18,7 @@ from jevtester.diff import diff_question_sets
 from jevtester.errors import ConflictError, InvalidRequestError, NotFoundError
 from jevtester.evaluate.checks import case_errors, wording_checks
 from jevtester.evaluate.metrics import calibration, confusion_matrix, originals, run_changes, run_metrics
+from jevtester.evaluate.probes import make_variants, probe_report
 from jevtester.evaluate.report import report_markdown
 from jevtester.evaluate.scoring import is_correct
 from jevtester.normalize import ResultError, TargetResult
@@ -42,6 +43,9 @@ from jevtester.schemas import (
     PolicyList,
     PolicySummary,
     PolicyThreshold,
+    ProbeCreate,
+    ProbeReport,
+    ProbeVariant,
     ProgressEvent,
     QuestionSetBody,
     QuestionSetDetail,
@@ -58,6 +62,7 @@ from jevtester.schemas import (
     RunCreate,
     RunCreated,
     RunEvent,
+    RunKind,
     RunList,
     RunMetrics,
     RunReport,
@@ -573,13 +578,19 @@ class Service:
                     run.model_copy(update={"status": "failed", "error": error, "finished_at": self._clock()})
                 )
 
-    def _empty_counts(self, targets: list[Target], jobs_per_target: int) -> RunCounts:
+    def _empty_counts(self, targets: list[Target], jobs: list[Job]) -> RunCounts:
         rows = [
-            TargetCounts(target=target.name, jobs=jobs_per_target, sent=0, cached=0, failed=0, skipped=0)
+            TargetCounts(
+                target=target.name,
+                jobs=sum(1 for job in jobs if job.target.name == target.name),
+                sent=0,
+                cached=0,
+                failed=0,
+                skipped=0,
+            )
             for target in targets
         ]
-        jobs = jobs_per_target * len(targets)
-        return RunCounts(jobs=jobs, done=0, sent=0, cached=0, failed=0, skipped=0, targets=rows)
+        return RunCounts(jobs=len(jobs), done=0, sent=0, cached=0, failed=0, skipped=0, targets=rows)
 
     def _question_set_for(self, suite: Suite, version: str | None) -> QuestionSet:
         if version is None:
@@ -602,29 +613,73 @@ class Service:
             NotFoundError: The suite, the question set version, or the baseline run doesn't exist.
             InvalidRequestError: A target name is invalid.
         """
-        suite = self.files.load_suite(body.suite)
-        question_set = self._question_set_for(suite, body.question_set_version)
-        targets = self.resolve_targets(body.targets or suite.targets)
         if body.baseline is not None and self.store.get_run(body.baseline) is None:
             raise NotFoundError(f"No run {body.baseline}", field="baseline")
-        repeats = body.repeats or self.config.defaults.repeats
+        return await self._start(
+            "suite",
+            body.suite,
+            body.targets,
+            body.question_set_version,
+            repeats=body.repeats or self.config.defaults.repeats,
+            probes=[],
+            no_cache=body.no_cache,
+            baseline=body.baseline,
+        )
+
+    async def start_probe(self, body: ProbeCreate) -> RunCreated:
+        """Start a probe run: each case as written, and the variants each probe makes of it.
+
+        Args:
+            body: The suite, targets, probes, question set version, and cache setting.
+
+        Returns:
+            The run's id. `GET /api/runs/{id}/probes` reports it once it has results.
+
+        Raises:
+            NotFoundError: The suite or the question set version doesn't exist.
+            InvalidRequestError: A target name is invalid.
+        """
+        probes = list(dict.fromkeys(body.variants))
+        return await self._start(
+            "probe",
+            body.suite,
+            body.targets,
+            body.question_set_version,
+            repeats=1,
+            probes=probes,
+            no_cache=body.no_cache,
+        )
+
+    async def _start(
+        self,
+        kind: RunKind,
+        suite_name: str,
+        target_names: list[str],
+        question_set_version: str | None,
+        *,
+        repeats: int,
+        probes: list[ProbeVariant],
+        no_cache: bool,
+        baseline: str | None = None,
+    ) -> RunCreated:
+        suite = self.files.load_suite(suite_name)
+        question_set = self._question_set_for(suite, question_set_version)
+        targets = self.resolve_targets(target_names or suite.targets)
         cases = [case for case in suite.cases if case.provenance == "human"]
-        jobs = [
-            Job(
-                case=case,
-                target=target,
-                repeat=repeat,
-                request=DecisionRequest(state=case.state, questions=question_set.questions, images=case.images),
-            )
-            for case in cases
-            for target in targets
-            for repeat in range(repeats)
-        ]
+        jobs: list[Job] = []
+        for case in cases:
+            for target in targets:
+                request = DecisionRequest(state=case.state, questions=question_set.questions, images=case.images)
+                jobs += [Job(case=case, target=target, repeat=repeat, request=request) for repeat in range(repeats)]
+                jobs += [
+                    Job(case=case, target=target, repeat=0, request=variant.request, variant=variant.id)
+                    for variant in make_variants(case, question_set.questions, target, probes)
+                ]
         policy = self.files.load_policy(suite.policy)[0] if suite.policy else None
         now = self._clock()
         summary = RunSummary(
             id=self.store.next_run_id(),
-            kind="suite",
+            kind=kind,
             suite=suite.name,
             question_set=question_set.name,
             question_set_version=question_set.version,
@@ -632,12 +687,12 @@ class Service:
             policy_version=policy.version if policy else None,
             targets=[target.name for target in targets],
             repeats=repeats,
-            variants=[],
-            no_cache=body.no_cache,
-            baseline=body.baseline,
+            variants=probes,
+            no_cache=no_cache,
+            baseline=baseline,
             status="queued",
             case_count=len(cases),
-            counts=self._empty_counts(targets, len(cases) * repeats),
+            counts=self._empty_counts(targets, jobs),
             cost_usd=None,
             created_at=now,
             started_at=None,
@@ -649,7 +704,7 @@ class Service:
             self.store.save_policy(summary.id, policy)
         handle = RunHandle(summary)
         self._handles[summary.id] = handle
-        handle.task = asyncio.create_task(self._execute(handle, targets, jobs, no_cache=body.no_cache))
+        handle.task = asyncio.create_task(self._execute(handle, targets, jobs, no_cache=no_cache))
         return RunCreated(id=summary.id)
 
     async def _execute(self, handle: RunHandle, targets: list[Target], jobs: list[Job], *, no_cache: bool) -> None:
@@ -1067,3 +1122,23 @@ class Service:
             current=policy.threshold(body.threshold, target),
             points=points,
         )
+
+    # Probes
+
+    def run_probes(self, run_id: str) -> ProbeReport:
+        """Report how often each case's answers changed under each probe.
+
+        Args:
+            run_id: A probe run's id.
+
+        Returns:
+            A cell for each case, target, and probe, and the change rate for each target and probe.
+
+        Raises:
+            NotFoundError: There's no such run.
+            InvalidRequestError: The run isn't a probe run.
+        """
+        summary = self.get_run(run_id)
+        if summary.kind != "probe":
+            raise InvalidRequestError(f"Run {run_id} is a suite run, not a probe run")
+        return probe_report(run_id, summary.variants, self.store.results(run_id))
