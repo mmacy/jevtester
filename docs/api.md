@@ -10,7 +10,7 @@ Every route returns a fixture from [`tests/fixtures/api/`](../tests/fixtures/api
 
 | Routes | Live in |
 |---|---|
-| `decide`, `targets` | Steps 3 and 4 |
+| `decide`, `targets` | Live for `decision-1@foundry` and the System One targets. Workers AI comes in step 4. |
 | `suites`, `question-sets`, `runs`, run events, `cancel` | Step 5 |
 | `metrics`, `confusion`, `calibration`, `changes`, `cases`, `report` | Step 6 |
 | `policies`, `sweep` | Step 7 |
@@ -107,6 +107,8 @@ A target's `warnings` come from its config, not from the check:
 - `state_may_truncate` when `capabilities.truncates_state` is true, as on Workers AI.
 - `truncation_on` when the target's config sets `truncate = true`, so the MLX server cuts the input at its context window without an error. The MLX targets in `jevtester.toml` set it to `false`.
 
+`default_targets` lists the targets a request goes to when it names none, in the config's order.
+
 `local` is true for targets on this machine (Ollama and MLX), which cost nothing. `capabilities` has every field for every target, and `null` means the limit is unknown, so preflight doesn't check it.
 
 ## Decide
@@ -115,7 +117,7 @@ A target's `warnings` come from its config, not from the check:
 
 The response echoes the request, so a client can label every row from the response alone. `question_set_version` is the hash a question set with these questions would have, which ties a quick test to a saved question set version.
 
-An unknown target name is a 422 with the field `targets.<index>`. A target that isn't ready, or a request that fails its preflight check, returns that target's result with `ok: false` and the error code `not_ready` or `preflight`, before anything is sent.
+An unknown target name, or a name given twice, is a 422 with the field `targets.<index>`. A target that isn't ready, or a request that fails its preflight check, returns that target's result with `ok: false` and the error code `not_ready` or `preflight`, before anything is sent.
 
 ## Results
 
@@ -147,7 +149,7 @@ Each target's result is a `TargetResult`:
 - A probability the server didn't send is left out of a choice's `probabilities`, and is `null` in a score's `probabilities`. Either way the result has a `missing_probability` warning.
 - `unknown_probabilities` holds probabilities for options the question doesn't have, with an `unknown_option` warning.
 - `cost_usd` is `null` when the target's price is unknown, as for Foundry now.
-- `request_body` is the exact body sent, and `raw` is the server's response body, unchanged. For Workers AI, `raw` is the whole Cloudflare envelope.
+- `request_body` is the exact body sent, or `null` when nothing was sent. `raw` is the server's response body, unchanged. For Workers AI, `raw` is the whole Cloudflare envelope.
 
 Warning codes: `missing_answer`, `invalid_answer`, `unknown_option`, `missing_probability`, `unexpected_answer`, `strict_parse_failed`, `truncation_on`, and `state_may_truncate`. A warning about one question names it in `question`.
 
