@@ -14,6 +14,10 @@ export type ColumnState = 'pending' | 'ok' | 'failed'
 
 export interface MatrixColumn {
   target: string
+  /** A key for the column when one target has several, like a baseline and a run. */
+  key?: string
+  /** A line under the target's name, in place of its label. */
+  label?: string
   state: ColumnState
   result: TargetResult | null
   /** Why a failed call returned no result, when the request itself failed. */
