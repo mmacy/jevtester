@@ -100,8 +100,9 @@ def test_parse_policy_lists_every_error() -> None:
     with pytest.raises(InvalidRequestError) as raised:
         parse_policy(text, "p")
     assert [detail.field for detail in raised.value.details or []] == ["thresholds.goodwill", "rules.0.action"]
-    with pytest.raises(InvalidRequestError, match="isn't valid YAML"):
-        parse_policy("name: [", "p")
+    with pytest.raises(InvalidRequestError, match="Line 3") as syntax:
+        parse_policy("name: p\nrules:\n  - action: a: b\n", "p")
+    assert [detail.line for detail in syntax.value.details or []] == [3]
     with pytest.raises(InvalidRequestError, match="named p, not q"):
         parse_policy("name: p\nrules: [{action: a}]\n", "q")
 

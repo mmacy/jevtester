@@ -3222,13 +3222,25 @@
           "message": {
             "type": "string",
             "title": "Message"
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
           }
         },
         "additionalProperties": false,
         "type": "object",
         "required": [
           "field",
-          "message"
+          "message",
+          "line"
         ],
         "title": "ErrorDetail",
         "description": "One validation error."

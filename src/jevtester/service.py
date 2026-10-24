@@ -1034,6 +1034,8 @@ class Service:
         """Measure a target's decisions in a finished run as one of the policy's thresholds moves.
 
         The sweep uses the policy as it is now, so a threshold can be tuned against a run without running it again.
+        Each swept value replaces the threshold for this target, whether the policy gives it a shared value or a
+        `per_target` one. `current` is the target's value now.
 
         Args:
             name: The policy's name.

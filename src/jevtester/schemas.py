@@ -38,6 +38,8 @@ class ErrorDetail(Model):
     field: str | None = None
     """The dotted path of the field, like `questions.intent.criteria`. `None` for the whole input."""
     message: str
+    line: int | None = None
+    """The line of a YAML document the error is on, from 1, for an editor to mark. `None` when it isn't known."""
 
 
 class ApiErrorBody(Model):
