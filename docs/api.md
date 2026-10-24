@@ -207,7 +207,7 @@ data: {"type":"result","run_id":"0142","case_id":"goblin-bribe","target":"decisi
 
 Every event carries `counts`, so a client can draw progress from any one event. A `result` event's `TargetResult` has `request_body` and `raw` set to `null`, to keep the stream small. `GET /api/runs/{id}/cases/{case_id}` returns them.
 
-The stream ends after `finished`, `cancelled`, or `error`. A client that reconnects gets a fresh `progress` event and then the events that follow, so it needs no history. A run that has already ended sends `progress` and its final event.
+The stream ends after `finished`, `cancelled`, or `error`. A client that reconnects gets a fresh `progress` event and then the events that follow, so it needs no history. A run that has already ended sends `progress` and its final event. A browser's `EventSource` reconnects when the server closes the stream, so close it on the final event.
 
 ## Fixtures
 
