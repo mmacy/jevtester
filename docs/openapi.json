@@ -4556,10 +4556,10 @@
       },
       "RunComparison": {
         "properties": {
-          "run": {
+          "run_metrics": {
             "$ref": "#/components/schemas/RunMetrics"
           },
-          "baseline": {
+          "baseline_metrics": {
             "$ref": "#/components/schemas/RunMetrics"
           },
           "changes": {
@@ -4580,8 +4580,8 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "run",
-          "baseline",
+          "run_metrics",
+          "baseline_metrics",
           "changes",
           "max_drop",
           "regressions"
