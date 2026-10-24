@@ -81,9 +81,9 @@ Right panel, the answers matrix:
 - One column per target, plus a **Spread** column (max minus min across the ready targets).
 - The column header shows the target name, its runtime label, and a status chip: ready, a warning such as "Truncation on", or the error.
 - For each question, a group row shows its id, instructions, and type. Below it:
-  - Choice: one row per option, a **Confidence** row.
+  - Choice: one row per option, with the chosen option outlined, and a **Confidence** row. A chosen option the question doesn't have gets its own row, with its probability from `unknown_probabilities` and the `unknown_option` warning.
   - Yes or no: a **Yes** row with the probability, a **Confidence** row.
-  - Score: one row per level, a **Score** row with a marker on a level axis, a **Confidence** row. A confidence below 0.1 shows in amber.
+  - Score: one row per level, with the answer's `level` (the level the evaluator scores) outlined, a **Score** row with a marker on a level axis, and a **Confidence** row. A confidence below 0.1 shows in amber. A missing level probability shows as an empty cell.
 - A **Speed and cost** group: latency, input tokens, output tokens, and cost, with "local" beside a local target's cost.
 - A target with `ok: false` keeps its column, hatched, with its error code and message in the header.
 - Each answer warning, such as a truncation warning, shows in the target's header chip.
@@ -143,7 +143,7 @@ API calls: `GET /api/runs/{id}/cases/{case_id}`, for this run and the baseline.
 Routes: `/question-sets`, `/question-sets/:name`, and `/question-sets/:name/diff?from=&to=`.
 
 - The list shows each question set, its latest version hash, and the suites that use it.
-- A question set's page lists its versions by hash and the time jevtester first saw each one. The editor holds the same question cards as Compare's full request. **Save version** sends the question set as YAML and saves a new version, and the version list shows its hash. A validation error shows on its question.
+- A question set's page lists its versions by hash and the time jevtester first saw each one. The editor holds the same question cards as Compare's full request. **Save version** sends the questions as JSON and saves a new version, and the version list shows its hash. A validation error shows on its question.
 - The wording checks from `suite check` show beside each question: one dimension per question, concrete criteria, bare-number levels, and a missing abstention option.
 - **Diff** picks two versions and shows each question side by side: added, removed, and changed questions, and changed options and levels, marked word by word.
 
@@ -153,7 +153,7 @@ API calls: `GET /api/question-sets`, `GET /api/question-sets/{name}/versions`, `
 
 Routes: `/policies` and `/policies/:name`.
 
-- The policy editor is a YAML text editor with **Save**. Each validation error from the API's `details` list shows in a list under the editor, with its field.
+- The policy editor is a YAML text editor with **Save**, which sends the YAML text. Each validation error from the API's `details` list shows in a list under the editor, with its field.
 - **Sweep.** Pick a run, a question, a target, and a threshold range. The result is a line chart with the threshold on the x axis, and the share decided and the error rate on the y axis, with the current threshold marked. A table below lists each point. If the policy has a cost matrix, the chart adds total cost.
 - Decision accuracy, the share decided, and the error rate among decided cases show for the selected run.
 
@@ -251,4 +251,3 @@ Each step is one pull request, reviewed by the backend session, and ends with th
 
 - Claude drafts are deferred with the assist features. The Suites cases grid shows a "Draft" tag now, and review and approval come with that work.
 - A light theme isn't planned. The mockup is dark only.
-- A score question's chosen level, the one the matrix outlines, waits on the backend: the most probable level, or the rounded score. The matrix outlines the level the evaluator counts.
