@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { api } from '../api/client'
-import type { AnswerValue, RunMetrics, RunSummary } from '../api/types'
+import type { AnswerValue, RunComparison, RunMetrics, RunSummary } from '../api/types'
 import { useLoad } from '../hooks/use-load'
 import { heat, ink } from '../lib/heat'
 import { metricColumns, rankShade } from '../lib/run'
@@ -378,17 +378,47 @@ const RESULT: Record<string, { label: string; className: string }> = {
   changed: { label: 'Changed', className: 'bg-surface text-dim' },
 }
 
+const METRIC_LABEL: Record<string, string> = {
+  accuracy: 'accuracy',
+  within_tolerance: 'within tolerance',
+}
+
+/** The metrics that dropped by more than the allowed amount from the baseline. */
+function Regressions({ comparison }: { comparison: RunComparison }) {
+  if (comparison.regressions.length === 0) {
+    return (
+      <p className="m-0 mb-2.5 text-[13px] text-dim">
+        No regressions, max drop {comparison.max_drop.toFixed(2)}
+      </p>
+    )
+  }
+  return (
+    <ul
+      aria-label="Regressions"
+      className="m-0 mb-2.5 list-none rounded bg-err-bg p-0 px-3 py-2 text-[13px] text-err-ink shadow-[inset_3px_0_0_var(--color-err)]"
+    >
+      {comparison.regressions.map((r) => (
+        <li key={`${r.target}:${r.question}:${r.metric}`}>
+          <b className="text-err">Regression</b> {r.target},{' '}
+          <span className="font-mono">{r.question}</span> {METRIC_LABEL[r.metric] ?? r.metric}{' '}
+          {r.baseline.toFixed(3)} to {r.value.toFixed(3)}, down {r.drop.toFixed(3)}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 export function ChangesPanel({ run, baselines }: { run: RunSummary; baselines: string[] }) {
   const [picked, setPicked] = useState<string | null>(null)
   const baseline = picked ?? run.baseline ?? baselines[0] ?? null
-  const changes = useLoad(
-    () => (baseline ? api.getChanges(run.id, baseline) : Promise.resolve(null)),
+  const comparison = useLoad(
+    () => (baseline ? api.compareRuns(run.id, baseline) : Promise.resolve(null)),
     `${run.id}:${run.status}:${baseline}`,
   )
   const options =
     run.baseline && !baselines.includes(run.baseline) ? [run.baseline, ...baselines] : baselines
   if (!baseline) return <EmptyState label="No earlier run of this suite" />
-  const data = changes.data
+  const data = comparison.data?.changes ?? null
   const first = data?.changes[0]?.case_id
   return (
     <div>
@@ -406,7 +436,10 @@ export function ChangesPanel({ run, baselines }: { run: RunSummary; baselines: s
           ))}
         </select>
       </label>
-      {changes.error ? <ApiErrorState error={changes.error} onRetry={changes.reload} /> : null}
+      {comparison.error ? (
+        <ApiErrorState error={comparison.error} onRetry={comparison.reload} />
+      ) : null}
+      {comparison.data ? <Regressions comparison={comparison.data} /> : null}
       {data && data.changes.length === 0 ? <EmptyState label="No changed answers" /> : null}
       {data && data.changes.length > 0 ? (
         <>

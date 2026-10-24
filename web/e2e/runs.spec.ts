@@ -13,6 +13,7 @@ const runs = fixture<{ runs: Summary[] }>('get_runs.json').runs
 const run = fixture<Summary>('get_runs_{id}.json')
 const created = fixture<{ id: string }>('post_runs.json')
 const changes = fixture<{ changes: { case_id: string }[] }>('get_runs_{id}_changes.json').changes
+const regressions = fixture<{ regressions: unknown[] }>('get_runs_{id}_compare.json').regressions
 
 /** Serves the run as if it were still running, so the page follows its event stream. */
 async function serveRunning(page: Page) {
@@ -58,6 +59,7 @@ test('a finished run shows its metrics, confusion matrix, calibration, and chang
   const changed = page.getByRole('region', { name: 'Changed answers' })
   await expect(changed.getByLabel('Baseline')).toHaveValue(run.baseline ?? '')
   await expect(changed).toContainText('Fixed')
+  await expect(changed).toContainText(regressions.length ? 'Regression' : 'No regressions')
 })
 
 test('a running run follows its events to the end', async ({ page }) => {
@@ -113,4 +115,29 @@ test('an unknown run shows the error', async ({ page }) => {
   )
   await page.goto('/runs/9999')
   await expect(page.getByRole('alert')).toContainText('not_found')
+})
+
+test('a regression shows above the changed answers', async ({ page }) => {
+  const comparison = fixture<Record<string, unknown>>('get_runs_{id}_compare.json')
+  await page.route(`**/api/runs/${run.id}/compare?*`, (route) =>
+    route.fulfill({
+      json: {
+        ...comparison,
+        regressions: [
+          {
+            target: 'decision-1@foundry',
+            question: 'intent',
+            metric: 'accuracy',
+            baseline: 1,
+            value: 0.75,
+            drop: 0.25,
+          },
+        ],
+      },
+    }),
+  )
+  await page.goto(`/runs/${run.id}`)
+  await expect(page.getByRole('list', { name: 'Regressions' })).toContainText(
+    'Regression decision-1@foundry, intent accuracy 1.000 to 0.750, down 0.250',
+  )
 })
