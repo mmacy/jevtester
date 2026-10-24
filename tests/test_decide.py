@@ -242,6 +242,19 @@ def test_decide_rejects_an_unknown_target() -> None:
     assert raised.value.field == "targets.0"
 
 
+def test_decide_rejects_a_target_named_twice() -> None:
+    body = DecideBody(state="s", questions=REQUEST.questions, targets=[FOUNDRY.name, OLLAMA.name, FOUNDRY.name])
+    with pytest.raises(UnknownTargetError) as raised:
+        asyncio.run(service_with().decide(body))
+    assert raised.value.field == "targets.2"
+    assert str(raised.value) == "decision-1@foundry is named twice"
+
+
+def test_a_target_that_isnt_sent_to_has_no_request_body() -> None:
+    body = DecideBody(state="s", questions=REQUEST.questions, targets=["clef-flash@workers-ai"])
+    assert asyncio.run(service_with().decide(body)).results[0].request_body is None
+
+
 def test_decide_all_sends_to_every_target() -> None:
     assert len(service_with().resolve_targets(["all"])) == len(CONFIG.targets)
 

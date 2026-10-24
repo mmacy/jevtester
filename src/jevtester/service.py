@@ -28,16 +28,16 @@ TIMEOUT_GRACE_S = 5.0
 
 
 class UnknownTargetError(ValueError):
-    """A request names a target the config doesn't have."""
+    """A request names a target the config doesn't have, or names one twice."""
 
-    def __init__(self, name: str, index: int) -> None:
-        """Describe the unknown target.
+    def __init__(self, message: str, index: int) -> None:
+        """Describe the target name that can't be used.
 
         Args:
-            name: The name given.
+            message: What's wrong with the name.
             index: Its position in the list of target names.
         """
-        super().__init__(f"Unknown target: {name}")
+        super().__init__(message)
         self.field = f"targets.{index}"
 
 
@@ -201,7 +201,7 @@ class Service:
             The targets, in the order named.
 
         Raises:
-            UnknownTargetError: A name isn't in the config.
+            UnknownTargetError: A name isn't in the config, or is given twice.
         """
         if names == ["all"]:
             return list(self.config.targets.values())
@@ -210,7 +210,9 @@ class Service:
         for index, name in enumerate(chosen):
             target = self.config.targets.get(name)
             if target is None:
-                raise UnknownTargetError(name, index)
+                raise UnknownTargetError(f"Unknown target: {name}", index)
+            if target in targets:
+                raise UnknownTargetError(f"{name} is named twice", index)
             targets.append(target)
         return targets
 
@@ -218,8 +220,8 @@ class Service:
 
     async def _decide_one(self, target: Target, request: DecisionRequest, timeout: float) -> TargetResult:
         def failed(error: ResultError, warnings: list[ResultWarning] | None = None) -> TargetResult:
-            body = request.system_one_body(target.model)
-            return TargetResult(target=target.name, ok=False, error=error, warnings=warnings or [], request_body=body)
+            # Nothing was sent, so the result has no request body.
+            return TargetResult(target=target.name, ok=False, error=error, warnings=warnings or [])
 
         provider = self._providers.get(target.name)
         if provider is None:
