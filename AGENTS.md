@@ -68,4 +68,5 @@ Fix a finding in the code. Don't add ignore lists, `noqa`, or `type: ignore`.
 - Cut every branch from `origin/main`. When a branch builds on another unmerged branch, set its pull request's base to that branch.
 - Before you open a pull request, run `git log --oneline origin/main..HEAD` and confirm it lists only the branch's commits.
 - Work in a worktree beside the main checkout (`git worktree add ../jevtester-<branch> -b <branch> origin/main`), not under `.claude/worktrees/`. The main checkout at `~/repos/jevtester` stays on `main`.
-- You may merge your own pull requests once the gates pass.
+- Every pull request gets a review from the other session, posted as a pull request comment that names the reviewing session. Start each pull request description, review, and reply with the session's name, since both sessions use the user's GitHub account. [Pull request reviews](docs/handoff.md#pull-request-reviews) in the handoff gives the steps.
+- You may merge your own pull request once the latest review says `Ready to merge` and the gates pass.
