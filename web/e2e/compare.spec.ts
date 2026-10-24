@@ -1,5 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
 
+import { fixture } from './fixtures.ts'
+
+const conflict = fixture<{ error: { details: { message: string }[] } }>(
+  'post_suites_{name}_cases.409.json',
+)
+
 const STATE = JSON.stringify({
   party: 'Three adventurers, torches lit',
   monsters: 'Six goblins, weapons drawn, 40 feet away',
@@ -137,4 +143,87 @@ test('a target the server rejects fails its own column', async ({ page }) => {
   const column = answers(page).getByRole('columnheader', { name: /decision-1@foundry/ })
   await expect(column).toContainText('Unknown target: clef@nowhere')
   await expect(answers(page).getByRole('alert')).toHaveCount(0)
+})
+
+async function askParley(page: Page) {
+  await fillParleyRequest(page)
+  await request(page).getByRole('button', { name: 'Ask 1 target' }).click()
+  await expect(
+    answers(page).getByRole('columnheader', { name: /decision-1@foundry/ }),
+  ).toContainText('Answered')
+}
+
+test('marking expected answers tags their rows', async ({ page }) => {
+  await askParley(page)
+  const grid = answers(page)
+  await page.getByRole('button', { name: 'Mark expected answers' }).click()
+  await grid.getByRole('button', { name: 'Expect parley for intent' }).click()
+  await grid.getByRole('button', { name: 'Expect No for bribe' }).click()
+  await grid.getByRole('button', { name: 'Expect 3 for reaction' }).click()
+  await expect(grid.getByRole('button', { name: 'Expect parley for intent' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await page.getByRole('button', { name: 'Done marking' }).click()
+  await expect(grid.getByText('Expected', { exact: true })).toHaveCount(2)
+  await expect(grid.getByRole('row', { name: /^Yes/ })).toContainText('Expected no')
+  await expect(grid.getByRole('row', { name: /^No/ })).toHaveCount(0)
+})
+
+test('a request saves as a case with its expected answers', async ({ page }) => {
+  await askParley(page)
+  await page.getByRole('button', { name: 'Mark expected answers' }).click()
+  await answers(page).getByRole('button', { name: 'Expect parley for intent' }).click()
+
+  let posted: unknown = null
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().endsWith('/api/suites/parley/cases')) {
+      posted = r.postDataJSON()
+    }
+  })
+  await page.getByRole('button', { name: 'Save as case' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Save as case' })
+  await expect(dialog.getByLabel('Suite')).toHaveValue('parley')
+  await expect(dialog.getByLabel('Case id')).toHaveValue('case-6')
+  await expect(dialog.getByLabel('intent')).toHaveValue('"parley"')
+  await dialog.getByLabel('Case id').fill('goblin-silver')
+  await dialog.getByLabel('Tags').fill('bribe, goblins')
+  await dialog.getByLabel('reaction').selectOption('3')
+  await dialog.getByRole('button', { name: 'Save case' }).click()
+
+  await expect(dialog).toContainText('Saved bugbear-toll to parley, 5 cases')
+  expect(posted).toMatchObject({
+    id: 'goblin-silver',
+    tags: ['bribe', 'goblins'],
+    provenance: 'human',
+    expected: { intent: { answer: 'parley' }, reaction: { answer: 3, tolerance: 0 } },
+  })
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  await expect(dialog).toBeHidden()
+})
+
+test('a case id the suite has shows on the id field', async ({ page }) => {
+  await page.route('**/api/suites/parley/cases', (route) =>
+    route.continue({ headers: { ...route.request().headers(), 'x-fixture': '409' } }),
+  )
+  await askParley(page)
+  await page.getByRole('button', { name: 'Save as case' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Save as case' })
+  await expect(dialog.getByLabel('Case id')).toHaveValue('case-6')
+  await dialog.getByRole('button', { name: 'Save case' }).click()
+  await expect(dialog).toContainText(conflict.error.details[0].message)
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden()
+})
+
+test('the request copies as a CLI command', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await askParley(page)
+  await page.getByRole('button', { name: 'Copy as CLI command' }).click()
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible()
+  const command = await page.evaluate(() => navigator.clipboard.readText())
+  expect(command).toMatch(
+    /^uv run jevtester decide --request - --target decision-1@foundry --format json <<'JSON'\n/,
+  )
+  expect(command).toContain('"player_says"')
 })

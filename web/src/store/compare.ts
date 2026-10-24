@@ -1,18 +1,32 @@
 import { create } from 'zustand'
 
 import { api, ApiError, ServerUnreachableError } from '../api/client'
-import type { DecisionRequest, TargetResult } from '../api/types'
+import type { AnswerValue, DecisionRequest, TargetResult } from '../api/types'
 import type { MatrixColumn } from '../lib/matrix'
-import { asEchoed, newQuestion, toRequest, type RequestDraft } from '../lib/request'
+import {
+  asEchoed,
+  newQuestion,
+  toRequest,
+  type RequestBody,
+  type RequestDraft,
+} from '../lib/request'
 import { useTargets } from './targets'
 
 export type CompareMode = 'quick' | 'full'
 
 export interface Asked {
+  /** The request as the API echoes it, which labels the matrix rows. */
   request: DecisionRequest
+  /** The state and questions as sent. */
+  body: RequestBody
+  /** The targets named. Empty when the server picked its defaults. */
+  targets: string[]
   askedAt: string | null
   columns: MatrixColumn[]
 }
+
+/** The answer a case expects to each question, keyed by question id. */
+export type Expected = Record<string, AnswerValue>
 
 interface CompareState {
   mode: CompareMode
@@ -23,6 +37,15 @@ interface CompareState {
   asking: boolean
   /** A failure of the request itself, like a 422, rather than of one target. */
   askError: unknown
+  /** Whether selecting a row in the matrix marks it as the expected answer. */
+  marking: boolean
+  expected: Expected
+  /** Score levels of slack, keyed by question id. */
+  tolerance: Record<string, number>
+  setMarking: (marking: boolean) => void
+  /** Sets or, with null, clears the expected answer to a question. */
+  setExpected: (question: string, answer: AnswerValue | null) => void
+  setTolerance: (question: string, tolerance: number) => void
   setMode: (mode: CompareMode) => void
   updateDraft: (change: (draft: RequestDraft) => RequestDraft) => void
   setTargets: (targets: string[]) => void
@@ -62,6 +85,10 @@ function failedColumn(target: string, error: unknown): MatrixColumn {
   }
 }
 
+function keep<T>(values: Record<string, T>, body: RequestBody): Record<string, T> {
+  return Object.fromEntries(Object.entries(values).filter(([id]) => id in body.questions))
+}
+
 function isRequestError(error: unknown): boolean {
   return (
     error instanceof ApiError &&
@@ -79,6 +106,18 @@ export const useCompare = create<CompareState>((set, get) => ({
   asked: null,
   asking: false,
   askError: null,
+  marking: false,
+  expected: {},
+  tolerance: {},
+  setMarking: (marking) => set({ marking }),
+  setExpected: (question, answer) => {
+    const expected = { ...get().expected }
+    if (answer === null) delete expected[question]
+    else expected[question] = answer
+    set({ expected })
+  },
+  setTolerance: (question, tolerance) =>
+    set({ tolerance: { ...get().tolerance, [question]: tolerance } }),
   setMode: (mode) => {
     // The full request starts with the default targets checked.
     if (mode === 'full' && get().targets.length === 0) {
@@ -98,16 +137,19 @@ export const useCompare = create<CompareState>((set, get) => ({
     const body = toRequest(draft)
     const request = asEchoed(body)
     const isCurrent = () => controller === mine
+    const sent = { request, body, targets }
+    // Expected answers carry over for the questions this request still asks.
+    set({ expected: keep(get().expected, body), tolerance: keep(get().tolerance, body) })
 
     if (targets.length === 0) {
       // The targets haven't loaded, so let the server pick its defaults.
-      set({ asking: true, askError: null, asked: { request, askedAt: null, columns: [] } })
+      set({ asking: true, askError: null, asked: { ...sent, askedAt: null, columns: [] } })
       try {
         const response = await api.decide({ ...body, targets: [] }, mine.signal)
         if (isCurrent()) {
           set({
             asked: {
-              request,
+              ...sent,
               askedAt: response.asked_at,
               columns: response.results.map(columnFor),
             },
@@ -127,7 +169,7 @@ export const useCompare = create<CompareState>((set, get) => ({
       state: 'pending',
       result: null,
     }))
-    set({ asking: true, askError: null, asked: { request, askedAt: null, columns: pending } })
+    set({ asking: true, askError: null, asked: { ...sent, askedAt: null, columns: pending } })
     const place = (column: MatrixColumn, askedAt: string | null) => {
       if (!isCurrent()) return
       const asked = get().asked
