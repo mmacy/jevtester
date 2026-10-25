@@ -246,3 +246,21 @@ def test_ui_is_served_outside_the_api(tmp_path: Path) -> None:
     missing = ui.get("/api/nowhere")
     assert missing.status_code == 404
     assert ApiError.model_validate(missing.json()).error.code == "not_found"
+
+
+def test_without_a_build_the_ui_paths_say_how_to_build_it(tmp_path: Path) -> None:
+    ui = TestClient(create_app(static=tmp_path))
+    page = ui.get("/")
+    assert page.status_code == 200
+    assert page.headers["content-type"].startswith("text/html")
+    assert "The web UI isn't built" in page.text
+    assert "cd web" in page.text
+    assert "npm install" in page.text
+    assert "npm run build" in page.text
+    assert ui.get("/runs/0002").text == page.text
+    assert ui.get("/assets/app.js").status_code == 404
+    assert ui.get("/api/targets").status_code == 200
+
+    # A build made while the server runs is served without a restart.
+    (tmp_path / "index.html").write_text("<html>ui</html>")
+    assert ui.get("/").text == "<html>ui</html>"

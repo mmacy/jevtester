@@ -45,7 +45,7 @@ The `decision-1@foundry` target calls a deployment of Microsoft-Decision-1 on yo
    - In `base_url`, replace `example-resource` with your Foundry resource's name.
    - Set `model` to your deployment's name. The shared config uses `decision-1`.
 
-4. If your deployment's rate limits differ from the config's, change `requests_per_minute` and `tokens_per_minute` under `[targets."decision-1@foundry".capabilities]`. jevtester spaces its requests to stay under `requests_per_minute`.
+4. If your deployment's rate limits differ from the config's, change `requests_per_minute` and `tokens_per_minute` under `[targets."decision-1@foundry".capabilities]`. jevtester spaces its requests to stay under both.
 
 `targets check` shows the target as `ready`, with `Azure CLI, refreshes in` and a number of minutes. The health check only gets a token. It doesn't contact your resource, so it can't catch a wrong resource or deployment name. To check those, ask one question, which costs one request:
 
@@ -591,7 +591,7 @@ npm install
 npm run build
 ```
 
-Without the build, `jevtester serve` serves only the API, and <http://127.0.0.1:8640> returns a 404 error. The server looks for the build when it starts, so restart it after the first build.
+Without the build, `jevtester serve` serves the API, and <http://127.0.0.1:8640> shows a page with these commands. Reload the page after the build.
 
 To work on the UI, run its development server at <http://127.0.0.1:5173>. It reloads as you edit:
 

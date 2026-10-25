@@ -1,9 +1,10 @@
 """Check a request against a target's capabilities before sending it."""
 
 import json
+from pathlib import Path
 
 from jevtester.normalize import ResultError, ResultWarning
-from jevtester.spec import ChoiceQuestion, DecisionRequest, NoulQuestion, ScoreQuestion, Target
+from jevtester.spec import ChoiceQuestion, DecisionRequest, ImageFormat, NoulQuestion, ScoreQuestion, Target
 
 BYTES_PER_TOKEN = 4
 """A rough token estimate for English text and JSON. Preflight rejects only when the estimate is far over a limit."""
@@ -21,6 +22,55 @@ def estimate_tokens(body: dict[str, object]) -> int:
         The estimated token count.
     """
     return len(json.dumps(body, ensure_ascii=False).encode()) // BYTES_PER_TOKEN
+
+
+def image_format(header: bytes) -> ImageFormat | None:
+    """Recognize an image format from a file's first bytes.
+
+    Args:
+        header: At least the file's first 12 bytes.
+
+    Returns:
+        `png`, `jpeg`, or `webp`, or `None` for any other format.
+    """
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if header.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
+def _check_images(images: list[str], target: Target) -> str | None:
+    # Reads each image file, at its path as given, only when the target limits image size or format.
+    capabilities = target.capabilities
+    formats = capabilities.image_formats
+    if capabilities.max_image_bytes is None and capabilities.max_total_image_bytes is None and not formats:
+        return None
+    total = 0
+    for image in images:
+        path = Path(image)
+        try:
+            size = path.stat().st_size
+            with path.open("rb") as file:
+                header = file.read(12)
+        except OSError as error:
+            return f"Can't read {image}: {error.strerror or error}."
+        if formats:
+            found = image_format(header)
+            if found not in formats:
+                return f"{image} is {found or 'an unknown format'}. {target.name} accepts {_join(formats)}."
+        if capabilities.max_image_bytes is not None and size > capabilities.max_image_bytes:
+            return f"{image} is {size:,} bytes, over the limit of {capabilities.max_image_bytes:,}."
+        total += size
+    if capabilities.max_total_image_bytes is not None and total > capabilities.max_total_image_bytes:
+        return f"The images total {total:,} bytes, over the limit of {capabilities.max_total_image_bytes:,}."
+    return None
+
+
+def _join(words: list[ImageFormat]) -> str:
+    return words[0] if len(words) == 1 else f"{', '.join(words[:-1])} and {words[-1]}"
 
 
 def preflight(request: DecisionRequest, target: Target) -> tuple[ResultError | None, list[ResultWarning]]:
@@ -62,6 +112,9 @@ def preflight(request: DecisionRequest, target: Target) -> tuple[ResultError | N
             return reject(f"{target.name} doesn't accept images.")
         if capabilities.max_images is not None and len(request.images) > capabilities.max_images:
             return reject(f"{len(request.images)} images, over the limit of {capabilities.max_images}.")
+        problem = _check_images(request.images, target)
+        if problem is not None:
+            return reject(problem)
 
     body = request.system_one_body(target.model)
     size = len(json.dumps(body, ensure_ascii=False).encode())

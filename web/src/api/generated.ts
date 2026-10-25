@@ -863,17 +863,20 @@ export interface components {
             max_images: number | null;
             /**
              * Max Image Bytes
-             * @description The largest image the target accepts, in bytes. Shown with the target; preflight doesn't check it yet.
+             * @description The largest image the target accepts, in bytes. Preflight reads each image file at its path as given and rejects
+             *     a request with a larger one.
              */
             max_image_bytes: number | null;
             /**
              * Max Total Image Bytes
-             * @description The largest total size of a request's images, in bytes. Shown with the target; preflight doesn't check it yet.
+             * @description The largest total size of a request's images, in bytes. Preflight rejects a request whose images add up to
+             *     more.
              */
             max_total_image_bytes: number | null;
             /**
              * Image Formats
-             * @description The image formats the target accepts. Shown with the target; preflight doesn't check it yet.
+             * @description The image formats the target accepts. Preflight reads each image file's first bytes and rejects a request with an
+             *     image in any other format. Empty means any format.
              */
             image_formats: components["schemas"]["ImageFormat"][];
             /**
@@ -929,7 +932,8 @@ export interface components {
             requests_per_minute: number | null;
             /**
              * Tokens Per Minute
-             * @description The target's limit on tokens per minute. Shown with the target; runs don't enforce it yet.
+             * @description The most input tokens a run sends per minute to the target, estimated as preflight does: the request's JSON size
+             *     in bytes divided by 4. A run spaces its requests to stay under it.
              */
             tokens_per_minute: number | null;
             /**

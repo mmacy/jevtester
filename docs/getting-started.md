@@ -257,7 +257,7 @@ The web UI shows the same runs, and lets you ask questions and edit suites in th
    cd ..
    ```
 
-   The build writes the UI to `src/jevtester/static/`. Git ignores that folder.
+   The build writes the UI to `src/jevtester/static/`. Git ignores that folder. If you skip this step, the server's home page shows these commands instead of the UI.
 
 2. Start the server:
 
