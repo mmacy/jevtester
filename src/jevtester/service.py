@@ -95,7 +95,11 @@ from jevtester.store.files import SuiteFiles, check_name
 from jevtester.store.runs import RunStore, StoredResult
 
 CONFIG_ENV = "JEVTESTER_CONFIG"
-"""An environment variable naming the config file. Without it, jevtester reads `jevtester.toml` here."""
+"""An environment variable naming the config file. Without it, jevtester reads `jevtester.local.toml` or
+`jevtester.toml` here."""
+LOCAL_CONFIG = "jevtester.local.toml"
+"""Your own config, which git ignores. It replaces `jevtester.toml` when it exists."""
+SHARED_CONFIG = "jevtester.toml"
 HEALTH_CHECK_TIMEOUT_S = 15.0
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 INTERRUPTED = "The server stopped during the run"
@@ -106,9 +110,13 @@ def config_path() -> Path:
     """Find the config file.
 
     Returns:
-        The path in `JEVTESTER_CONFIG`, or `jevtester.toml` in the working directory.
+        The path in `JEVTESTER_CONFIG`. Without it, `jevtester.local.toml` in the working directory if it exists,
+        or else `jevtester.toml` there.
     """
-    return Path(os.environ.get(CONFIG_ENV) or "jevtester.toml")
+    if named := os.environ.get(CONFIG_ENV):
+        return Path(named)
+    local = Path(LOCAL_CONFIG)
+    return local if local.is_file() else Path(SHARED_CONFIG)
 
 
 def build_providers(config: Config) -> dict[str, DecisionProvider]:

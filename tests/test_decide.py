@@ -420,12 +420,12 @@ def test_cli_targets_list_and_check(fake_service: Service, capsys: pytest.Captur
     assert lines[0].split()[:2] == ["decision-1@foundry", "ready"]
 
 
-# Live checks, run with `uv run pytest -m live`
+# Live checks, run with `uv run pytest -m live` from the repository root. They read your jevtester.local.toml.
 
 
 @pytest.mark.live
 def test_live_foundry_decide() -> None:
-    service = Service.load(ROOT / "jevtester.toml")
+    service = Service.load()
     response = asyncio.run(service.decide(DecideBody(state=REQUEST.state, questions=REQUEST.questions)))
     result = response.results[0]
     assert result.ok, result.error
@@ -437,7 +437,7 @@ def test_live_foundry_decide() -> None:
 
 @pytest.mark.live
 def test_live_foundry_health_check() -> None:
-    service = Service.load(ROOT / "jevtester.toml")
+    service = Service.load()
     targets = asyncio.run(service.check_targets())
     foundry = next(info for info in targets.targets if info.name == "decision-1@foundry")
     assert foundry.status == "ready", foundry.reason
