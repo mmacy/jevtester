@@ -12,7 +12,8 @@ from jevtester.schemas import CaseCreated, QuestionSetBody
 from jevtester.service import Service
 from jevtester.spec import ChoiceQuestion
 
-# Each CLI command, a command line that parses, and the route that does the same thing, as docs/api.md lists them.
+# Each CLI command, a command line that parses, and the route that does the same thing, as docs/reference/cli.md
+# lists them.
 COMMANDS: dict[str, tuple[list[str], tuple[str, str]]] = {
     "decide": (["decide", "--state", "s", "--question", "?"], ("POST", "/api/decide")),
     "targets list": (["targets", "list"], ("GET", "/api/targets")),

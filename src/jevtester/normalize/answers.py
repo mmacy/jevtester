@@ -68,7 +68,9 @@ class Usage(Model):
     """Token counts the server reports. `None` where it reports none."""
 
     input_tokens: int | None = None
+    """Input tokens the server counted. `None` when it reports none."""
     output_tokens: int | None = None
+    """Output tokens the server counted. `None` when it reports none."""
 
 
 type WarningCode = Literal[
@@ -88,7 +90,10 @@ class ResultWarning(Model):
     """Something about a result that a person should know."""
 
     code: WarningCode
+    """Why the result has a warning: `missing_answer`, `invalid_answer`, `unknown_option`, `missing_probability`,
+    `unexpected_answer`, `strict_parse_failed`, `truncation_on`, or `state_may_truncate`."""
     message: str
+    """What the warning is about, for a person."""
     question: str | None = None
     """The question id the warning is about, if it's about one."""
 
@@ -113,7 +118,10 @@ class ResultError(Model):
     """Why a target returned no answers."""
 
     code: ErrorCode
+    """Why the target returned no answers: `not_ready`, `preflight`, `auth`, `rate_limited`, `bad_request`,
+    `request_too_large`, `server_error`, `timeout`, `connection`, `invalid_response`, or `cancelled`."""
     message: str
+    """What went wrong, for a person."""
     status: int | None = None
     """The HTTP status, when the server sent one."""
 
@@ -122,17 +130,24 @@ class TargetResult(Model):
     """The result of one request to one target."""
 
     target: str
+    """The target's name."""
     ok: bool
     """`True` when the target answered. Some answers may still be missing; see `warnings`."""
     latency_ms: float | None = None
+    """Milliseconds from sending the request to receiving the response. `None` when it isn't known, like when nothing
+    was sent."""
     usage: Usage = Field(default_factory=Usage)
+    """Token counts the server reports."""
     cost_usd: float | None = None
     """`None` when the target's price or token count is unknown."""
     warnings: list[ResultWarning] = Field(default_factory=list[ResultWarning])
+    """Things a person should know about the result. A warning doesn't stop the result from counting."""
     error: ResultError | None = None
+    """Why the target returned no answers. `None` when `ok` is `True`."""
     answers: dict[str, Answer] = Field(default_factory=dict[str, Answer])
     """Answers keyed by question id, in the request's question order. Empty when `ok` is `False`."""
     request_body: JsonValue = None
-    """The exact body sent to the server."""
+    """The exact body sent to the server. `None` when nothing was sent, and in a run's `result` events."""
     raw: JsonValue = None
-    """The server's response body, unchanged. `None` when no response arrived."""
+    """The server's response body, unchanged. For Workers AI, it's the whole Cloudflare response. `None` when no
+    response arrived, and in a run's `result` events."""

@@ -1,10 +1,24 @@
-"""The jevtester command-line tool.
+"""Test decision models, their questions, and the decisions built on them.
 
-Every command writes its result to stdout and its progress and warnings to stderr. With `--format json`, the result
-is the same JSON the HTTP API returns.
+A target is one decision model on one runtime, like decision-1@foundry, and the
+config file lists them. A suite is a YAML file in suites/ with cases: states,
+with the answers and action each one expects. A run sends every case to each
+target and scores the answers.
 
-Exit codes: 0 for success, 1 when a run finished and a check failed, 2 for an invalid command line or input, and 3
-when every target failed.
+Start with "jevtester targets check". Try a question with "jevtester decide",
+run a suite with "jevtester run parley", and read its scores with
+"jevtester report <run>". Run "jevtester <command> --help" for each command.
+
+Every command writes its result to stdout, and its progress and warnings to
+stderr. With --format json, the result is the same JSON the HTTP API returns.
+
+exit codes:
+  0  success
+  1  "jevtester compare" found a regression
+  2  invalid command line, input, or config, or a suite, run, policy, or
+     target that doesn't exist; also an invalid suite in "jevtester suite check"
+  3  "jevtester decide" got no answer from any target, or "jevtester run" got
+     no answer for any job
 """
 
 import argparse
@@ -56,155 +70,446 @@ def build_parser() -> argparse.ArgumentParser:
         The top-level parser. `argparse` exits with code 2 on an invalid command line, which is the plan's exit code
         for that case.
     """
-    parser = argparse.ArgumentParser(
-        prog="jevtester", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
+    raw = argparse.RawDescriptionHelpFormatter
+    parser = argparse.ArgumentParser(prog="jevtester", description=__doc__, formatter_class=raw)
     parser.add_argument("--version", action="version", version=f"jevtester {__version__}")
     parser.add_argument(
         "--config",
         type=Path,
-        help="The config file. Defaults to $JEVTESTER_CONFIG, then jevtester.local.toml, then jevtester.toml.",
+        metavar="PATH",
+        help=(
+            "The config file, which lists the targets. Without it: $JEVTESTER_CONFIG, then jevtester.local.toml, then "
+            "jevtester.toml in the working directory. Suite and run paths in the config are relative to its directory."
+        ),
     )
-    commands = parser.add_subparsers(dest="command", metavar="<command>")
+    commands = parser.add_subparsers(dest="command", metavar="<command>", title="commands")
 
     def add_format(command: argparse.ArgumentParser) -> None:
-        command.add_argument("--format", choices=["text", "json"], default="text", help="The output format.")
+        command.add_argument(
+            "--format",
+            choices=["text", "json"],
+            default="text",
+            help="text (the default) for people, or json for scripts: the same JSON the HTTP API returns.",
+        )
 
     decide = commands.add_parser(
         "decide",
-        help="Send one state and its questions to one or more targets, and print the answers.",
-        description=(
-            "Send one state and its questions to one or more targets. Give one question with --question, which is a "
-            "yes/no question unless --option or --level makes it a choice or a score, or give a whole request with "
-            "--request."
+        formatter_class=raw,
+        help="Send one state and its questions to targets, and print their answers.",
+        description="""\
+Send one state and its questions to one or more targets at once, and print each
+target's answers, latency, tokens, and cost. A state is what the model reads:
+text, a JSON object, or a JSON array.
+
+Ask one question with --state and --question. It's a yes/no question unless
+--option makes it a choice or --level makes it a score. To ask several
+questions, put the state and questions in a JSON file and pass --request.
+
+A target that fails prints "failed" with its error code, and the others still
+answer. To keep a result as a test case, save the JSON output and pass it to
+"jevtester case add --from-decide".
+
+Exits with 3 when no target answered, and 2 for invalid input or an unknown
+target.""",
+        epilog="""\
+examples:
+  # Ask the default targets a yes/no question about a text state
+  jevtester decide --id bribe \\
+      --state "Six goblins block the stairs. The player offers them silver." \\
+      --question "Does the player offer the monsters something of value?"
+
+  # Ask a choice question of two targets
+  jevtester decide --state @state.json --id intent \\
+      --question "What is the player trying to do?" \\
+      --option "parley=Talk or bargain" --option "fight=Attack the monsters" \\
+      --target decision-1@foundry --target clef-flash@workers-ai
+
+  # Send a request file to every target, and save the result for case add
+  jevtester decide --request goblin.json --targets all --format json \\
+      > decide.json""",
+    )
+    decide.add_argument(
+        "--state",
+        metavar="STATE",
+        help="The state: text, @PATH to read a file (parsed as JSON when it's valid JSON), or - to read stdin.",
+    )
+    decide.add_argument("--question", metavar="TEXT", help="The question the model reads. Requires --state.")
+    decide.add_argument("--id", default="question", help="The id the answer comes back under. Defaults to question.")
+    decide.add_argument(
+        "--option",
+        action="append",
+        default=[],
+        metavar="NAME=DESCRIPTION",
+        help="A choice option, like parley=Talk or bargain. Repeat for each option; a choice needs two or more.",
+    )
+    decide.add_argument(
+        "--level",
+        action="append",
+        default=[],
+        metavar="DESCRIPTION",
+        help="A score level, lowest first. Repeat for each level; a score needs two or more. Not with --option.",
+    )
+    decide.add_argument(
+        "--request",
+        metavar="PATH",
+        help=(
+            "A JSON file with state and questions (and optionally images), or - to read stdin. A model field is "
+            "ignored. Can't be used with --state, --question, --option, or --level."
         ),
     )
     decide.add_argument(
-        "--state", help="The state: text, @path to read a file (parsed as JSON if it is), or - for stdin."
+        "--target",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="A target to ask, like decision-1@foundry. Repeat for each. Defaults to the config's defaults.targets.",
     )
-    decide.add_argument("--question", help="The question's instructions.")
-    decide.add_argument("--id", default="question", help="The question's id. Defaults to question.")
+    decide.add_argument("--targets", choices=["all"], help="Ask every configured target. Overrides --target.")
     decide.add_argument(
-        "--option", action="append", default=[], metavar="NAME=DESCRIPTION", help="A choice option. Repeat for each."
+        "--timeout",
+        type=float,
+        metavar="SECONDS",
+        help="Seconds to wait for each target. Defaults to the config's defaults.timeout_s (60 unless set).",
     )
-    decide.add_argument(
-        "--level", action="append", default=[], metavar="DESCRIPTION", help="A score level, lowest first. Repeat."
-    )
-    decide.add_argument("--request", help="The path of a JSON file with state and questions, or - for stdin.")
-    decide.add_argument(
-        "--target", action="append", default=[], help="A target name. Repeat for each. Defaults to the config's."
-    )
-    decide.add_argument("--targets", choices=["all"], help="Send to every configured target.")
-    decide.add_argument("--timeout", type=float, help="Seconds to wait for each target.")
     add_format(decide)
 
-    targets = commands.add_parser("targets", help="List targets or check them.")
-    target_commands = targets.add_subparsers(dest="targets_command", metavar="<command>", required=True)
-    add_format(target_commands.add_parser("list", help="List configured targets and their capabilities."))
-    add_format(target_commands.add_parser("check", help="Run each target's health check."))
+    targets = commands.add_parser(
+        "targets",
+        help="List the configured targets, or run their health checks.",
+        description=(
+            "Work with targets. A target is one decision model on one runtime, like decision-1@foundry. The config "
+            "file lists them. Run 'jevtester targets check' before your first decide or run."
+        ),
+    )
+    target_commands = targets.add_subparsers(
+        dest="targets_command", metavar="<command>", required=True, title="commands"
+    )
+    add_format(
+        target_commands.add_parser(
+            "list",
+            formatter_class=raw,
+            help="List targets and their capabilities, without a health check.",
+            description="""\
+Print each configured target with its status and a note: why it's down, where
+its credential comes from, or a warning that applies to every request. This
+command doesn't run a health check, so each target shows "unchecked". Use
+"jevtester targets check" to check them.""",
+            epilog="examples:\n  jevtester targets list\n  jevtester targets list --format json",
+        )
+    )
+    add_format(
+        target_commands.add_parser(
+            "check",
+            formatter_class=raw,
+            help="Run every target's health check and print the results.",
+            description="""\
+Run every target's health check at once and print each target's status:
+ready, warning (ready, with a warning), or down, with the reason. A health
+check sends no decision request. Foundry needs an az sign-in, Ollama must have
+the model pulled, the MLX server must have the target's model loaded, and
+Workers AI needs a Wrangler sign-in or CLOUDFLARE_API_TOKEN and
+cloudflare.account_id. A check that takes longer than 15 seconds marks the
+target down.""",
+            epilog="examples:\n  jevtester targets check",
+        )
+    )
 
     run = commands.add_parser(
         "run",
-        help="Run a suite and print the run's id and counts.",
-        description="Run a suite on its targets. Progress goes to stderr, and the run's summary to stdout.",
+        formatter_class=raw,
+        help="Run a suite on its targets and print the run's id and counts.",
+        description="""\
+Send every case in a suite to each target, wait for the run to finish, and
+print the run's id and job counts. A job is one case on one target for one
+repeat. Progress goes to stderr, one line per job.
+
+The run first checks each target's health and skips the jobs of a target
+that's down. Each result is cached by target, request, and repeat, so a rerun
+of an unchanged suite sends nothing; --no-cache sends every request again.
+Requests wait up to the config's defaults.timeout_s.
+
+Pass the run's id to "jevtester report", "jevtester compare", or
+"jevtester policy sweep". Exits with 3 when the run had jobs and none got an
+answer, and 2 for an unknown suite, target, or baseline.""",
+        epilog="""\
+examples:
+  # Run the parley suite on the suite's targets
+  jevtester run parley
+
+  # Run it on one target three times, and compare with run 0001 in the report
+  jevtester run suites/parley.yaml --target decision-1@foundry \\
+      --repeats 3 --baseline 0001""",
     )
-    run.add_argument("suite", help="The suite's name, or the path of its YAML file, like suites/parley.yaml.")
-    run.add_argument("--target", action="append", default=[], help="A target name. Repeat. Defaults to the suite's.")
-    run.add_argument("--repeats", type=int, help="Times to send each request. Defaults to the config's.")
-    run.add_argument("--question-set-version", help="A question set version to run instead of the current one.")
-    run.add_argument("--baseline", help="A run to compare with.")
+    run.add_argument(
+        "suite",
+        help=(
+            "The suite's name, like parley, or its file name, like suites/parley.yaml. jevtester reads the suite from "
+            "the config's suites directory either way."
+        ),
+    )
+    run.add_argument(
+        "--target",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="A target to run. Repeat for each. Defaults to the suite's targets, or else the config's.",
+    )
+    run.add_argument(
+        "--repeats",
+        type=int,
+        metavar="N",
+        help="Times to send each case to each target, at least 1. Defaults to the config's defaults.repeats.",
+    )
+    run.add_argument(
+        "--question-set-version",
+        metavar="HASH",
+        help="An earlier question set version to run, as its hash or a prefix of 8 or more characters.",
+    )
+    run.add_argument(
+        "--baseline",
+        metavar="RUN",
+        help="A run to compare with. The run's report then lists the answers that changed from it.",
+    )
     run.add_argument("--no-cache", action="store_true", help="Send every request, even when a cached result exists.")
     add_format(run)
 
     probe = commands.add_parser(
         "probe",
-        help="Run probes on a suite and report how often answers change.",
-        description=(
-            "Run each case as written and as each probe changes it: shuffled choice options, reversed JSON keys, "
-            "bare-number score levels, and a state padded toward the target's context window."
-        ),
+        formatter_class=raw,
+        help="Run probes on a suite and report how often the answers change.",
+        description="""\
+Run each case as written and as each probe changes it, then print how often
+each target's answers changed. A probe changes something that shouldn't change
+the answers:
+
+  option_order  3 variants, each a different order of every choice's options
+  key_order     1 variant with every JSON object's keys reversed
+  bare_levels   1 variant with each score level's description replaced by its number
+  pad_state     1 variant padded to about 90% of the target's context window
+
+A probe makes no variant of a case it can't change, like key_order on a text
+state. Progress goes to stderr. The JSON output is the same as
+GET /api/runs/{id}/probes.""",
+        epilog="""\
+examples:
+  jevtester probe parley
+  jevtester probe parley --variant option_order --target decision-1@foundry""",
     )
-    probe.add_argument("suite", help="The suite's name, or the path of its YAML file.")
+    probe.add_argument("suite", help="The suite's name, or its file name. See 'jevtester run --help'.")
     probe.add_argument(
         "--variant",
         action="append",
         choices=["option_order", "key_order", "bare_levels", "pad_state"],
-        help="A probe to run. Repeat. Defaults to option_order, key_order, and bare_levels.",
+        help=(
+            "A probe to run. Repeat for each. Defaults to option_order, key_order, and bare_levels; pad_state sends "
+            "large requests, so it runs only when named."
+        ),
     )
-    probe.add_argument("--target", action="append", default=[], help="A target name. Repeat. Defaults to the suite's.")
+    probe.add_argument(
+        "--target",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="A target to probe. Repeat for each. Defaults to the suite's targets, or else the config's.",
+    )
     probe.add_argument("--no-cache", action="store_true", help="Send every request, even when a cached result exists.")
     add_format(probe)
 
     compare = commands.add_parser(
         "compare",
-        help="Compare a run with a baseline run: metrics, changed answers, and McNemar's test.",
-        description="Compare a run with a baseline. Exits with 1 when a metric dropped by more than --max-drop.",
+        formatter_class=raw,
+        help="Compare a run with a baseline run: changed answers, McNemar's test, and regressions.",
+        description="""\
+Compare a run with a baseline run. Print each answer that changed on the
+targets both runs ran (fixed, broken, or changed), McNemar's exact test for
+each target, and each regression: a target and question whose accuracy, or
+within-tolerance accuracy for a score, dropped by more than --max-drop.
+
+Exits with 1 when there's a regression, so a script or CI job can fail on it,
+and 2 when either run doesn't exist.""",
+        epilog="""\
+examples:
+  jevtester compare 0002 0001
+  jevtester compare 0002 0001 --max-drop 0.1 --format json""",
     )
-    compare.add_argument("run", help="The run's id.")
-    compare.add_argument("baseline", help="The baseline run's id.")
+    compare.add_argument("run", help="The id of the run to check, like 0002.")
+    compare.add_argument("baseline", help="The id of the run to compare it with, like 0001.")
     compare.add_argument(
-        "--max-drop", type=float, help="The largest allowed drop in accuracy. Defaults to the config's."
+        "--max-drop",
+        type=float,
+        metavar="SHARE",
+        help="The largest allowed drop, as a share like 0.05. Defaults to the config's defaults.max_drop.",
     )
     add_format(compare)
 
-    report = commands.add_parser("report", help="Write a run's report as Markdown or JSON.")
-    report.add_argument("run", help="The run's id.")
-    report.add_argument("--format", choices=["markdown", "json"], default="markdown", help="The output format.")
+    report = commands.add_parser(
+        "report",
+        formatter_class=raw,
+        help="Print a run's report as Markdown or JSON.",
+        description="""\
+Print a run's summary and its metrics for each target and question, and the
+policy's decisions when the suite has a policy. When the run has a baseline,
+the report also lists the answers that changed from it.""",
+        epilog="""\
+examples:
+  jevtester report 0002 > report.md
+  jevtester report 0002 --format json""",
+    )
+    report.add_argument("run", help="The run's id, like 0002.")
+    report.add_argument(
+        "--format",
+        choices=["markdown", "json"],
+        default="markdown",
+        help="markdown (the default) for people, or json for scripts: the same JSON as GET /api/runs/{id}/report.",
+    )
 
-    suite = commands.add_parser("suite", help="Work with suites.")
-    suite_commands = suite.add_subparsers(dest="suite_command", metavar="<command>", required=True)
+    suite = commands.add_parser(
+        "suite",
+        help="Check a suite.",
+        description="Work with suites. A suite is a YAML file in suites/ with cases and the question set they ask.",
+    )
+    suite_commands = suite.add_subparsers(dest="suite_command", metavar="<command>", required=True, title="commands")
     check = suite_commands.add_parser(
         "check",
+        formatter_class=raw,
         help="Validate a suite and run the question-wording checks.",
-        description="Validate a suite and run the question-wording checks. Exits with 2 when the suite is invalid.",
+        description="""\
+Check that a suite, its question set, and its policy load, that every case's
+expectations fit the questions, and that the policy reads only questions the
+question set asks. Then run the question-wording checks, whose findings are
+prompts to look at a question and don't make the suite invalid.
+
+Exits with 2 when the suite is invalid or doesn't exist.""",
+        epilog="examples:\n  jevtester suite check parley",
     )
-    check.add_argument("suite", help="The suite's name, or the path of its YAML file.")
+    check.add_argument("suite", help="The suite's name, or its file name. See 'jevtester run --help'.")
     add_format(check)
 
-    policy = commands.add_parser("policy", help="Work with decision policies.")
-    policy_commands = policy.add_subparsers(dest="policy_command", metavar="<command>", required=True)
-    sweep = policy_commands.add_parser(
-        "sweep",
-        help="Sweep a policy threshold over a finished run and print the trade-off points.",
-        description="Measure a target's decisions in a finished run as one of the policy's thresholds moves.",
-    )
-    sweep.add_argument("policy", help="The policy's name.")
-    sweep.add_argument("--run", required=True, help="The run's id.")
-    sweep.add_argument("--target", required=True, help="A target the run ran.")
-    sweep.add_argument("--threshold", required=True, help="The threshold to move.")
-    sweep.add_argument("--start", type=float, default=0.0, help="The first value. Defaults to 0.")
-    sweep.add_argument("--stop", type=float, default=1.0, help="The last value. Defaults to 1.")
-    sweep.add_argument("--step", type=float, default=0.05, help="The step. Defaults to 0.05.")
-    add_format(sweep)
-
-    case = commands.add_parser("case", help="Work with a suite's cases.")
-    case_commands = case.add_subparsers(dest="case_command", metavar="<command>", required=True)
-    add = case_commands.add_parser(
-        "add",
-        help="Save a case to a suite, including one promoted from a decide call.",
+    policy = commands.add_parser(
+        "policy",
+        help="Tune a decision policy.",
         description=(
-            "Save a case to the end of a suite's file. Give the state with --state, or promote a decide call with "
-            "--from-decide, which reads `jevtester decide --format json` output. --expect-from takes the expected "
-            "answers from one target's answers in that output."
+            "Work with policies. A policy is a YAML file in suites/policies/ that turns a result's answers into an "
+            "action."
         ),
     )
-    add.add_argument("suite", help="The suite's name, or the path of its YAML file.")
-    add.add_argument("--id", required=True, help="The case's id.")
-    add.add_argument("--state", help="The state: text, @path to read a file (parsed as JSON if it is), or - for stdin.")
-    add.add_argument("--from-decide", metavar="PATH", help="A decide response as JSON, or - for stdin.")
-    add.add_argument("--expect-from", metavar="TARGET", help="Expect the answers this target gave in --from-decide.")
+    policy_commands = policy.add_subparsers(dest="policy_command", metavar="<command>", required=True, title="commands")
+    sweep = policy_commands.add_parser(
+        "sweep",
+        formatter_class=raw,
+        help="Sweep a policy threshold over a run's answers and print the trade-off.",
+        description="""\
+Measure one target's decisions in a run as one of the policy's thresholds
+moves from --start to --stop. For each value, print the share of cases the
+policy decided without escalating, the error rate among those, and the cost
+from the policy's cost matrix. The sweep uses the policy file as it is now, so
+you can tune a threshold without running the suite again.
+
+A sweep has at most 1,000 points. Exits with 2 for an unknown policy, run, or
+threshold, or a target the run didn't run.""",
+        epilog="""\
+examples:
+  jevtester policy sweep parley --run 0002 --target decision-1@foundry \\
+      --threshold goodwill --start 0.3 --stop 0.7 --step 0.1""",
+    )
+    sweep.add_argument("policy", help="The policy's name, like parley.")
+    sweep.add_argument("--run", required=True, metavar="RUN", help="The id of the run whose answers to use.")
+    sweep.add_argument("--target", required=True, metavar="NAME", help="A target the run ran.")
+    sweep.add_argument("--threshold", required=True, metavar="NAME", help="The name of the threshold to move.")
+    sweep.add_argument("--start", type=float, default=0.0, metavar="VALUE", help="The first value. Defaults to 0.")
+    sweep.add_argument("--stop", type=float, default=1.0, metavar="VALUE", help="The last value. Defaults to 1.")
+    sweep.add_argument(
+        "--step", type=float, default=0.05, metavar="VALUE", help="The gap between values, over 0. Defaults to 0.05."
+    )
+    add_format(sweep)
+
+    case = commands.add_parser(
+        "case",
+        help="Add a case to a suite.",
+        description="Work with cases. A case is one state with the answers and action it expects.",
+    )
+    case_commands = case.add_subparsers(dest="case_command", metavar="<command>", required=True, title="commands")
+    add = case_commands.add_parser(
+        "add",
+        formatter_class=raw,
+        help="Save a case to a suite, including one promoted from a decide result.",
+        description="""\
+Add a case to the end of a suite's file. jevtester rewrites the file, so
+comments in it are lost.
+
+Give the state with --state, or promote a decide result with --from-decide,
+which reads the output of "jevtester decide --format json" and takes its
+state. --expect-from then takes the expected answers from one target's answers
+in that output, and --expect sets or replaces single answers.
+
+Exits with 2 for invalid input or a case id the suite already has.""",
+        epilog="""\
+examples:
+  # Add a case with its expected answers
+  jevtester case add parley --id troll-toll \\
+      --state "A troll blocks the bridge and asks for a toll." \\
+      --expect intent=parley --expect bribe=true --expect reaction=2 \\
+      --tolerance reaction=1 --expected-action parley_succeeds --tag bribe
+
+  # Promote a decide result, keeping Foundry's answers but one
+  jevtester case add parley --id goblin-silver --from-decide decide.json \\
+      --expect-from decision-1@foundry --expect reaction=3""",
+    )
+    add.add_argument("suite", help="The suite's name, or its file name. See 'jevtester run --help'.")
+    add.add_argument("--id", required=True, help="The case's id. It must be new in the suite.")
     add.add_argument(
-        "--expect", action="append", default=[], metavar="QUESTION=ANSWER", help="An expected answer. Repeat."
+        "--state",
+        metavar="STATE",
+        help=(
+            "The state: text, @PATH to read a file (parsed as JSON when it's valid JSON), or - to read stdin. "
+            "Give this or --from-decide."
+        ),
     )
     add.add_argument(
-        "--tolerance", action="append", default=[], metavar="QUESTION=LEVELS", help="Score levels of slack. Repeat."
+        "--from-decide",
+        metavar="PATH",
+        help="A file of 'jevtester decide --format json' output, or - to read stdin. The case takes its state.",
     )
-    add.add_argument("--expected-action", help="The action the suite's policy should choose.")
-    add.add_argument("--tag", action="append", default=[], help="A tag. Repeat.")
+    add.add_argument(
+        "--expect-from",
+        metavar="TARGET",
+        help="Expect the answers this target gave in --from-decide. Requires --from-decide.",
+    )
+    add.add_argument(
+        "--expect",
+        action="append",
+        default=[],
+        metavar="QUESTION=ANSWER",
+        help=(
+            "An expected answer: true or false (or yes or no) for a yes/no question, an option name for a choice, or "
+            "a level number from 0 for a score. Repeat for each question."
+        ),
+    )
+    add.add_argument(
+        "--tolerance",
+        action="append",
+        default=[],
+        metavar="QUESTION=LEVELS",
+        help="Levels of slack for a score question's answer, a whole number. Repeat for each question.",
+    )
+    add.add_argument(
+        "--expected-action", metavar="ACTION", help="The action the suite's policy should choose, like parley_succeeds."
+    )
+    add.add_argument("--tag", action="append", default=[], help="A tag for grouping cases. Repeat for each.")
     add_format(add)
 
-    serve = commands.add_parser("serve", help="Start the API and the web UI on 127.0.0.1.")
-    serve.add_argument("--port", type=int, default=None, help="The port. Defaults to 8640.")
+    serve = commands.add_parser(
+        "serve",
+        formatter_class=raw,
+        help="Start the HTTP API and the web UI on 127.0.0.1.",
+        description="""\
+Start the HTTP API, with every route under /api, and the web UI at /. The
+server listens only on 127.0.0.1 and runs until you stop it with Ctrl-C. It
+serves the UI only when the frontend was built (npm run build in web/) before
+the server started.""",
+        epilog="examples:\n  jevtester serve\n  jevtester serve --port 8650",
+    )
+    serve.add_argument("--port", type=int, default=None, help="The port to listen on. Defaults to 8640.")
     return parser
 
 

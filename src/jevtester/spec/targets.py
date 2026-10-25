@@ -18,30 +18,44 @@ class Capabilities(Model):
     probabilities: bool = True
     """Whether the target returns a probability for every option. Targets without them are left out of calibration."""
     question_types: list[QuestionType] = Field(default_factory=lambda: list[QuestionType](["noul", "choice", "score"]))
+    """The question types the target accepts. Preflight rejects a request with any other type."""
     images: bool = False
     """Whether the target accepts images."""
     max_images: int | None = None
+    """The most images one request may have. Preflight rejects a request with more."""
     max_image_bytes: int | None = None
+    """The largest image the target accepts, in bytes. Shown with the target; preflight doesn't check it yet."""
     max_total_image_bytes: int | None = None
+    """The largest total size of a request's images, in bytes. Shown with the target; preflight doesn't check it yet."""
     image_formats: list[ImageFormat] = Field(default_factory=list[ImageFormat])
+    """The image formats the target accepts. Shown with the target; preflight doesn't check it yet."""
     context_window: int | None = None
-    """The input limit in tokens."""
+    """The input limit in tokens. Preflight estimates a request's tokens as its JSON size in bytes divided by 4. Over
+    the window, it warns with `state_may_truncate` when the target truncates, and otherwise rejects a request more than
+    25% over."""
     truncates_state: bool = False
     """Whether the server cuts the state to fit the context window without an error."""
     max_questions: int | None = None
+    """The most questions one request may have. Preflight rejects a request with more."""
     min_options: int | None = None
-    """The fewest options or levels a question may have."""
+    """The fewest options or levels a question may have. Preflight rejects a request with a choice or score question
+    that has fewer."""
     max_options: int | None = None
-    """The most options or levels a question may have."""
+    """The most options or levels a question may have. Preflight rejects a request with a choice or score question that
+    has more."""
     max_request_bytes: int | None = None
+    """The largest request body the target accepts, in bytes of JSON. Preflight rejects a larger request."""
     concurrency: int = Field(default=1, ge=1)
-    """How many requests may be in flight at once."""
+    """How many requests a run may have in flight to the target at once. At least 1."""
     concurrency_group: str | None = None
     """Targets with the same group share one concurrency limit, like several models on one local server."""
     requests_per_minute: int | None = None
+    """The most requests a run starts per minute on the target. A run spaces its requests to stay under it."""
     tokens_per_minute: int | None = None
+    """The target's limit on tokens per minute. Shown with the target; runs don't enforce it yet."""
     input_cost_per_mtok_usd: float | None = None
-    """The cost of one million input tokens. Output tokens are free on every current target."""
+    """The cost of one million input tokens, in US dollars. Output tokens are free on every current target. `None`
+    leaves each result's `cost_usd` unknown."""
 
 
 type ProviderName = Literal["systemone", "workers-ai", "claude"]
@@ -60,25 +74,34 @@ class Target(Model):
     label: str
     """The name people read, like `Microsoft-Decision-1, Azure Foundry`."""
     provider: ProviderName
+    """The provider that sends the target its requests. `systemone` reaches a System One server (Foundry, Ollama, or the
+    MLX server) and needs `base_url`. `workers-ai` reaches Cloudflare Workers AI and needs `cloudflare.account_id`.
+    `claude` isn't built yet, so its targets never answer."""
     runtime: Runtime | None = None
-    """The server the target runs on. `None` for a System One server with no runtime-specific checks."""
+    """The server the target runs on: `foundry`, `ollama`, `mlx`, or `workers-ai`. It picks the health check. `None` for
+    a System One server with no runtime-specific checks."""
     model: str
     """The model name sent in the request body. On Foundry it's the deployment name."""
     base_url: str | None = None
     """The API root. The SystemOne provider appends `/v1/systemone`."""
     auth: AuthMethod | None = None
-    """How the provider gets a credential. `None` sends none, or uses the provider's own sign-in."""
+    """How the provider gets a credential. `azure-cli` reads a token from the `az` sign-in, for Foundry. `None` sends
+    none, or uses the provider's own sign-in, like Workers AI's."""
     truncate: bool | None = None
     """The `truncate` field to send, for servers that accept it. `None` leaves it out."""
     capabilities: Capabilities = Field(default_factory=Capabilities)
+    """What the target accepts and returns. Preflight checks each request against it before sending."""
 
 
 class Defaults(Model):
     """Values every field without its own setting falls back to."""
 
     targets: list[str] = Field(default_factory=list[str])
+    """The targets a request goes to when it names none, in order. Each must be a key in `targets`."""
     timeout_s: float = Field(default=60.0, gt=0)
+    """Seconds to wait for each target's answer. Greater than 0."""
     repeats: int = Field(default=1, ge=1)
+    """Times a run sends each case to each target. At least 1."""
     max_drop: float = Field(default=0.05, ge=0)
     """The largest drop in a metric that `jevtester compare` allows before it reports a regression and exits 1."""
 
@@ -96,16 +119,21 @@ class CloudflareSettings(Model):
     """Account settings for Workers AI targets."""
 
     account_id: str | None = None
+    """Your Cloudflare account ID, for Workers AI targets. Without it, Workers AI targets are down. Set it in
+    `jevtester.local.toml`, which git ignores."""
 
 
 class Config(Model):
     """The contents of `jevtester.toml`."""
 
     defaults: Defaults = Field(default_factory=Defaults)
+    """Default targets, timeout, repeats, and regression threshold."""
     paths: Paths = Field(default_factory=Paths)
+    """Where jevtester keeps suites and its run database."""
     cloudflare: CloudflareSettings = Field(default_factory=CloudflareSettings)
+    """Account settings for Workers AI targets."""
     targets: dict[str, Target] = Field(default_factory=dict[str, Target])
-    """Targets keyed by name."""
+    """Targets keyed by name. In TOML, each is a `[targets."<name>"]` table, and the table key is the target's name."""
 
     @model_validator(mode="before")
     @classmethod
