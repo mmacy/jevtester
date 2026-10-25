@@ -2,6 +2,10 @@
 #
 # A target is one model on one runtime. Credentials never go in this file: Foundry uses the `az` sign-in, and
 # Workers AI uses the Wrangler sign-in or CLOUDFLARE_API_TOKEN.
+#
+# To use your own resources, copy this file to jevtester.local.toml, which git ignores, and edit the copy. jevtester
+# reads jevtester.local.toml instead of this file when it exists. Set your Cloudflare account ID below, and replace
+# example-resource in the Foundry base_url with the name of your Foundry resource.
 
 [defaults]
 targets = ["decision-1@foundry"]
@@ -9,14 +13,14 @@ timeout_s = 60.0
 repeats = 1
 
 [cloudflare]
-account_id = "ac01e4453275b1832bbebe1c82c5b356"
+# account_id = "<your Cloudflare account ID>"
 
 [targets."decision-1@foundry"]
 label = "Microsoft-Decision-1, Azure Foundry"
 provider = "systemone"
 runtime = "foundry"
 model = "decision-1"
-base_url = "https://goldbox-resource.services.ai.azure.com/providers/microsoft"
+base_url = "https://example-resource.services.ai.azure.com/providers/microsoft"
 auth = "azure-cli"
 
 [targets."decision-1@foundry".capabilities]
