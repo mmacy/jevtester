@@ -51,7 +51,7 @@ from jevtester.schemas import (
     TargetSkippedEvent,
 )
 from jevtester.service import Service
-from jevtester.spec import Case, ChoiceQuestion, NoulQuestion, Question, ScoreQuestion
+from jevtester.spec import Case, ChoiceQuestion, ConfigError, NoulQuestion, Question, ScoreQuestion
 
 EXIT_OK = 0
 EXIT_CHECK_FAILED = 1
@@ -78,8 +78,9 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         metavar="PATH",
         help=(
-            "The config file, which lists the targets. Without it: $JEVTESTER_CONFIG, then jevtester.local.toml, then "
-            "jevtester.toml in the working directory. Suite and run paths in the config are relative to its directory."
+            "The config file, which lists the targets. Without it: $JEVTESTER_CONFIG, or else jevtester.toml in the "
+            "working directory with jevtester.local.toml merged over it. Suite and run paths in the config are "
+            "relative to its directory."
         ),
     )
     commands = parser.add_subparsers(dest="command", metavar="<command>", title="commands")
@@ -632,8 +633,8 @@ def _fail(message: str) -> NoReturn:
 def _load_service(path: Path | None) -> Service:
     try:
         return Service.load(path)
-    except OSError as error:
-        _fail(f"Can't read the config: {error}")
+    except ConfigError as error:
+        _fail(str(error))
     except ValidationError as error:
         _fail(f"The config is invalid:\n{_describe_validation(error)}")
 

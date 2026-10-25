@@ -95,10 +95,10 @@ from jevtester.store.files import SuiteFiles, check_name
 from jevtester.store.runs import RunStore, StoredResult
 
 CONFIG_ENV = "JEVTESTER_CONFIG"
-"""An environment variable naming the config file. Without it, jevtester reads `jevtester.local.toml` or
-`jevtester.toml` here."""
+"""An environment variable naming the config file. Without it, jevtester reads `jevtester.toml` here, with
+`jevtester.local.toml` merged over it."""
 LOCAL_CONFIG = "jevtester.local.toml"
-"""Your own config, which git ignores. It replaces `jevtester.toml` when it exists."""
+"""Your own config, which git ignores. When it exists, it's deep-merged over `jevtester.toml`."""
 SHARED_CONFIG = "jevtester.toml"
 HEALTH_CHECK_TIMEOUT_S = 15.0
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
@@ -106,17 +106,21 @@ INTERRUPTED = "The server stopped during the run"
 MAX_SWEEP_POINTS = 1000
 
 
-def config_path() -> Path:
-    """Find the config file.
+def config_paths() -> list[Path]:
+    """Find the config files, lowest precedence first.
 
     Returns:
-        The path in `JEVTESTER_CONFIG`. Without it, `jevtester.local.toml` in the working directory if it exists,
-        or else `jevtester.toml` there.
+        The path in `JEVTESTER_CONFIG` alone. Without it, `jevtester.toml` in the working directory, followed by
+        `jevtester.local.toml` there when it exists, so the local file is merged over the shared one. When only
+        `jevtester.local.toml` exists, it alone.
     """
     if named := os.environ.get(CONFIG_ENV):
-        return Path(named)
+        return [Path(named)]
+    shared = Path(SHARED_CONFIG)
     local = Path(LOCAL_CONFIG)
-    return local if local.is_file() else Path(SHARED_CONFIG)
+    if not local.is_file():
+        return [shared]
+    return [shared, local] if shared.is_file() else [local]
 
 
 def build_providers(config: Config) -> dict[str, DecisionProvider]:
@@ -192,14 +196,19 @@ class Service:
         """Load the config and build its providers.
 
         Args:
-            path: The config file. `None` uses [`config_path`][jevtester.service.config_path].
+            path: The config file. `None` uses the files from [`config_paths`][jevtester.service.config_paths],
+                merged.
 
         Returns:
             The service.
+
+        Raises:
+            ConfigError: A config file can't be read, or isn't UTF-8 TOML.
+            pydantic.ValidationError: The config is invalid.
         """
-        path = path or config_path()
-        config = load_config(path)
-        root = path.parent
+        paths = [path] if path else config_paths()
+        config = load_config(*paths)
+        root = paths[-1].parent
         files = SuiteFiles(root / config.paths.suites)
         store = RunStore(root / config.paths.store)
         return cls(config, build_providers(config), files=files, store=store)

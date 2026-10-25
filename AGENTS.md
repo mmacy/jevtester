@@ -50,7 +50,7 @@ CI (`.github/workflows/ci.yml`) runs these gates on every pull request and every
 - Workers AI uses the Wrangler sign-in: `npx wrangler auth token --json` returns a short-lived token in its `token` field.
 - Never print, log, or commit a token or key. Read a credential in code and use it there.
 - `.env` files are gitignored. jevtester doesn't need one yet.
-- `jevtester.toml` holds placeholders. Put a real Foundry resource name or Cloudflare account ID only in `jevtester.local.toml`, which is gitignored and which jevtester reads instead when it exists. Tests read `jevtester.toml`, so they never depend on a contributor's account.
+- `jevtester.toml` holds placeholders. Put a real Foundry resource name or Cloudflare account ID only in `jevtester.local.toml`, which is gitignored and which jevtester merges over `jevtester.toml` when it exists. Tests read `jevtester.toml`, so they never depend on a contributor's account.
 
 ## Local models
 

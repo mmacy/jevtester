@@ -97,10 +97,10 @@ Each target shows as `unchecked`, because jevtester hasn't checked whether it ca
 
 ![Terminal output of jevtester targets list: eight targets, each unchecked, and the three Workers AI targets with a warning that they cut the state to fit the context window.](images/cli-targets-list.png)
 
-Your own settings go in a local config file. Git ignores it, and jevtester reads it instead of `jevtester.toml` when it exists. Create it:
+Your own settings go in a local config file, `jevtester.local.toml`. Git ignores it, and jevtester merges it over `jevtester.toml`, so it needs only the settings you change. Create it empty:
 
 ```sh
-cp jevtester.toml jevtester.local.toml
+touch jevtester.local.toml
 ```
 
 Now set up one target. Follow the section for your choice.
@@ -119,9 +119,10 @@ Now set up one target. Follow the section for your choice.
    ollama pull clef-flash
    ```
 
-3. In `jevtester.local.toml`, under `[defaults]`, set the default target:
+3. In `jevtester.local.toml`, set the default target:
 
    ```toml
+   [defaults]
    targets = ["clef-flash@ollama"]
    ```
 
@@ -136,16 +137,14 @@ Now set up one target. Follow the section for your choice.
 
    jevtester runs `npx --no-install wrangler auth token --json` to get a short-lived token, so it never downloads Wrangler itself. If you have a Cloudflare API token instead, set the `CLOUDFLARE_API_TOKEN` environment variable, and jevtester uses it.
 
-2. In `jevtester.local.toml`, under `[cloudflare]`, remove the `#` and set your Cloudflare account ID:
+2. In `jevtester.local.toml`, set your Cloudflare account ID and the default target:
 
    ```toml
-   account_id = "<your Cloudflare account ID>"
-   ```
-
-3. In `jevtester.local.toml`, under `[defaults]`, set the default target:
-
-   ```toml
+   [defaults]
    targets = ["clef-flash@workers-ai"]
+
+   [cloudflare]
+   account_id = "<your Cloudflare account ID>"
    ```
 
 ### Check the target

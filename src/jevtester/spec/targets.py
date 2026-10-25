@@ -96,6 +96,12 @@ class Target(Model):
     capabilities: Capabilities = Field(default_factory=Capabilities)
     """What the target accepts and returns. Preflight checks each request against it before sending."""
 
+    @model_validator(mode="after")
+    def _systemone_has_base_url(self) -> Self:
+        if self.provider == "systemone" and self.base_url is None:
+            raise ValueError("a systemone target needs base_url")
+        return self
+
 
 class Defaults(Model):
     """Values every field without its own setting falls back to."""
@@ -160,18 +166,59 @@ class Config(Model):
         return self
 
 
-def load_config(path: Path) -> Config:
-    """Read and validate a `jevtester.toml` file.
+class ConfigError(Exception):
+    """A config file can't be read, or isn't UTF-8 TOML. The message names the file and says what's wrong."""
+
+
+def merge_tables(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
+    """Deep-merge one TOML document over another.
 
     Args:
-        path: The config file.
+        base: The document underneath.
+        over: The document on top.
+
+    Returns:
+        A new document. Where both have a table under the same key, the tables merge. Otherwise the value in `over`
+        wins, so an array in `over` replaces the array in `base`.
+    """
+    merged = dict(base)
+    for key, value in over.items():
+        below = merged.get(key)
+        if isinstance(below, dict) and isinstance(value, dict):
+            merged[key] = merge_tables(cast(dict[str, Any], below), cast(dict[str, Any], value))
+        else:
+            merged[key] = value
+    return merged
+
+
+def _read_toml(path: Path) -> dict[str, Any]:
+    try:
+        text = path.read_bytes().decode("utf-8")
+    except OSError as error:
+        raise ConfigError(f"Can't read {path}: {error.strerror or error}") from error
+    except UnicodeDecodeError as error:
+        raise ConfigError(f"{path} isn't UTF-8 text: byte {error.start} can't be decoded") from error
+    try:
+        return tomllib.loads(text)
+    except tomllib.TOMLDecodeError as error:
+        raise ConfigError(f"{path} isn't valid TOML: {error}") from error
+
+
+def load_config(*paths: Path) -> Config:
+    """Read, merge, and validate one or more `jevtester.toml` files.
+
+    Args:
+        *paths: The config files, lowest precedence first. Each one is deep-merged over the ones before it with
+            [`merge_tables`][jevtester.spec.targets.merge_tables].
 
     Returns:
         The validated config.
 
     Raises:
-        OSError: The file can't be read.
-        tomllib.TOMLDecodeError: The file isn't valid TOML.
-        pydantic.ValidationError: The file doesn't match [`Config`][jevtester.spec.targets.Config].
+        ConfigError: A file can't be read, or isn't UTF-8 TOML.
+        pydantic.ValidationError: The merged files don't match [`Config`][jevtester.spec.targets.Config].
     """
-    return Config.model_validate(tomllib.loads(path.read_text()))
+    document: dict[str, Any] = {}
+    for path in paths:
+        document = merge_tables(document, _read_toml(path))
+    return Config.model_validate(document)

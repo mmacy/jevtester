@@ -28,7 +28,7 @@ You need Python 3.14, [uv](https://docs.astral.sh/uv/), and at least one decisio
 git clone https://github.com/mmacy/jevtester.git
 cd jevtester
 uv sync
-cp jevtester.toml jevtester.local.toml   # then add your own target settings
+touch jevtester.local.toml   # then add the settings you change; it merges over jevtester.toml
 uv run jevtester targets check
 uv run jevtester run parley --target clef-flash@ollama
 uv run jevtester report 0001

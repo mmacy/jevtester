@@ -4,7 +4,7 @@ Two Claude Code sessions can build jevtester at the same time: one builds the ba
 
 ## Before you start
 
-- Copy `jevtester.toml` to `jevtester.local.toml` and set your own Foundry resource and Cloudflare account there. Git ignores the copy. See the [README](https://github.com/mmacy/jevtester/blob/main/README.md).
+- Set your own Foundry resource and Cloudflare account in `jevtester.local.toml`, which jevtester merges over `jevtester.toml`. Git ignores it. See the [README](https://github.com/mmacy/jevtester/blob/main/README.md).
 - The Claude provider and the assist features are deferred.
 - Don't start a local model download (Ollama or MLX) without asking the user. After an MLX download finishes, delete any `__pycache__` directory in the model repository before you run `clef_mlx.py`. The plan explains why.
 
@@ -166,14 +166,10 @@ Then check the images and update [`docs/images/README.md`](images/README.md) if 
 
 These are confirmed in the code and not fixed yet:
 
-- A `systemone` target without `base_url` makes every command, and `jevtester serve`, stop with a Python traceback. `SystemOneProvider` raises `ValueError` while the service builds its providers, and nothing catches it.
-- A config file that isn't valid TOML stops the command with a `tomllib.TOMLDecodeError` traceback and exit code 1, not a message and exit code 2. The CLI catches only `OSError` and `ValidationError` when it loads the config.
 - Every CLI command and every server start marks each run recorded as `queued` or `running` as `failed`, even a run that another jevtester process is still running.
 - The CLI's suite argument drops its directory. `other/x.yaml` loads suite `x` from the config's suites directory.
 - The `cancelled` result error code is in the contract, but nothing returns it.
-- The Foundry health check only gets an `az` token. It never contacts `base_url`, so the target shows `ready` even with the placeholder `example-resource` URL.
 - `jevtester case add` and `POST /api/suites/{name}/cases` rewrite the suite file, so they drop its YAML comments.
-- `jevtester.local.toml` replaces `jevtester.toml` instead of merging with it. A target added to `jevtester.toml` is missing until you copy it to your local file.
 
 ## Messages between the sessions
 

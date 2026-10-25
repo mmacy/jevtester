@@ -161,14 +161,41 @@ def test_a_failed_sign_in_is_an_auth_error() -> None:
     assert "az login" in raw.error.message
 
 
+MY_FOUNDRY = FOUNDRY.model_copy(update={"base_url": "https://mine.services.ai.azure.com/providers/microsoft"})
+
+
 def test_health_check_reports_the_credential() -> None:
     token = AzureCliToken(credential=FakeCredential(expires_on=3000), clock=lambda: 0)
-    health = asyncio.run(provider_with(Recorder(), credential=token).health_check())
+    recorder = Recorder(status=404, body={})
+    health = asyncio.run(provider_with(recorder, target=MY_FOUNDRY, credential=token).health_check())
     assert health == Health(credential="Azure CLI, refreshes in 45 min")
+    # The probe is a GET of the base URL without the token, which reaches no model and so costs nothing.
+    [probe] = recorder.requests
+    assert (probe.method, str(probe.url)) == ("GET", MY_FOUNDRY.base_url)
+    assert "authorization" not in probe.headers
 
     failing = AzureCliToken(credential=FakeCredential(fail=True), clock=lambda: 0)
-    health = asyncio.run(provider_with(Recorder(), credential=failing).health_check())
+    health = asyncio.run(provider_with(Recorder(), target=MY_FOUNDRY, credential=failing).health_check())
     assert health.reason == "Can't get a token"
+
+
+def test_foundry_health_check_reports_the_placeholder_resource() -> None:
+    credential = FakeCredential()
+    recorder = Recorder()
+    token = AzureCliToken(credential=credential, clock=lambda: 0)
+    health = asyncio.run(provider_with(recorder, credential=token).health_check())
+    assert health.reason == "No Foundry resource"
+    assert health.detail == "Replace example-resource in base_url in jevtester.local.toml"
+    assert recorder.requests == []
+    assert credential.calls == 0
+
+
+def test_foundry_health_check_reports_an_endpoint_that_doesnt_answer() -> None:
+    token = AzureCliToken(credential=FakeCredential(), clock=lambda: 0)
+    down = provider_with(Recorder(error=httpx2.ConnectError("no such host")), target=MY_FOUNDRY, credential=token)
+    health = asyncio.run(down.health_check())
+    assert health.reason == "Foundry doesn't answer"
+    assert health.detail == f"Nothing answers at {MY_FOUNDRY.base_url}"
 
 
 def test_health_check_reports_a_server_that_isnt_listening() -> None:
