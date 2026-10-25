@@ -47,7 +47,7 @@ The `decision-1@foundry` target calls a deployment of Microsoft-Decision-1 on yo
 
 4. If your deployment's rate limits differ from the config's, change `requests_per_minute` and `tokens_per_minute` under `[targets."decision-1@foundry".capabilities]`. jevtester spaces its requests to stay under both.
 
-`targets check` shows the target as `ready`, with `Azure CLI, refreshes in` and a number of minutes. The health check only gets a token. It doesn't contact your resource, so it can't catch a wrong resource or deployment name. To check those, ask one question, which costs one request:
+`targets check` shows the target as `ready`, with `Azure CLI, refreshes in` and a number of minutes. The health check gets a token and checks that your resource's endpoint answers, without calling a model. It shows `No Foundry resource` while `base_url` still names `example-resource`, and `Foundry doesn't answer` for a resource name that doesn't exist. It can't catch a wrong deployment name. To check that, ask one question, which costs one request:
 
 ```sh
 uv run jevtester decide --target decision-1@foundry --state "Six goblins block the stairs." --question "Are the goblins hostile?"
@@ -72,7 +72,7 @@ Three targets call Clef models on Workers AI in your Cloudflare account: `clef-f
 
    - **API token.** Set `CLOUDFLARE_API_TOKEN` in the environment where you run jevtester. When it's set, jevtester uses it instead of Wrangler.
 
-2. In `jevtester.local.toml`, under `[cloudflare]`, remove the `#` and set your account ID:
+2. In `jevtester.local.toml`, set your account ID:
 
    ```toml
    [cloudflare]
@@ -143,15 +143,11 @@ The server serves one model. `targets check` asks the server's `/health` route w
 
 ## Keep your account details in a local config
 
-`jevtester.toml` is the shared config. It's in git, so it contains placeholders, not your account details. Put your details in `jevtester.local.toml`, which git ignores.
+`jevtester.toml` is the shared config. It's in git, so it contains placeholders, not your account details. Put your details in `jevtester.local.toml`, which git ignores. jevtester merges your local file over the shared one, so the local file needs only the settings you change.
 
-1. Copy the shared config:
+1. Create `jevtester.local.toml` beside `jevtester.toml`.
 
-   ```sh
-   cp jevtester.toml jevtester.local.toml
-   ```
-
-2. Edit `jevtester.local.toml`. Set your account details, as [Set up a target](#set-up-a-target) shows.
+2. Add your account details, as [Set up a target](#set-up-a-target) shows. Write each setting under the same table header that `jevtester.toml` uses, like `[cloudflare]`.
 
 3. Set the targets that commands use when you don't name any:
 
@@ -160,16 +156,15 @@ The server serves one model. `targets check` asks the server's `/health` route w
    targets = ["clef-flash@workers-ai"]
    ```
 
-   Each name must be a target in the same file, or jevtester refuses to load the config.
+   Each name must be a target in either file, or jevtester refuses to load the config.
 
-jevtester picks its config file in this order:
+jevtester picks its config in this order:
 
-1. The file named by `--config`, like `uv run jevtester --config other.toml targets list`.
-2. The file named by the `JEVTESTER_CONFIG` environment variable.
-3. `jevtester.local.toml` in the current folder, if it exists.
-4. `jevtester.toml` in the current folder.
+1. The file named by `--config`, like `uv run jevtester --config other.toml targets list`. jevtester reads only that file.
+2. The file named by the `JEVTESTER_CONFIG` environment variable. jevtester reads only that file.
+3. `jevtester.toml` in the current folder, with `jevtester.local.toml` merged over it when it exists.
 
-jevtester reads only one of these files. It doesn't merge them. So when you add a target to `jevtester.toml`, copy it to your local file too.
+In the merge, tables merge key by key and your local values win. An array, like `defaults.targets`, replaces the shared one. A target added to `jevtester.toml` appears without any change to your local file. The [configuration reference](reference/config.md#where-jevtester-looks-for-the-config) gives the details.
 
 The suites folder and the run database are relative to the config file's folder. By default, they're `suites/` and `.jevtester/runs.sqlite`. To change them, set `suites` and `store` under `[paths]`. The [configuration reference](reference/config.md) lists every setting.
 

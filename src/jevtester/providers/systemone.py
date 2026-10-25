@@ -1,6 +1,7 @@
 """The provider for every server that speaks the System One API: Foundry, Ollama, and the MLX server."""
 
 from typing import Any, cast
+from urllib.parse import urlparse
 
 import httpx2
 from typesafe_sdk import AsyncTypeSafeClient
@@ -14,6 +15,8 @@ from jevtester.spec import Capabilities, DecisionRequest, Target
 HEALTH_TIMEOUT_S = 3.0
 OLLAMA_MIN_VERSION = (0, 35, 1)
 """The first Ollama release that serves Clef-flash."""
+FOUNDRY_PLACEHOLDER = "example-resource"
+"""The Foundry resource name in the shared `jevtester.toml`, which stands for your own."""
 
 
 class SystemOneProvider:
@@ -95,8 +98,12 @@ class SystemOneProvider:
     async def health_check(self) -> Health:
         """Check that the target can take a request.
 
-        Foundry needs a token. Ollama must be recent enough and have the model pulled. The MLX server must have the
-        target's model loaded. Any other server must answer at its base URL.
+        Foundry's base URL must name your resource, not the placeholder `example-resource`. A server that needs a
+        token, like Foundry, must give one and answer at its base URL. Ollama must be recent enough and have the model
+        pulled. The MLX server must have the target's model loaded. Any other server must answer at its base URL.
+
+        The check of the base URL is a GET without the token, so it reaches no model and costs nothing. Any HTTP
+        response, even an error status, means the server answers.
 
         Returns:
             Ready when the check passes, with the credential's source.
@@ -106,14 +113,23 @@ class SystemOneProvider:
                 return await self._check_ollama()
             case "mlx":
                 return await self._check_mlx()
+            case "foundry" if urlparse(self._base_url).hostname == f"{FOUNDRY_PLACEHOLDER}.services.ai.azure.com":
+                return Health(
+                    reason="No Foundry resource",
+                    detail=f"Replace {FOUNDRY_PLACEHOLDER} in base_url in jevtester.local.toml",
+                )
             case _ if self._credential is not None:
                 try:
                     await self._credential.token()
                 except CredentialError as error:
                     return Health(reason="Can't get a token", detail=str(error))
+                name = "Foundry" if self.target.runtime == "foundry" else "The server"
+                listening = await self._check_listening(f"{name} doesn't answer")
+                if listening.reason:
+                    return listening
                 return Health(credential=self._credential.describe())
             case _:
-                return await self._check_listening()
+                return await self._check_listening("The server isn't running")
 
     async def _get_json(self, path: str) -> Any:
         async with httpx2.AsyncClient(transport=self._transport, timeout=HEALTH_TIMEOUT_S) as client:
@@ -121,12 +137,12 @@ class SystemOneProvider:
             response.raise_for_status()
             return response.json()
 
-    async def _check_listening(self) -> Health:
+    async def _check_listening(self, reason: str) -> Health:
         try:
             async with httpx2.AsyncClient(transport=self._transport, timeout=HEALTH_TIMEOUT_S) as client:
                 await client.get(self._base_url)
         except httpx2.HTTPError:
-            return Health(reason="The server isn't running", detail=f"Nothing answers at {self._base_url}")
+            return Health(reason=reason, detail=f"Nothing answers at {self._base_url}")
         return Health()
 
     async def _check_ollama(self) -> Health:

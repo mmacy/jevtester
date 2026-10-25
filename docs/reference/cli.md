@@ -53,7 +53,7 @@ These options go before the command name.
 
 | Option | Description |
 |---|---|
-| `--config PATH` | The config file. Without it, jevtester uses `$JEVTESTER_CONFIG`, then `jevtester.local.toml`, then `jevtester.toml` in the working directory. The [configuration reference](config.md#where-jevtester-looks-for-the-config) gives the details. |
+| `--config PATH` | The config file. Without it, jevtester uses `$JEVTESTER_CONFIG`, or else `jevtester.toml` in the working directory with `jevtester.local.toml` merged over it. The [configuration reference](config.md#where-jevtester-looks-for-the-config) gives the details. |
 | `--version` | Prints `jevtester` and the version, like `jevtester 0.1.0`, and exits with 0. |
 | `-h`, `--help` | Prints help and exits with 0. Every command and subcommand takes it. |
 
@@ -157,7 +157,7 @@ A health check sends no decision request. It checks that the target could take o
 
 | Runtime | Ready when |
 |---|---|
-| Foundry | A token can be read from the `az` sign-in. The note says when it refreshes. The check doesn't contact `base_url`, so it can't catch a wrong resource name or a placeholder. |
+| Foundry | `base_url` doesn't name the placeholder resource `example-resource`, a token can be read from the `az` sign-in, and the endpoint answers a GET of `base_url`, which reaches no model and costs nothing. The note says when the token refreshes. The check can't catch a wrong deployment name. |
 | Ollama | Ollama answers, is version 0.35.1 or later, and has the model pulled. |
 | MLX | The MLX server answers and has the target's model loaded. It serves one model, so at most one MLX target is ready at a time. |
 | Workers AI | `cloudflare.account_id` is set, a token can be read from `CLOUDFLARE_API_TOKEN` or the Wrangler sign-in, and the account's Workers AI catalog lists the model. |

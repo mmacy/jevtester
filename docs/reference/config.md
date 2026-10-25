@@ -10,22 +10,33 @@ For the steps to add a target or point jevtester at your own resources, see the 
 
 jevtester uses the first of these that applies:
 
-1. The path in `--config PATH`, on any [CLI](cli.md) command.
-2. The path in the `JEVTESTER_CONFIG` environment variable.
-3. `jevtester.local.toml` in the working directory, if it exists.
-4. `jevtester.toml` in the working directory.
+1. The path in `--config PATH`, on any [CLI](cli.md) command. jevtester reads only that file.
+2. The path in the `JEVTESTER_CONFIG` environment variable. jevtester reads only that file.
+3. `jevtester.toml` in the working directory, with `jevtester.local.toml` there merged over it when that file exists. When only `jevtester.local.toml` exists, jevtester reads it alone.
 
-The repository's `jevtester.toml` contains placeholders. To use your own Foundry resource or Cloudflare account, copy it to `jevtester.local.toml`, which git ignores, and edit the copy. jevtester then reads your copy instead, and the tests keep reading `jevtester.toml`. jevtester reads only one file and doesn't merge them, so your copy must contain every target and setting you want, and a target added to `jevtester.toml` later needs copying too.
+The repository's `jevtester.toml` contains placeholders. To use your own Foundry resource or Cloudflare account, put your values in `jevtester.local.toml`, which git ignores. The tests keep reading `jevtester.toml`.
 
-```sh
-cp jevtester.toml jevtester.local.toml
+jevtester deep-merges the local file over the shared one:
+
+- Where both files have a table, like `[defaults]` or `[targets."decision-1@foundry"]`, jevtester merges the tables key by key.
+- Where both files have any other value, the local file's value wins. An array isn't merged: `defaults.targets` in the local file replaces the shared list.
+- A table or key only in one file is kept.
+
+So your local file needs only what you change, and a target added to `jevtester.toml` later appears in your config too. This local file sets a Foundry resource and a Cloudflare account, and leaves every other setting as `jevtester.toml` has it:
+
+```toml
+[cloudflare]
+account_id = "<your Cloudflare account ID>"
+
+[targets."decision-1@foundry"]
+base_url = "https://<your resource>.services.ai.azure.com/providers/microsoft"
 ```
 
 Paths in the config, `paths.suites` and `paths.store`, are relative to the config file's directory, not the working directory.
 
 ## Validation
 
-jevtester validates the whole file when a command starts, and when `jevtester serve` starts. An invalid config stops the command with exit code 2 and one line per error. Two errors don't follow this rule yet: a file that isn't valid TOML, and a `systemone` target without `base_url`, each stop the command with a Python traceback and exit code 1. See [Known issues](../handoff.md#known-issues). With `timeout_s = 0` and `repeats = 0` under `[defaults]` in `bad.toml`:
+jevtester validates the whole config when a command starts, and when `jevtester serve` starts. When it merges `jevtester.local.toml` over `jevtester.toml`, it validates the merged result. An invalid config stops the command with exit code 2 and one line per error. With `timeout_s = 0` and `repeats = 0` under `[defaults]` in `bad.toml`:
 
 ```console
 $ jevtester --config bad.toml targets list
@@ -37,7 +48,9 @@ defaults.repeats: Input should be greater than or equal to 1
 The rules that apply to every table:
 
 - A key the format doesn't have is an error, like `timeout` in place of `timeout_s`. The error reads `Extra inputs are not permitted`.
-- A missing file stops the command with `jevtester: Can't read the config:` and the reason.
+- A file that can't be read stops the command with `jevtester: Can't read <path>:` and the reason, like `No such file or directory`.
+- A file that isn't valid TOML stops the command with `jevtester: <path> isn't valid TOML:` and the line and column of the error.
+- A file that isn't UTF-8 text stops the command with `jevtester: <path> isn't UTF-8 text:` and the position of the first bad byte.
 
 ## Example
 
@@ -157,7 +170,7 @@ Each target is a table named `[targets."<name>"]`. The table key is the target's
 | `provider` | string | required | The provider that sends the target its requests. See [Providers](#providers). |
 | `model` | string | required | The model name sent in each request body. On Foundry, it's the deployment name. |
 | `runtime` | string | none | The server the target runs on: `foundry`, `ollama`, `mlx`, or `workers-ai`. It picks the health check. See [Runtimes](#runtimes). |
-| `base_url` | string | none | The API root of a System One server. Required when `provider` is `systemone`. The provider adds `/v1/systemone`. A host of `localhost`, `127.0.0.1`, or `::1` makes the target *local*, which the target list shows in its `local` field. It doesn't change the cost, which comes from `input_cost_per_mtok_usd`. |
+| `base_url` | string | none | The API root of a System One server. Required when `provider` is `systemone`: without it, the config is invalid. The provider adds `/v1/systemone`. A host of `localhost`, `127.0.0.1`, or `::1` makes the target *local*, which the target list shows in its `local` field. It doesn't change the cost, which comes from `input_cost_per_mtok_usd`. |
 | `auth` | string | none | How the provider gets a credential. The one method is `azure-cli`, for Foundry. Leave it out for a server without authentication, and for Workers AI, which uses the Wrangler sign-in. See [Credentials](#credentials). |
 | `truncate` | boolean | none | The `truncate` field to send, for servers that accept it, like the MLX server. Leave it out to send nothing. `true` lets the server cut the input to fit its context window without an error, and gives the target a `truncation_on` warning. The MLX targets in `jevtester.toml` set it to `false`. |
 | `capabilities` | table | see [Capabilities](#capabilities) | What the target accepts and returns. |
@@ -178,7 +191,7 @@ The runtime picks a target's health check, which [`jevtester targets check`](cli
 
 | `runtime` | Ready when |
 |---|---|
-| `foundry` | A token can be read from the `az` sign-in. The check doesn't contact `base_url`, so a placeholder or wrong resource name still shows `ready`. |
+| `foundry` | `base_url` names your resource, not the placeholder `example-resource`. A token can be read from the `az` sign-in, and the endpoint answers a GET of `base_url`. The GET carries no token and reaches no model, so it costs nothing. Any HTTP response counts, so the check catches a placeholder or a resource name that doesn't exist, but not a wrong deployment name. |
 | `ollama` | Ollama answers at `base_url`, is version 0.35.1 or later, and has the model pulled. |
 | `mlx` | The MLX server answers at `base_url` and has the target's model loaded. A decide request checks the loaded model again before it sends, because the server answers with whatever model it loaded. |
 | `workers-ai` | `cloudflare.account_id` is set, a token can be read, and the account's Workers AI catalog lists the model. |

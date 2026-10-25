@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from jevtester import cli
 from jevtester.normalize import (
     ChoiceAnswer,
     NoulAnswer,
@@ -16,11 +17,12 @@ from jevtester.normalize import (
 )
 from jevtester.normalize.answers import ResultError, Usage
 from jevtester.providers import RawResult, target_result
-from jevtester.service import CONFIG_ENV, config_path
+from jevtester.service import CONFIG_ENV, config_paths
 from jevtester.spec import (
     Capabilities,
     Case,
     ChoiceQuestion,
+    ConfigError,
     DecisionRequest,
     NoulQuestion,
     QuestionSet,
@@ -213,25 +215,120 @@ def test_config_loads_every_target() -> None:
     assert set(config.defaults.targets) <= set(config.targets)
 
 
-def test_config_path_defaults_to_the_shared_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_paths_default_to_the_shared_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv(CONFIG_ENV, raising=False)
-    assert config_path() == Path("jevtester.toml")
+    assert config_paths() == [Path("jevtester.toml")]
 
 
-def test_config_path_prefers_a_local_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_paths_put_a_local_file_over_the_shared_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv(CONFIG_ENV, raising=False)
     (tmp_path / "jevtester.toml").write_text("")
     (tmp_path / "jevtester.local.toml").write_text("")
-    assert config_path() == Path("jevtester.local.toml")
+    assert config_paths() == [Path("jevtester.toml"), Path("jevtester.local.toml")]
 
 
-def test_config_path_env_wins_over_a_local_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_config_paths_use_a_local_file_alone_without_a_shared_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv(CONFIG_ENV, raising=False)
+    (tmp_path / "jevtester.local.toml").write_text("")
+    assert config_paths() == [Path("jevtester.local.toml")]
+
+
+def test_config_paths_env_wins_over_a_local_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "jevtester.toml").write_text("")
     (tmp_path / "jevtester.local.toml").write_text("")
     monkeypatch.setenv(CONFIG_ENV, "other.toml")
-    assert config_path() == Path("other.toml")
+    assert config_paths() == [Path("other.toml")]
+
+
+def test_a_local_config_merges_over_the_shared_config(tmp_path: Path) -> None:
+    shared = tmp_path / "jevtester.toml"
+    shared.write_text((ROOT / "jevtester.toml").read_text())
+    local = tmp_path / "jevtester.local.toml"
+    local.write_text(
+        "[defaults]\n"
+        'targets = ["clef-flash@workers-ai"]\n'
+        "[cloudflare]\n"
+        'account_id = "local-account"\n'
+        '[targets."decision-1@foundry"]\n'
+        'base_url = "https://mine.services.ai.azure.com/providers/microsoft"\n'
+        '[targets."decision-1@foundry".capabilities]\n'
+        "concurrency = 2\n"
+    )
+    config = load_config(shared, local)
+    alone = load_config(shared)
+    foundry = config.targets["decision-1@foundry"]
+    assert foundry.base_url == "https://mine.services.ai.azure.com/providers/microsoft"
+    assert foundry.capabilities.concurrency == 2
+    assert foundry.capabilities.requests_per_minute == 100
+    assert foundry.label == alone.targets["decision-1@foundry"].label
+    assert config.defaults.targets == ["clef-flash@workers-ai"]
+    assert config.defaults.timeout_s == alone.defaults.timeout_s
+    assert config.cloudflare.account_id == "local-account"
+    assert list(config.targets) == list(alone.targets)
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        (b"[defaults\n", "isn't valid TOML"),
+        (b'[cloudflare]\naccount_id = "\xff"\n', "isn't UTF-8 text"),
+    ],
+)
+def test_config_rejects_a_file_that_isnt_toml(tmp_path: Path, content: bytes, message: str) -> None:
+    path = tmp_path / "jevtester.toml"
+    path.write_bytes(content)
+    with pytest.raises(ConfigError, match=message) as raised:
+        load_config(path)
+    assert str(path) in str(raised.value)
+
+
+def test_config_reports_a_file_it_cant_read(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match=r"Can.t read .*missing\.toml: No such file or directory"):
+        load_config(tmp_path / "missing.toml")
+    with pytest.raises(ConfigError, match="Can't read"):
+        load_config(tmp_path)
+
+
+def test_config_rejects_a_systemone_target_without_base_url(tmp_path: Path) -> None:
+    path = tmp_path / "jevtester.toml"
+    path.write_text('[targets."x@y"]\nprovider = "systemone"\nmodel = "x"\nlabel = "X"\n')
+    with pytest.raises(ValidationError, match="a systemone target needs base_url"):
+        load_config(path)
+
+
+@pytest.mark.parametrize(
+    ("content", "message"),
+    [
+        (b"[defaults\n", "isn't valid TOML"),
+        (b"\xff\xfe", "isn't UTF-8 text"),
+        (b'[targets."x@y"]\nprovider = "systemone"\nmodel = "x"\nlabel = "X"\n', "targets.x@y"),
+    ],
+)
+def test_cli_reports_a_bad_config_with_exit_code_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], content: bytes, message: str
+) -> None:
+    path = tmp_path / "bad.toml"
+    path.write_bytes(content)
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["--config", str(path), "targets", "list"])
+    assert exit_info.value.code == 2
+    error = capsys.readouterr().err
+    assert error.startswith("jevtester: ")
+    assert message in error
+    assert "Traceback" not in error
+
+
+def test_cli_reports_a_missing_config_with_exit_code_2(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        cli.main(["--config", str(tmp_path / "missing.toml"), "targets", "list"])
+    assert exit_info.value.code == 2
+    assert "missing.toml: No such file or directory" in capsys.readouterr().err
 
 
 def test_config_rejects_unknown_target_fields(tmp_path: Path) -> None:
