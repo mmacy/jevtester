@@ -1,6 +1,6 @@
 # jevtester UI plan
 
-This plan covers the web UI that the frontend session (`JEVTESTER-FRONTEND`) builds. It follows [the plan](plan.md#what-the-ui-must-show), the [handoff notes](handoff.md#frontend-session), and the heat matrix mockup in [`mockups/3-matrix.html`](../mockups/3-matrix.html). It lists the views, the components, each component's states, and the API calls each view makes.
+This plan covers the web UI that the frontend session (`JEVTESTER-FRONTEND`) builds. It follows [the plan](plan.md#what-the-ui-must-show), the [handoff notes](handoff.md#frontend-session), and the heat matrix mockup in [`mockups/3-matrix.html`](https://github.com/mmacy/jevtester/blob/main/mockups/3-matrix.html). It lists the views, the components, each component's states, and the API calls each view makes.
 
 Endpoint names come from the handoff's [starting endpoints](handoff.md#starting-endpoints). The backend session added the endpoints the UI needs that the list didn't have: `GET /api/question-sets`, `PUT /api/question-sets/{name}`, `GET /api/policies`, `GET /api/runs/{id}/calibration`, and `GET /api/runs/{id}/cases/{case_id}`. This plan changes to match the contract it publishes.
 

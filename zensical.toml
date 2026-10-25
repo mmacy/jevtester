@@ -1,0 +1,65 @@
+[project]
+site_name = "jevtester"
+site_description = "Test decision models, the questions written for them, and the decisions built on their answers."
+site_author = "Marsh Macy"
+site_url = "https://mmacy.github.io/jevtester/"
+repo_url = "https://github.com/mmacy/jevtester"
+repo_name = "mmacy/jevtester"
+edit_uri = "edit/main/docs/"
+docs_dir = "docs"
+site_dir = "site"
+copyright = "Licensed under CC BY-NC-SA 4.0."
+
+nav = [
+  { "Home" = "index.md" },
+  { "Tutorial" = [
+    { "Getting started" = "getting-started.md" },
+  ] },
+  { "How-to guides" = [
+    { "How-to guides" = "how-to.md" },
+  ] },
+  { "Reference" = [
+    { "CLI" = "reference/cli.md" },
+    { "HTTP API" = "reference/http-api.md" },
+    { "Configuration" = "reference/config.md" },
+    { "Suite format" = "reference/suite-format.md" },
+  ] },
+  { "Explanation" = [
+    { "Concepts" = "concepts.md" },
+  ] },
+  { "Development" = [
+    { "Architecture" = "architecture.md" },
+    { "Handoff" = "handoff.md" },
+    { "Plan" = "plan.md" },
+    { "UI plan" = "ui-plan.md" },
+  ] },
+]
+
+extra_css = [
+  "stylesheets/extra.css",
+]
+
+[project.theme]
+features = [
+  "content.action.view",
+  "content.code.copy",
+  "navigation.sections",
+  "navigation.top",
+  "navigation.tracking",
+  "search.highlight",
+  "toc.follow",
+]
+
+# Palette toggle for light mode
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+# Palette toggle for dark mode
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to light mode"

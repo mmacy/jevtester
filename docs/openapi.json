@@ -3,6 +3,7 @@
   "info": {
     "title": "jevtester",
     "summary": "Test decision models, the questions written for them, and the decisions built on their answers.",
+    "description": "The jevtester API gives the web UI and your scripts the same operations as the `jevtester` command line. Start it with\n`jevtester serve`. It listens on `http://127.0.0.1:8640`, and every route is under `/api`.\n\nThe API has no authentication, because it listens only on this machine. Requests name targets, and the server holds\nthe credentials, so a client never sees a token.\n\n## Conventions\n\n- Every response field is always present. An unknown value is `null`, never a missing key.\n- Times are ISO 8601 in UTC, like `2026-10-24T14:02:00Z`.\n- A version is the full SHA-256 hash of the content. A route that takes a version also takes a prefix of 8 or more\n  characters.\n- Lists keep a meaningful order: targets in the order requested, questions and options in the question set's order,\n  and runs newest first.\n- Suite, question set, and policy names use lowercase letters, digits, `-`, and `_`.\n\n## Errors\n\nEvery 4xx and 5xx response has an `ApiError` body: `{\"error\": {\"code\", \"message\", \"field\", \"details\"}}`. `code` is\n`invalid_request` (422), `not_found` (404), `conflict` (409), or `internal` (500). `details` lists every validation\nerror, and `field` is the first one's dotted path. For a question, the path includes the question's type, as in\n`questions.intent.choice.criteria`.\n\nA target that fails during a decide request or a run isn't an HTTP error. Its result has `ok: false` and an `error`,\nand the other targets' results still arrive.\n",
     "version": "0.1.0"
   },
   "paths": {
@@ -11,12 +12,12 @@
         "tags": [
           "targets"
         ],
-        "summary": "List Targets",
-        "description": "List targets, their capabilities, and their last health check.",
+        "summary": "List targets",
+        "description": "List the configured targets with their capabilities and their last health check.\n\nThis call doesn't run a health check, so a target is `unchecked` until `POST /api/targets/check` or a run checks\nit. The server keeps health check results in memory, so they reset when it restarts.",
         "operationId": "list_targets",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Every target, in the config's order.",
             "content": {
               "application/json": {
                 "schema": {
@@ -26,7 +27,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -36,7 +37,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -46,7 +47,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -63,12 +64,12 @@
         "tags": [
           "targets"
         ],
-        "summary": "Check Targets",
-        "description": "Run every target's health check and return the targets with the results.",
+        "summary": "Check targets",
+        "description": "Run every target's health check at once and return the targets with the results.\n\nA health check doesn't send a decision request. Foundry needs a token from the `az` sign-in. Ollama must be 0.35.1\nor later and have the model pulled. The MLX server must have the target's model loaded. Workers AI needs a token\nand `cloudflare.account_id`, and its catalog must list the model. A check that takes longer than 15 seconds marks\nthe target down.\n\nAfter a check, `POST /api/decide` returns `not_ready` for a target that's down instead of sending to it.",
         "operationId": "check_targets",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Every target, with its new health check result.",
             "content": {
               "application/json": {
                 "schema": {
@@ -78,7 +79,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -88,7 +89,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -98,7 +99,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -115,8 +116,8 @@
         "tags": [
           "decide"
         ],
-        "summary": "Decide",
-        "description": "Send one request to each chosen target and return one result per target.\n\nA target that can't take the request, because it isn't ready or a preflight check fails, still has a result,\nwith `ok: false` and an error.",
+        "summary": "Ask targets one request",
+        "description": "Send one state and its questions to each chosen target at once, and return one result per target.\n\nThe response arrives when the last target finishes. To show each target's answers as they arrive, send one\nrequest per target. Name targets in `targets`, or leave it empty for the config's `defaults.targets`. Pass\n`[\"all\"]` for every target. To keep a result as a test case, send its state and answers to\n`POST /api/suites/{name}/cases`.\n\nA target that fails isn't an HTTP error. Its result has `ok: false` and an `error`, and the other targets' results\nstill arrive. A target that's down after its last health check, or a request that fails the target's preflight\ncheck, gets a result with the error code `not_ready` or `preflight`, and nothing is sent to it. An unknown target\nname, or a name given twice, returns 422 with the field `targets.<index>`.",
         "operationId": "decide",
         "requestBody": {
           "content": {
@@ -130,7 +131,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "One result per target, in the order the targets were named.",
             "content": {
               "application/json": {
                 "schema": {
@@ -140,7 +141,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -150,7 +151,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -160,7 +161,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -177,12 +178,12 @@
         "tags": [
           "suites"
         ],
-        "summary": "List Suites",
-        "description": "List the suites under `suites/`.",
+        "summary": "List suites",
+        "description": "List the suites under `suites/`, with each suite's question set version and case counts.\n\nAn invalid suite file returns 422, which names the file.",
         "operationId": "list_suites",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Every suite under `suites/`, by name.",
             "content": {
               "application/json": {
                 "schema": {
@@ -192,7 +193,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -202,7 +203,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -212,7 +213,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -229,8 +230,8 @@
         "tags": [
           "suites"
         ],
-        "summary": "Get Suite",
-        "description": "Return a suite with its cases and its question set's current version.",
+        "summary": "Get a suite",
+        "description": "Return a suite with its cases and its question set's current version.\n\nReading a suite records its question set's version, if jevtester hasn't seen it before. A missing suite or\nquestion set returns 404, and an invalid file returns 422.",
         "operationId": "get_suite",
         "parameters": [
           {
@@ -239,13 +240,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The suite's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The suite's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The suite and its question set.",
             "content": {
               "application/json": {
                 "schema": {
@@ -255,7 +258,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -265,7 +268,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -275,7 +278,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -292,8 +295,8 @@
         "tags": [
           "suites"
         ],
-        "summary": "Check Suite",
-        "description": "Validate a suite and run the question-wording checks on its question set.",
+        "summary": "Check a suite",
+        "description": "Validate a suite and run the question-wording checks on its question set.\n\nThe suite is valid when it, its question set, and its policy load, every case's expectations fit the questions,\nand the policy reads only questions the question set asks. An invalid suite returns 200 with `valid: false` and\nits `errors`. A suite that doesn't exist returns 404.",
         "operationId": "check_suite",
         "parameters": [
           {
@@ -302,13 +305,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The suite's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The suite's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Whether the suite is valid, its errors, and the wording findings.",
             "content": {
               "application/json": {
                 "schema": {
@@ -318,7 +323,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -328,7 +333,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -338,7 +343,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -355,8 +360,8 @@
         "tags": [
           "suites"
         ],
-        "summary": "Add Case",
-        "description": "Add a case to a suite's YAML file. A case id the suite already has is a conflict.",
+        "summary": "Add a case",
+        "description": "Add a case to the end of a suite's YAML file.\n\njevtester rewrites the file from its parsed contents, so the change shows up in `git diff` and comments in the file\nare lost. A case id the suite already has returns 409, and nothing is saved.",
         "operationId": "add_case",
         "parameters": [
           {
@@ -365,8 +370,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The suite's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The suite's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           }
         ],
         "requestBody": {
@@ -381,7 +388,7 @@
         },
         "responses": {
           "201": {
-            "description": "Successful Response",
+            "description": "The saved case and the suite's new case count.",
             "content": {
               "application/json": {
                 "schema": {
@@ -391,7 +398,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -401,7 +408,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -411,7 +418,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -421,7 +428,7 @@
             }
           },
           "409": {
-            "description": "Conflict, or a target that isn't ready",
+            "description": "`conflict`: the suite already has a case with this `id`. Choose another id.",
             "content": {
               "application/json": {
                 "schema": {
@@ -438,12 +445,12 @@
         "tags": [
           "question sets"
         ],
-        "summary": "List Question Sets",
-        "description": "List the question sets under `suites/`.",
+        "summary": "List question sets",
+        "description": "List the question sets under `suites/question-sets/`.\n\nEach has its current version and the suites that use it.",
         "operationId": "list_question_sets",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Every question set under `suites/question-sets/`, by name.",
             "content": {
               "application/json": {
                 "schema": {
@@ -453,7 +460,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -463,7 +470,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -473,7 +480,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -490,7 +497,7 @@
         "tags": [
           "question sets"
         ],
-        "summary": "Get Question Set",
+        "summary": "Get a question set",
         "description": "Return a question set's current version, the suites that use it, and its wording checks.",
         "operationId": "get_question_set",
         "parameters": [
@@ -500,13 +507,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The question set, the suites that use it, and its wording findings.",
             "content": {
               "application/json": {
                 "schema": {
@@ -516,7 +525,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -526,7 +535,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -536,7 +545,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -551,8 +560,8 @@
         "tags": [
           "question sets"
         ],
-        "summary": "Save Question Set",
-        "description": "Save new questions to a question set's YAML file, which makes a new version. Creates the set if it's new.",
+        "summary": "Save a question set",
+        "description": "Replace a question set's questions, which makes a new version. Creates the question set if it's new.\n\njevtester rewrites `suites/question-sets/<name>.yaml`, so the change shows up in `git diff` and comments in the\nfile are lost. Saving the same questions again keeps the same version. Every suite whose `question_set` is this\none asks the new version in its next run. Earlier versions stay available from\n`GET /api/question-sets/{name}/versions`.",
         "operationId": "save_question_set",
         "parameters": [
           {
@@ -561,8 +570,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           }
         ],
         "requestBody": {
@@ -577,7 +588,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The saved question set, with its new version.",
             "content": {
               "application/json": {
                 "schema": {
@@ -587,7 +598,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -597,7 +608,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -607,7 +618,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -624,8 +635,8 @@
         "tags": [
           "question sets"
         ],
-        "summary": "List Question Set Versions",
-        "description": "List a question set's versions by hash, newest first.",
+        "summary": "List question set versions",
+        "description": "List a question set's versions, newest first, with how many runs used each.\n\njevtester records a version the first time it sees one: when a suite or question set is read or saved, or when a\nrun uses one. Pass a version's hash to `GET /api/question-sets/{name}/versions/{version}`, to\n`GET /api/question-sets/{name}/diff`, or as `question_set_version` in `POST /api/runs`.",
         "operationId": "list_question_set_versions",
         "parameters": [
           {
@@ -634,13 +645,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Every version jevtester has seen, newest first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -650,7 +663,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -660,7 +673,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -670,7 +683,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -687,8 +700,8 @@
         "tags": [
           "question sets"
         ],
-        "summary": "Get Question Set Version",
-        "description": "Return one version of a question set.",
+        "summary": "Get a question set version",
+        "description": "Return one version of a question set.\n\nA version jevtester hasn't recorded, or a prefix that matches more than one version, returns 404.",
         "operationId": "get_question_set_version",
         "parameters": [
           {
@@ -697,8 +710,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           },
           {
             "name": "version",
@@ -706,13 +721,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The version's SHA-256 hash, or a prefix of it at least 8 characters long.",
               "title": "Version"
-            }
+            },
+            "description": "The version's SHA-256 hash, or a prefix of it at least 8 characters long."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The question set as it was in that version.",
             "content": {
               "application/json": {
                 "schema": {
@@ -722,7 +739,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -732,7 +749,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -742,7 +759,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -759,8 +776,8 @@
         "tags": [
           "question sets"
         ],
-        "summary": "Diff Question Set",
-        "description": "Compare two versions of a question set.",
+        "summary": "Compare question set versions",
+        "description": "Compare two versions of a question set, question by question and option by option.",
         "operationId": "diff_question_set",
         "parameters": [
           {
@@ -769,8 +786,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           },
           {
             "name": "from",
@@ -778,8 +797,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The older version's hash, or a prefix of 8 or more characters.",
               "title": "From"
-            }
+            },
+            "description": "The older version's hash, or a prefix of 8 or more characters."
           },
           {
             "name": "to",
@@ -787,13 +808,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The newer version's hash, or a prefix of 8 or more characters.",
               "title": "To"
-            }
+            },
+            "description": "The newer version's hash, or a prefix of 8 or more characters."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "How each question changed from one version to the other.",
             "content": {
               "application/json": {
                 "schema": {
@@ -803,7 +826,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -813,7 +836,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -823,7 +846,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -840,12 +863,12 @@
         "tags": [
           "runs"
         ],
-        "summary": "List Runs",
-        "description": "List runs, newest first.",
+        "summary": "List runs",
+        "description": "List every run, suite runs and probe runs, newest first.",
         "operationId": "list_runs",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Every run, newest first.",
             "content": {
               "application/json": {
                 "schema": {
@@ -855,7 +878,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -865,7 +888,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -875,7 +898,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -890,8 +913,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Start Run",
-        "description": "Start a run of a suite on the chosen targets. Follow it with `GET /api/runs/{id}/events`.",
+        "summary": "Start a run",
+        "description": "Start a run of a suite on the chosen targets, and return its id as soon as it's queued.\n\nFollow the run with `GET /api/runs/{id}/events`, or poll `GET /api/runs/{id}`. When it finishes, read its scores\nfrom `GET /api/runs/{id}/metrics` or `GET /api/runs/{id}/report`.\n\nA run first checks each target's health, and skips every job of a target that's down. Each job's result is cached\nby its target, its request, and its repeat, so a rerun of an unchanged suite sends nothing. Set `no_cache` to send\nevery request again. Claude draft cases aren't sent.\n\nA suite, question set version, or baseline run that doesn't exist returns 404. An unknown target returns 422.",
         "operationId": "start_run",
         "requestBody": {
           "content": {
@@ -905,7 +928,7 @@
         },
         "responses": {
           "202": {
-            "description": "Successful Response",
+            "description": "The new run's id. The run continues in the background.",
             "content": {
               "application/json": {
                 "schema": {
@@ -915,7 +938,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -925,7 +948,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -935,7 +958,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -952,8 +975,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Get Run",
-        "description": "Return a run's settings, status, and counts.",
+        "summary": "Get a run",
+        "description": "Return a run's settings, status, and counts. Poll it to follow a run without the event stream.",
         "operationId": "get_run",
         "parameters": [
           {
@@ -962,13 +985,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The run's settings, status, and counts.",
             "content": {
               "application/json": {
                 "schema": {
@@ -978,7 +1003,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -988,7 +1013,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -998,7 +1023,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1015,8 +1040,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Run Events",
-        "description": "Stream a run's progress as server-sent events.\n\nEach event's SSE `event` field is its `type`, and its `data` is a [`RunEvent`][jevtester.schemas.RunEvent] as\nJSON. The first event is always `progress`, with the current counts, so a client that reconnects needs no\nhistory. A run that has ended sends `progress` and then its final event. The stream ends after `finished`,\n`cancelled`, or `error`.",
+        "summary": "Stream run events",
+        "description": "Stream a run's progress as server-sent events.\n\nEach event's SSE `event` field is its `type`, its `id` numbers it from 0, and its `data` is a\n[`RunEvent`][jevtester.schemas.RunEvent] as one line of JSON. The first event is always `progress`, with the\ncurrent counts, so a client that reconnects needs no history. A `result` event follows each finished job, and a\n`target_skipped` event each target that's down. A run that has ended sends `progress` and then its final event.\n\nThe stream ends after `finished`, `cancelled`, or `error`. A browser's `EventSource` reconnects when the server\ncloses the stream, so close it on the final event. A run that doesn't exist returns 404 before the stream starts.",
         "operationId": "run_events",
         "parameters": [
           {
@@ -1025,13 +1050,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The run's events, until it ends.",
             "content": {
               "text/event-stream": {
                 "itemSchema": {
@@ -1064,7 +1091,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1074,7 +1101,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1084,7 +1111,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1101,8 +1128,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Cancel Run",
-        "description": "Cancel a queued or running run. Cancelling a run that has ended returns it unchanged.",
+        "summary": "Cancel a run",
+        "description": "Cancel a queued or running run, and wait for it to stop.\n\nResults that arrived before the cancel are kept. Cancelling a run that has ended returns it unchanged, so the call\nis safe to retry.",
         "operationId": "cancel_run",
         "parameters": [
           {
@@ -1111,13 +1138,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The run's summary.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1127,7 +1156,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1137,7 +1166,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1147,7 +1176,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1164,8 +1193,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Get Run Metrics",
-        "description": "Return metrics for each target and question.",
+        "summary": "Get run metrics",
+        "description": "Score a run's answers for each target and question, and its policy's decisions when the suite has a policy.\n\nThe metrics use the cases as the run sent them, so editing the suite later doesn't change them. Only original cases\ncount, not probe variants. A metric that doesn't apply to a question's type is `null`.",
         "operationId": "get_run_metrics",
         "parameters": [
           {
@@ -1174,13 +1203,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Metrics for each target and question.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1190,7 +1221,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1200,7 +1231,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1210,7 +1241,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1227,8 +1258,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Get Run Confusion",
-        "description": "Return the confusion matrix for one choice question and one target.",
+        "summary": "Get a confusion matrix",
+        "description": "Count expected options against answered options, for one choice question and one target.\n\nA question the run didn't ask, a question that isn't a choice, or a target the run didn't run returns 422.",
         "operationId": "get_run_confusion",
         "parameters": [
           {
@@ -1237,8 +1268,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           },
           {
             "name": "question",
@@ -1246,8 +1279,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The id of a question the run asked, like `intent`.",
               "title": "Question"
-            }
+            },
+            "description": "The id of a question the run asked, like `intent`."
           },
           {
             "name": "target",
@@ -1255,13 +1290,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "A target the run ran, like `decision-1@foundry`.",
               "title": "Target"
-            }
+            },
+            "description": "A target the run ran, like `decision-1@foundry`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Expected options against answered options.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1271,7 +1308,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1281,7 +1318,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1291,7 +1328,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1308,8 +1345,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Get Run Calibration",
-        "description": "Return a reliability table for one noul or choice question and one target.",
+        "summary": "Get a calibration table",
+        "description": "Build a reliability table for one noul or choice question and one target.\n\nA reliability table compares the probabilities a target gave with how often it was right. For a noul, the\nprediction is the probability of yes. For a choice, it's the probability of the chosen option, against whether the\nchoice was right. A score question, a target the run didn't run, or `bins` outside 1 to 100 returns 422.",
         "operationId": "get_run_calibration",
         "parameters": [
           {
@@ -1318,8 +1355,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           },
           {
             "name": "question",
@@ -1327,8 +1366,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The id of a question the run asked, like `intent`.",
               "title": "Question"
-            }
+            },
+            "description": "The id of a question the run asked, like `intent`."
           },
           {
             "name": "target",
@@ -1336,8 +1377,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "A target the run ran, like `decision-1@foundry`.",
               "title": "Target"
-            }
+            },
+            "description": "A target the run ran, like `decision-1@foundry`."
           },
           {
             "name": "bins",
@@ -1345,14 +1388,16 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "description": "The number of equal-width probability bins, from 1 to 100.",
               "default": 10,
               "title": "Bins"
-            }
+            },
+            "description": "The number of equal-width probability bins, from 1 to 100."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The probability bins and the expected calibration error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1362,7 +1407,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1372,7 +1417,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1382,7 +1427,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1399,8 +1444,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Get Run Changes",
-        "description": "Return the answers that changed from a baseline run, with McNemar's test for each target.",
+        "summary": "Get changed answers",
+        "description": "List the answers that changed from a baseline run, with McNemar's test for each target both runs ran.\n\nThe comparison uses the first repeat of each case. McNemar's test is an exact two-sided test on the answers that\nwent from wrong to right and from right to wrong. To get both runs' metrics and the regressions too, use\n`GET /api/runs/{id}/compare`.",
         "operationId": "get_run_changes",
         "parameters": [
           {
@@ -1409,8 +1454,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           },
           {
             "name": "baseline",
@@ -1418,13 +1465,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The baseline run's id, like `0001`.",
               "title": "Baseline"
-            }
+            },
+            "description": "The baseline run's id, like `0001`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The changed answers, and McNemar's test for each target.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1434,7 +1483,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1444,7 +1493,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1454,7 +1503,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1471,7 +1520,7 @@
         "tags": [
           "runs"
         ],
-        "summary": "Compare Runs",
+        "summary": "Compare two runs",
         "description": "Compare a run with a baseline: both runs' metrics, the changed answers, and any regressions.\n\nA regression is a target and question whose accuracy, or within-tolerance accuracy for a score, dropped by more\nthan `max_drop`. Without `max_drop`, the config's `defaults.max_drop` applies.",
         "operationId": "compare_runs",
         "parameters": [
@@ -1481,8 +1530,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           },
           {
             "name": "baseline",
@@ -1490,8 +1541,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The baseline run's id, like `0001`.",
               "title": "Baseline"
-            }
+            },
+            "description": "The baseline run's id, like `0001`."
           },
           {
             "name": "max_drop",
@@ -1507,13 +1560,15 @@
                   "type": "null"
                 }
               ],
+              "description": "The largest allowed drop in a metric. Without it, the config's `defaults.max_drop`.",
               "title": "Max Drop"
-            }
+            },
+            "description": "The largest allowed drop in a metric. Without it, the config's `defaults.max_drop`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Both runs' metrics, the changed answers, and the regressions.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1523,7 +1578,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1533,7 +1588,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1543,7 +1598,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1560,8 +1615,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Get Run Case",
-        "description": "Return one case in a run, with every target's full result.",
+        "summary": "Get a case in a run",
+        "description": "Return one case in a run, with every target's full result, whether each answer was right, and any decision.\n\nUnlike a `result` event, each result here has `request_body` and `raw`. A case the run didn't send returns 404.",
         "operationId": "get_run_case",
         "parameters": [
           {
@@ -1570,8 +1625,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           },
           {
             "name": "case_id",
@@ -1579,13 +1636,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The case's id, like `goblin-bribe`.",
               "title": "Case Id"
-            }
+            },
+            "description": "The case's id, like `goblin-bribe`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The case, the questions, and every target's full result.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1595,7 +1654,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1605,7 +1664,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1615,7 +1674,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1632,8 +1691,8 @@
         "tags": [
           "runs"
         ],
-        "summary": "Get Run Report",
-        "description": "Return a run's summary and metrics, and the same report as Markdown.",
+        "summary": "Get a run report",
+        "description": "Return a run's summary and metrics, and the same report as Markdown.\n\nWhen the run has a baseline, the Markdown also lists the answers that changed from it.",
         "operationId": "get_run_report",
         "parameters": [
           {
@@ -1642,13 +1701,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The run's summary, its metrics, and the report as Markdown.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1658,7 +1719,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1668,7 +1729,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1678,7 +1739,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1695,8 +1756,8 @@
         "tags": [
           "probes"
         ],
-        "summary": "Get Run Probes",
-        "description": "Return how often each case's answers changed under each probe variant.",
+        "summary": "Get probe results",
+        "description": "Report how often each case's answers changed under each probe, for a probe run.\n\nAn instance changed when any answer differs from the original case's answer. A failed request isn't counted. A\nsuite run returns 422.",
         "operationId": "get_run_probes",
         "parameters": [
           {
@@ -1705,13 +1766,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`.",
               "title": "Id"
-            }
+            },
+            "description": "The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "How often answers changed, by case, target, and probe.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1721,7 +1784,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1731,7 +1794,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1741,7 +1804,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1758,8 +1821,8 @@
         "tags": [
           "probes"
         ],
-        "summary": "Start Probe",
-        "description": "Start a probe run. It streams events like any run, and `GET /api/runs/{id}/probes` returns its results.",
+        "summary": "Start a probe run",
+        "description": "Start a probe run: each case as written, plus the variants each probe makes of it.\n\nThe run streams events like any run, from `GET /api/runs/{id}/events`, and a `result` event's `variant` names the\nvariant, like `option_order:2`. When it ends, `GET /api/runs/{id}/probes` reports it. A probe run sends each\nrequest once, whatever the config's repeats.",
         "operationId": "start_probe",
         "requestBody": {
           "content": {
@@ -1773,7 +1836,7 @@
         },
         "responses": {
           "202": {
-            "description": "Successful Response",
+            "description": "The new run's id. The run continues in the background.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1783,7 +1846,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1793,7 +1856,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1803,7 +1866,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1820,12 +1883,12 @@
         "tags": [
           "policies"
         ],
-        "summary": "List Policies",
-        "description": "List the policies under `suites/`.",
+        "summary": "List policies",
+        "description": "List the policies under `suites/policies/`, with each one's actions and the suites that use it.",
         "operationId": "list_policies",
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Every policy under `suites/policies/`, by name.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1835,7 +1898,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1845,7 +1908,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1855,7 +1918,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1872,8 +1935,8 @@
         "tags": [
           "policies"
         ],
-        "summary": "Get Policy",
-        "description": "Return a policy's YAML text and what it defines.",
+        "summary": "Get a policy",
+        "description": "Return a policy's YAML text, its actions and thresholds, and the suites that use it.",
         "operationId": "get_policy",
         "parameters": [
           {
@@ -1882,13 +1945,15 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The policy's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The policy's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           }
         ],
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The policy's YAML text and what it defines.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1898,7 +1963,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1908,7 +1973,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1918,7 +1983,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1933,8 +1998,8 @@
         "tags": [
           "policies"
         ],
-        "summary": "Save Policy",
-        "description": "Validate and save a policy's YAML text. An invalid policy returns 422 with every error in `details`.",
+        "summary": "Save a policy",
+        "description": "Validate a policy's YAML text and save it as sent, comments included. Creates the policy if it's new.\n\nAn invalid policy returns 422 with every error in `details`, and nothing is saved. A YAML syntax error's detail has\nthe `line` it's on, from 1.",
         "operationId": "save_policy",
         "parameters": [
           {
@@ -1943,8 +2008,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The policy's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The policy's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           }
         ],
         "requestBody": {
@@ -1959,7 +2026,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The saved policy.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1969,7 +2036,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1979,7 +2046,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1989,7 +2056,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2006,8 +2073,8 @@
         "tags": [
           "policies"
         ],
-        "summary": "Sweep Policy",
-        "description": "Sweep one threshold over a finished run's answers and return the trade-off points.",
+        "summary": "Sweep a policy threshold",
+        "description": "Measure a target's decisions in a run as one of the policy's thresholds moves from `start` to `stop`.\n\nThe sweep uses the policy as it is now, against the run's answers, so you can tune a threshold without running the\nsuite again. Each value replaces the threshold for the sweep's target, whether the policy sets a shared value or a\n`per_target` one. A threshold the policy doesn't have, a target the run didn't run, or a range of more than 1,000\npoints returns 422.",
         "operationId": "sweep_policy",
         "parameters": [
           {
@@ -2016,8 +2083,10 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "The policy's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422.",
               "title": "Name"
-            }
+            },
+            "description": "The policy's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
           }
         ],
         "requestBody": {
@@ -2032,7 +2101,7 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "The share decided, the error rate, and the cost at each value.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2042,7 +2111,7 @@
             }
           },
           "404": {
-            "description": "Not found",
+            "description": "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2052,7 +2121,7 @@
             }
           },
           "422": {
-            "description": "Invalid request",
+            "description": "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2062,7 +2131,7 @@
             }
           },
           "500": {
-            "description": "Server error",
+            "description": "`internal`: a bug in jevtester. `message` says what failed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2102,15 +2171,18 @@
         "properties": {
           "case_id": {
             "type": "string",
-            "title": "Case Id"
+            "title": "Case Id",
+            "description": "The case's id."
           },
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "question": {
             "type": "string",
-            "title": "Question"
+            "title": "Question",
+            "description": "The question's id."
           },
           "expected": {
             "anyOf": [
@@ -2120,7 +2192,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The case's expected answer. `null` when the case expects none."
           },
           "baseline_answer": {
             "anyOf": [
@@ -2130,7 +2203,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "`None` when the baseline has no answer."
           },
           "baseline_probability": {
             "anyOf": [
@@ -2141,7 +2215,8 @@
                 "type": "null"
               }
             ],
-            "title": "Baseline Probability"
+            "title": "Baseline Probability",
+            "description": "The probability of the baseline's answer."
           },
           "answer": {
             "anyOf": [
@@ -2151,7 +2226,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The answer in this run. `null` when there's none."
           },
           "probability": {
             "anyOf": [
@@ -2162,10 +2238,12 @@
                 "type": "null"
               }
             ],
-            "title": "Probability"
+            "title": "Probability",
+            "description": "The probability of this run's answer."
           },
           "status": {
-            "$ref": "#/components/schemas/ChangeStatus"
+            "$ref": "#/components/schemas/ChangeStatus",
+            "description": "`fixed` went from wrong to right, and `broken` from right to wrong. `changed` stayed right or stayed wrong, like\na score that moved within its tolerance, or the case has no expectation."
           }
         },
         "additionalProperties": false,
@@ -2214,11 +2292,13 @@
       "ApiErrorBody": {
         "properties": {
           "code": {
-            "$ref": "#/components/schemas/ApiErrorCode"
+            "$ref": "#/components/schemas/ApiErrorCode",
+            "description": "Why the request failed: `invalid_request` (422), `not_found` (404), `conflict` or `not_ready` (409), or\n`internal` (500)."
           },
           "message": {
             "type": "string",
-            "title": "Message"
+            "title": "Message",
+            "description": "What went wrong, for a person. For a validation error, it's the first error's message."
           },
           "field": {
             "anyOf": [
@@ -2229,14 +2309,16 @@
                 "type": "null"
               }
             ],
-            "title": "Field"
+            "title": "Field",
+            "description": "The dotted path of the first invalid field, like `questions.intent.choice.criteria`. `null` when the error isn't\nabout one field."
           },
           "details": {
             "items": {
               "$ref": "#/components/schemas/ErrorDetail"
             },
             "type": "array",
-            "title": "Details"
+            "title": "Details",
+            "description": "Every validation error, for a form or editor that shows them all. An error about one field lists that field here\ntoo. Empty for an error that isn't about a field."
           }
         },
         "additionalProperties": false,
@@ -2272,22 +2354,26 @@
         "properties": {
           "run_id": {
             "type": "string",
-            "title": "Run Id"
+            "title": "Run Id",
+            "description": "The run's id."
           },
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "question": {
             "type": "string",
-            "title": "Question"
+            "title": "Question",
+            "description": "The question's id."
           },
           "bins": {
             "items": {
               "$ref": "#/components/schemas/CalibrationBin"
             },
             "type": "array",
-            "title": "Bins"
+            "title": "Bins",
+            "description": "Equal-width bins from 0 to 1, lowest first."
           },
           "ece": {
             "anyOf": [
@@ -2298,11 +2384,13 @@
                 "type": "null"
               }
             ],
-            "title": "Ece"
+            "title": "Ece",
+            "description": "Expected calibration error: the count-weighted mean gap between each bin's mean prediction and its observed rate.\n`null` when there are no predictions."
           },
           "n": {
             "type": "integer",
-            "title": "N"
+            "title": "N",
+            "description": "Predictions counted."
           }
         },
         "additionalProperties": false,
@@ -2322,15 +2410,18 @@
         "properties": {
           "lower": {
             "type": "number",
-            "title": "Lower"
+            "title": "Lower",
+            "description": "The bin's lowest predicted probability."
           },
           "upper": {
             "type": "number",
-            "title": "Upper"
+            "title": "Upper",
+            "description": "The bin's highest predicted probability."
           },
           "count": {
             "type": "integer",
-            "title": "Count"
+            "title": "Count",
+            "description": "Predictions in the bin."
           },
           "mean_predicted": {
             "anyOf": [
@@ -2341,7 +2432,8 @@
                 "type": "null"
               }
             ],
-            "title": "Mean Predicted"
+            "title": "Mean Predicted",
+            "description": "`None` when the bin is empty."
           },
           "observed_rate": {
             "anyOf": [
@@ -2352,7 +2444,8 @@
                 "type": "null"
               }
             ],
-            "title": "Observed Rate"
+            "title": "Observed Rate",
+            "description": "`None` when the bin is empty."
           }
         },
         "additionalProperties": false,
@@ -2372,6 +2465,7 @@
           "probabilities": {
             "type": "boolean",
             "title": "Probabilities",
+            "description": "Whether the target returns a probability for every option. Targets without them are left out of calibration.",
             "default": true
           },
           "question_types": {
@@ -2379,11 +2473,13 @@
               "$ref": "#/components/schemas/QuestionType"
             },
             "type": "array",
-            "title": "Question Types"
+            "title": "Question Types",
+            "description": "The question types the target accepts. Preflight rejects a request with any other type."
           },
           "images": {
             "type": "boolean",
             "title": "Images",
+            "description": "Whether the target accepts images.",
             "default": false
           },
           "max_images": {
@@ -2395,7 +2491,8 @@
                 "type": "null"
               }
             ],
-            "title": "Max Images"
+            "title": "Max Images",
+            "description": "The most images one request may have. Preflight rejects a request with more."
           },
           "max_image_bytes": {
             "anyOf": [
@@ -2406,7 +2503,8 @@
                 "type": "null"
               }
             ],
-            "title": "Max Image Bytes"
+            "title": "Max Image Bytes",
+            "description": "The largest image the target accepts, in bytes. Shown with the target; preflight doesn't check it yet."
           },
           "max_total_image_bytes": {
             "anyOf": [
@@ -2417,14 +2515,16 @@
                 "type": "null"
               }
             ],
-            "title": "Max Total Image Bytes"
+            "title": "Max Total Image Bytes",
+            "description": "The largest total size of a request's images, in bytes. Shown with the target; preflight doesn't check it yet."
           },
           "image_formats": {
             "items": {
               "$ref": "#/components/schemas/ImageFormat"
             },
             "type": "array",
-            "title": "Image Formats"
+            "title": "Image Formats",
+            "description": "The image formats the target accepts. Shown with the target; preflight doesn't check it yet."
           },
           "context_window": {
             "anyOf": [
@@ -2435,11 +2535,13 @@
                 "type": "null"
               }
             ],
-            "title": "Context Window"
+            "title": "Context Window",
+            "description": "The input limit in tokens. Preflight estimates a request's tokens as its JSON size in bytes divided by 4. Over\nthe window, it warns with `state_may_truncate` when the target truncates, and otherwise rejects a request more than\n25% over."
           },
           "truncates_state": {
             "type": "boolean",
             "title": "Truncates State",
+            "description": "Whether the server cuts the state to fit the context window without an error.",
             "default": false
           },
           "max_questions": {
@@ -2451,7 +2553,8 @@
                 "type": "null"
               }
             ],
-            "title": "Max Questions"
+            "title": "Max Questions",
+            "description": "The most questions one request may have. Preflight rejects a request with more."
           },
           "min_options": {
             "anyOf": [
@@ -2462,7 +2565,8 @@
                 "type": "null"
               }
             ],
-            "title": "Min Options"
+            "title": "Min Options",
+            "description": "The fewest options or levels a question may have. Preflight rejects a request with a choice or score question\nthat has fewer."
           },
           "max_options": {
             "anyOf": [
@@ -2473,7 +2577,8 @@
                 "type": "null"
               }
             ],
-            "title": "Max Options"
+            "title": "Max Options",
+            "description": "The most options or levels a question may have. Preflight rejects a request with a choice or score question that\nhas more."
           },
           "max_request_bytes": {
             "anyOf": [
@@ -2484,12 +2589,14 @@
                 "type": "null"
               }
             ],
-            "title": "Max Request Bytes"
+            "title": "Max Request Bytes",
+            "description": "The largest request body the target accepts, in bytes of JSON. Preflight rejects a larger request."
           },
           "concurrency": {
             "type": "integer",
             "minimum": 1.0,
             "title": "Concurrency",
+            "description": "How many requests a run may have in flight to the target at once. At least 1.",
             "default": 1
           },
           "concurrency_group": {
@@ -2501,7 +2608,8 @@
                 "type": "null"
               }
             ],
-            "title": "Concurrency Group"
+            "title": "Concurrency Group",
+            "description": "Targets with the same group share one concurrency limit, like several models on one local server."
           },
           "requests_per_minute": {
             "anyOf": [
@@ -2512,7 +2620,8 @@
                 "type": "null"
               }
             ],
-            "title": "Requests Per Minute"
+            "title": "Requests Per Minute",
+            "description": "The most requests a run starts per minute on the target. A run spaces its requests to stay under it."
           },
           "tokens_per_minute": {
             "anyOf": [
@@ -2523,7 +2632,8 @@
                 "type": "null"
               }
             ],
-            "title": "Tokens Per Minute"
+            "title": "Tokens Per Minute",
+            "description": "The target's limit on tokens per minute. Shown with the target; runs don't enforce it yet."
           },
           "input_cost_per_mtok_usd": {
             "anyOf": [
@@ -2534,7 +2644,8 @@
                 "type": "null"
               }
             ],
-            "title": "Input Cost Per Mtok Usd"
+            "title": "Input Cost Per Mtok Usd",
+            "description": "The cost of one million input tokens, in US dollars. Output tokens are free on every current target. `None`\nleaves each result's `cost_usd` unknown."
           }
         },
         "additionalProperties": false,
@@ -2567,24 +2678,28 @@
           "id": {
             "type": "string",
             "minLength": 1,
-            "title": "Id"
+            "title": "Id",
+            "description": "The case's id. It must be unique in the suite."
           },
           "state": {
-            "$ref": "#/components/schemas/State"
+            "$ref": "#/components/schemas/State",
+            "description": "What the decision model reads: text, a JSON object, or a JSON array."
           },
           "images": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Images"
+            "title": "Images",
+            "description": "Paths of image files sent with the state."
           },
           "expected": {
             "additionalProperties": {
               "$ref": "#/components/schemas/Expectation-Input"
             },
             "type": "object",
-            "title": "Expected"
+            "title": "Expected",
+            "description": "Expected answers keyed by question id."
           },
           "expected_action": {
             "anyOf": [
@@ -2595,17 +2710,20 @@
                 "type": "null"
               }
             ],
-            "title": "Expected Action"
+            "title": "Expected Action",
+            "description": "The action a policy should choose, for policy tests."
           },
           "tags": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Tags"
+            "title": "Tags",
+            "description": "Labels for grouping cases."
           },
           "provenance": {
             "$ref": "#/components/schemas/Provenance",
+            "description": "Who wrote the case: `human`, or `claude-draft`. Runs and evaluation skip `claude-draft` cases until a person\nchanges them to `human`.",
             "default": "human"
           }
         },
@@ -2623,24 +2741,28 @@
           "id": {
             "type": "string",
             "minLength": 1,
-            "title": "Id"
+            "title": "Id",
+            "description": "The case's id. It must be unique in the suite."
           },
           "state": {
-            "$ref": "#/components/schemas/State"
+            "$ref": "#/components/schemas/State",
+            "description": "What the decision model reads: text, a JSON object, or a JSON array."
           },
           "images": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Images"
+            "title": "Images",
+            "description": "Paths of image files sent with the state."
           },
           "expected": {
             "additionalProperties": {
               "$ref": "#/components/schemas/Expectation-Output"
             },
             "type": "object",
-            "title": "Expected"
+            "title": "Expected",
+            "description": "Expected answers keyed by question id."
           },
           "expected_action": {
             "anyOf": [
@@ -2651,17 +2773,20 @@
                 "type": "null"
               }
             ],
-            "title": "Expected Action"
+            "title": "Expected Action",
+            "description": "The action a policy should choose, for policy tests."
           },
           "tags": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Tags"
+            "title": "Tags",
+            "description": "Labels for grouping cases."
           },
           "provenance": {
             "$ref": "#/components/schemas/Provenance",
+            "description": "Who wrote the case: `human`, or `claude-draft`. Runs and evaluation skip `claude-draft` cases until a person\nchanges them to `human`.",
             "default": "human"
           }
         },
@@ -2683,14 +2808,17 @@
         "properties": {
           "suite": {
             "type": "string",
-            "title": "Suite"
+            "title": "Suite",
+            "description": "The suite's name."
           },
           "case": {
-            "$ref": "#/components/schemas/Case-Output"
+            "$ref": "#/components/schemas/Case-Output",
+            "description": "The case as saved."
           },
           "case_count": {
             "type": "integer",
-            "title": "Case Count"
+            "title": "Case Count",
+            "description": "The suite's case count after the save. Claude drafts aren't included."
           }
         },
         "additionalProperties": false,
@@ -2707,11 +2835,13 @@
         "properties": {
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "repeat": {
             "type": "integer",
-            "title": "Repeat"
+            "title": "Repeat",
+            "description": "The repeat index, from 0."
           },
           "variant": {
             "anyOf": [
@@ -2722,11 +2852,13 @@
                 "type": "null"
               }
             ],
-            "title": "Variant"
+            "title": "Variant",
+            "description": "The probe variant id, like `option_order:2`. `null` for the original case."
           },
           "cached": {
             "type": "boolean",
-            "title": "Cached"
+            "title": "Cached",
+            "description": "Whether the result came from the cache."
           },
           "correct": {
             "additionalProperties": {
@@ -2740,7 +2872,8 @@
               ]
             },
             "type": "object",
-            "title": "Correct"
+            "title": "Correct",
+            "description": "Whether each answer meets the case's expectation, keyed by question id. `None` without an expectation."
           },
           "decision": {
             "anyOf": [
@@ -2750,10 +2883,12 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The suite policy's decision from these answers. `None` without a policy, or when the target failed."
           },
           "result": {
-            "$ref": "#/components/schemas/TargetResult"
+            "$ref": "#/components/schemas/TargetResult",
+            "description": "The full result, with `request_body` and `raw`."
           }
         },
         "additionalProperties": false,
@@ -2782,19 +2917,23 @@
         "properties": {
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "fixed": {
             "type": "integer",
-            "title": "Fixed"
+            "title": "Fixed",
+            "description": "Answers that went from wrong to right."
           },
           "broken": {
             "type": "integer",
-            "title": "Broken"
+            "title": "Broken",
+            "description": "Answers that went from right to wrong."
           },
           "changed": {
             "type": "integer",
-            "title": "Changed"
+            "title": "Changed",
+            "description": "Answers that changed and stayed right or stayed wrong."
           },
           "mcnemar_p": {
             "anyOf": [
@@ -2805,7 +2944,8 @@
                 "type": "null"
               }
             ],
-            "title": "Mcnemar P"
+            "title": "Mcnemar P",
+            "description": "The exact two-sided p-value. `None` when nothing was fixed or broken."
           }
         },
         "additionalProperties": false,
@@ -2830,25 +2970,29 @@
           },
           "choice": {
             "type": "string",
-            "title": "Choice"
+            "title": "Choice",
+            "description": "The option the server chose."
           },
           "probabilities": {
             "additionalProperties": {
               "type": "number"
             },
             "type": "object",
-            "title": "Probabilities"
+            "title": "Probabilities",
+            "description": "The probability of each option, in the question's option order. An option the server sent no probability\nfor is left out, with a `missing_probability` warning."
           },
           "unknown_probabilities": {
             "additionalProperties": {
               "type": "number"
             },
             "type": "object",
-            "title": "Unknown Probabilities"
+            "title": "Unknown Probabilities",
+            "description": "Probabilities the server sent for options the question doesn't have, with an `unknown_option` warning."
           },
           "confidence": {
             "type": "number",
-            "title": "Confidence"
+            "title": "Confidence",
+            "description": "`(p_max - 1/n) / (1 - 1/n)` over the question's `n` options, computed by jevtester."
           },
           "server_confidence": {
             "anyOf": [
@@ -2859,7 +3003,8 @@
                 "type": "null"
               }
             ],
-            "title": "Server Confidence"
+            "title": "Server Confidence",
+            "description": "The server's confidence, when it sends one."
           }
         },
         "additionalProperties": false,
@@ -2885,7 +3030,8 @@
           },
           "instructions": {
             "type": "string",
-            "title": "Instructions"
+            "title": "Instructions",
+            "description": "The question. The model sees this text and not the question's id."
           },
           "criteria": {
             "additionalProperties": {
@@ -2893,7 +3039,8 @@
             },
             "type": "object",
             "minProperties": 2,
-            "title": "Criteria"
+            "title": "Criteria",
+            "description": "Option names mapped to descriptions, in the order sent to the model."
           }
         },
         "additionalProperties": false,
@@ -2915,7 +3062,8 @@
           },
           "instructions": {
             "type": "string",
-            "title": "Instructions"
+            "title": "Instructions",
+            "description": "The question. The model sees this text and not the question's id."
           },
           "criteria": {
             "additionalProperties": {
@@ -2923,7 +3071,8 @@
             },
             "type": "object",
             "minProperties": 2,
-            "title": "Criteria"
+            "title": "Criteria",
+            "description": "Option names mapped to descriptions, in the order sent to the model."
           }
         },
         "additionalProperties": false,
@@ -2940,22 +3089,26 @@
         "properties": {
           "run_id": {
             "type": "string",
-            "title": "Run Id"
+            "title": "Run Id",
+            "description": "The run's id."
           },
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "question": {
             "type": "string",
-            "title": "Question"
+            "title": "Question",
+            "description": "The choice question's id."
           },
           "options": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Options"
+            "title": "Options",
+            "description": "Row and column labels: the question's options in order, then any unknown options the target answered."
           },
           "counts": {
             "items": {
@@ -2965,15 +3118,18 @@
               "type": "array"
             },
             "type": "array",
-            "title": "Counts"
+            "title": "Counts",
+            "description": "`counts[i][j]` is the number of cases that expected `options[i]` and got `options[j]`."
           },
           "correct": {
             "type": "integer",
-            "title": "Correct"
+            "title": "Correct",
+            "description": "Cases where the target chose the expected option: the sum of the diagonal."
           },
           "total": {
             "type": "integer",
-            "title": "Total"
+            "title": "Total",
+            "description": "Cases counted: those that expect an option and have the target's choice."
           },
           "recall": {
             "items": {
@@ -2987,7 +3143,8 @@
               ]
             },
             "type": "array",
-            "title": "Recall"
+            "title": "Recall",
+            "description": "Recall for each option. `None` for an option no case expected."
           }
         },
         "additionalProperties": false,
@@ -3008,7 +3165,8 @@
       "DecideBody": {
         "properties": {
           "state": {
-            "$ref": "#/components/schemas/State"
+            "$ref": "#/components/schemas/State",
+            "description": "What the decision model reads: text, a JSON object, or a JSON array."
           },
           "questions": {
             "additionalProperties": {
@@ -3016,21 +3174,24 @@
             },
             "type": "object",
             "minProperties": 1,
-            "title": "Questions"
+            "title": "Questions",
+            "description": "Questions keyed by the id each answer comes back under."
           },
           "images": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Images"
+            "title": "Images",
+            "description": "Paths of image files sent with the state."
           },
           "targets": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Targets"
+            "title": "Targets",
+            "description": "Target names. Empty means the config's default targets."
           },
           "timeout_s": {
             "anyOf": [
@@ -3042,7 +3203,8 @@
                 "type": "null"
               }
             ],
-            "title": "Timeout S"
+            "title": "Timeout S",
+            "description": "Seconds to wait for each target. `None` uses the config's default."
           }
         },
         "additionalProperties": false,
@@ -3057,23 +3219,27 @@
       "DecideResponse": {
         "properties": {
           "request": {
-            "$ref": "#/components/schemas/DecisionRequest"
+            "$ref": "#/components/schemas/DecisionRequest",
+            "description": "The state and questions as sent, so a client can label every result from the response alone."
           },
           "question_set_version": {
             "type": "string",
-            "title": "Question Set Version"
+            "title": "Question Set Version",
+            "description": "The hash of the request's questions, as a question set with them would have."
           },
           "asked_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Asked At"
+            "title": "Asked At",
+            "description": "When jevtester sent the request."
           },
           "results": {
             "items": {
               "$ref": "#/components/schemas/TargetResult"
             },
             "type": "array",
-            "title": "Results"
+            "title": "Results",
+            "description": "One result per target, in the order the targets were named. A target that failed has `ok: false` and an\n`error`."
           }
         },
         "additionalProperties": false,
@@ -3091,7 +3257,8 @@
         "properties": {
           "n": {
             "type": "integer",
-            "title": "N"
+            "title": "N",
+            "description": "Cases with an expected action."
           },
           "accuracy": {
             "anyOf": [
@@ -3113,7 +3280,8 @@
                 "type": "null"
               }
             ],
-            "title": "Decided Share"
+            "title": "Decided Share",
+            "description": "The share of cases the policy decided without escalating."
           },
           "error_rate": {
             "anyOf": [
@@ -3124,7 +3292,8 @@
                 "type": "null"
               }
             ],
-            "title": "Error Rate"
+            "title": "Error Rate",
+            "description": "The error rate among the cases the policy decided."
           },
           "cost": {
             "anyOf": [
@@ -3135,7 +3304,8 @@
                 "type": "null"
               }
             ],
-            "title": "Cost"
+            "title": "Cost",
+            "description": "The total error cost from the policy's cost matrix. `None` when it has none."
           }
         },
         "additionalProperties": false,
@@ -3153,7 +3323,8 @@
       "DecisionRequest": {
         "properties": {
           "state": {
-            "$ref": "#/components/schemas/State"
+            "$ref": "#/components/schemas/State",
+            "description": "What the decision model reads: text, a JSON object, or a JSON array."
           },
           "questions": {
             "additionalProperties": {
@@ -3161,14 +3332,16 @@
             },
             "type": "object",
             "minProperties": 1,
-            "title": "Questions"
+            "title": "Questions",
+            "description": "Questions keyed by the id each answer comes back under."
           },
           "images": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Images"
+            "title": "Images",
+            "description": "Paths of image files sent with the state."
           }
         },
         "additionalProperties": false,
@@ -3217,11 +3390,13 @@
                 "type": "null"
               }
             ],
-            "title": "Field"
+            "title": "Field",
+            "description": "The dotted path of the field, like `questions.intent.criteria`. `None` for the whole input."
           },
           "message": {
             "type": "string",
-            "title": "Message"
+            "title": "Message",
+            "description": "What's wrong, for a person."
           },
           "line": {
             "anyOf": [
@@ -3232,7 +3407,8 @@
                 "type": "null"
               }
             ],
-            "title": "Line"
+            "title": "Line",
+            "description": "The line of a YAML document the error is on, from 1, for an editor to mark. `None` when it isn't known."
           }
         },
         "additionalProperties": false,
@@ -3262,7 +3438,8 @@
                 "type": "null"
               }
             ],
-            "title": "Answer"
+            "title": "Answer",
+            "description": "`true` or `false` for a noul, an option name for a choice, or a level index from 0 for a score. `None` expects\nnothing, so the question isn't scored for the case."
           },
           "acceptable": {
             "anyOf": [
@@ -3283,12 +3460,14 @@
                 "type": "null"
               }
             ],
-            "title": "Acceptable"
+            "title": "Acceptable",
+            "description": "Other answers that count as correct: option names for a choice, or level indexes for a score."
           },
           "tolerance": {
             "type": "integer",
             "minimum": 0.0,
             "title": "Tolerance",
+            "description": "Score levels of slack: an answer within this many levels of `answer` counts as correct. At least 0.",
             "default": 0
           }
         },
@@ -3314,7 +3493,8 @@
                 "type": "null"
               }
             ],
-            "title": "Answer"
+            "title": "Answer",
+            "description": "`true` or `false` for a noul, an option name for a choice, or a level index from 0 for a score. `None` expects\nnothing, so the question isn't scored for the case."
           },
           "acceptable": {
             "anyOf": [
@@ -3335,12 +3515,14 @@
                 "type": "null"
               }
             ],
-            "title": "Acceptable"
+            "title": "Acceptable",
+            "description": "Other answers that count as correct: option names for a choice, or level indexes for a score."
           },
           "tolerance": {
             "type": "integer",
             "minimum": 0.0,
             "title": "Tolerance",
+            "description": "Score levels of slack: an answer within this many levels of `answer` counts as correct. At least 0.",
             "default": 0
           }
         },
@@ -3373,11 +3555,13 @@
           },
           "probability": {
             "type": "number",
-            "title": "Probability"
+            "title": "Probability",
+            "description": "The probability of yes."
           },
           "confidence": {
             "type": "number",
-            "title": "Confidence"
+            "title": "Confidence",
+            "description": "`|2p - 1|`, computed by jevtester."
           },
           "server_confidence": {
             "anyOf": [
@@ -3388,7 +3572,8 @@
                 "type": "null"
               }
             ],
-            "title": "Server Confidence"
+            "title": "Server Confidence",
+            "description": "The server's confidence, when it sends one."
           }
         },
         "additionalProperties": false,
@@ -3413,7 +3598,8 @@
                 "type": "null"
               }
             ],
-            "title": "True"
+            "title": "True",
+            "description": "What counts as yes."
           },
           "false": {
             "anyOf": [
@@ -3424,7 +3610,8 @@
                 "type": "null"
               }
             ],
-            "title": "False"
+            "title": "False",
+            "description": "What counts as no."
           }
         },
         "additionalProperties": false,
@@ -3443,7 +3630,8 @@
                 "type": "null"
               }
             ],
-            "title": "True"
+            "title": "True",
+            "description": "What counts as yes."
           },
           "false": {
             "anyOf": [
@@ -3454,7 +3642,8 @@
                 "type": "null"
               }
             ],
-            "title": "False"
+            "title": "False",
+            "description": "What counts as no."
           }
         },
         "additionalProperties": false,
@@ -3476,7 +3665,8 @@
           },
           "instructions": {
             "type": "string",
-            "title": "Instructions"
+            "title": "Instructions",
+            "description": "The question. The model sees this text and not the question's id."
           },
           "criteria": {
             "anyOf": [
@@ -3486,7 +3676,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Descriptions of yes and no. Not every server accepts them."
           }
         },
         "additionalProperties": false,
@@ -3507,7 +3698,8 @@
           },
           "instructions": {
             "type": "string",
-            "title": "Instructions"
+            "title": "Instructions",
+            "description": "The question. The model sees this text and not the question's id."
           },
           "criteria": {
             "anyOf": [
@@ -3517,7 +3709,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Descriptions of yes and no. Not every server accepts them."
           }
         },
         "additionalProperties": false,
@@ -3534,7 +3727,8 @@
         "properties": {
           "key": {
             "type": "string",
-            "title": "Key"
+            "title": "Key",
+            "description": "The option name for a choice, or the level index for a score."
           },
           "status": {
             "$ref": "#/components/schemas/DiffStatus"
@@ -3548,7 +3742,8 @@
                 "type": "null"
               }
             ],
-            "title": "Before"
+            "title": "Before",
+            "description": "The option's description, or the level's text, in the older version. `null` when it was added."
           },
           "after": {
             "anyOf": [
@@ -3559,7 +3754,8 @@
                 "type": "null"
               }
             ],
-            "title": "After"
+            "title": "After",
+            "description": "The option's description, or the level's text, in the newer version. `null` when it was removed."
           }
         },
         "additionalProperties": false,
@@ -3577,7 +3773,8 @@
         "properties": {
           "yaml": {
             "type": "string",
-            "title": "Yaml"
+            "title": "Yaml",
+            "description": "The policy's YAML text. Its `name` must match the policy's name in the path. It's saved as sent, comments\nincluded, once it validates."
           }
         },
         "additionalProperties": false,
@@ -3592,14 +3789,17 @@
         "properties": {
           "action": {
             "type": "string",
-            "title": "Action"
+            "title": "Action",
+            "description": "The action, like `parley_succeeds`."
           },
           "band": {
-            "$ref": "#/components/schemas/BandLevel"
+            "$ref": "#/components/schemas/BandLevel",
+            "description": "The lowest band among the policy's banded questions: `act` when every one is at its `act` value or above,\n`confirm` when one is between `confirm` and `act`, and `escalate` below that. `act` when the policy has no\nbands."
           },
           "escalated": {
             "type": "boolean",
-            "title": "Escalated"
+            "title": "Escalated",
+            "description": "Whether the policy escalated instead of deciding, because of a band. A rule may still choose `escalate` as\nan action."
           },
           "rule": {
             "anyOf": [
@@ -3610,7 +3810,8 @@
                 "type": "null"
               }
             ],
-            "title": "Rule"
+            "title": "Rule",
+            "description": "The index of the rule that chose the action. `None` for the default action or a band escalation."
           },
           "composites": {
             "additionalProperties": {
@@ -3624,7 +3825,8 @@
               ]
             },
             "type": "object",
-            "title": "Composites"
+            "title": "Composites",
+            "description": "Each composite's value. `None` when an answer it needs is missing."
           },
           "reason": {
             "anyOf": [
@@ -3635,7 +3837,8 @@
                 "type": "null"
               }
             ],
-            "title": "Reason"
+            "title": "Reason",
+            "description": "Why the policy escalated, or that no rule matched."
           }
         },
         "additionalProperties": false,
@@ -3655,36 +3858,42 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The policy's name."
           },
           "version": {
             "type": "string",
-            "title": "Version"
+            "title": "Version",
+            "description": "The SHA-256 hash of the parsed policy. Comments and layout aren't part of it."
           },
           "yaml": {
             "type": "string",
-            "title": "Yaml"
+            "title": "Yaml",
+            "description": "The policy file's text, comments included."
           },
           "actions": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Actions"
+            "title": "Actions",
+            "description": "Every action the policy can choose, in the order it names them."
           },
           "thresholds": {
             "items": {
               "$ref": "#/components/schemas/PolicyThreshold"
             },
             "type": "array",
-            "title": "Thresholds"
+            "title": "Thresholds",
+            "description": "The policy's thresholds, in the file's order."
           },
           "suites": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Suites"
+            "title": "Suites",
+            "description": "Suites that use this policy."
           }
         },
         "additionalProperties": false,
@@ -3707,7 +3916,8 @@
               "$ref": "#/components/schemas/PolicySummary"
             },
             "type": "array",
-            "title": "Policies"
+            "title": "Policies",
+            "description": "Every policy, by name."
           }
         },
         "additionalProperties": false,
@@ -3722,25 +3932,29 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The policy's name: its file name in `suites/policies/`, without `.yaml`."
           },
           "version": {
             "type": "string",
-            "title": "Version"
+            "title": "Version",
+            "description": "The SHA-256 hash of the parsed policy. Comments and layout aren't part of it."
           },
           "actions": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Actions"
+            "title": "Actions",
+            "description": "Every action the policy can choose, in the order it names them."
           },
           "suites": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Suites"
+            "title": "Suites",
+            "description": "Suites that use this policy."
           }
         },
         "additionalProperties": false,
@@ -3758,18 +3972,21 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The threshold's name."
           },
           "value": {
             "type": "number",
-            "title": "Value"
+            "title": "Value",
+            "description": "The shared value."
           },
           "per_target": {
             "additionalProperties": {
               "type": "number"
             },
             "type": "object",
-            "title": "Per Target"
+            "title": "Per Target",
+            "description": "Values for single targets, keyed by target name. They replace the shared value for that target."
           }
         },
         "additionalProperties": false,
@@ -3786,22 +4003,27 @@
         "properties": {
           "case_id": {
             "type": "string",
-            "title": "Case Id"
+            "title": "Case Id",
+            "description": "The case's id."
           },
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "variant": {
-            "$ref": "#/components/schemas/ProbeVariant"
+            "$ref": "#/components/schemas/ProbeVariant",
+            "description": "The probe."
           },
           "instances": {
             "type": "integer",
-            "title": "Instances"
+            "title": "Instances",
+            "description": "Variant requests made from the case that got an answer, like several shuffles of option order. A failed request\nisn't counted."
           },
           "changed": {
             "type": "integer",
-            "title": "Changed"
+            "title": "Changed",
+            "description": "Instances where any answer differed from the original's."
           },
           "change_rate": {
             "anyOf": [
@@ -3812,7 +4034,8 @@
                 "type": "null"
               }
             ],
-            "title": "Change Rate"
+            "title": "Change Rate",
+            "description": "`changed / instances`."
           }
         },
         "additionalProperties": false,
@@ -3832,14 +4055,16 @@
         "properties": {
           "suite": {
             "type": "string",
-            "title": "Suite"
+            "title": "Suite",
+            "description": "The suite's name."
           },
           "targets": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Targets"
+            "title": "Targets",
+            "description": "Target names. Empty means the suite's default targets, or else the config's."
           },
           "variants": {
             "items": {
@@ -3847,7 +4072,8 @@
             },
             "type": "array",
             "minItems": 1,
-            "title": "Variants"
+            "title": "Variants",
+            "description": "The probes to run: `option_order`, `key_order`, `bare_levels`, or `pad_state`. A probe named twice runs once."
           },
           "question_set_version": {
             "anyOf": [
@@ -3858,11 +4084,13 @@
                 "type": "null"
               }
             ],
-            "title": "Question Set Version"
+            "title": "Question Set Version",
+            "description": "A question set version to run, as its hash or a prefix of 8 or more characters. `null` runs the current\nversion."
           },
           "no_cache": {
             "type": "boolean",
             "title": "No Cache",
+            "description": "Send every request, even when a cached result exists.",
             "default": false
           }
         },
@@ -3879,28 +4107,32 @@
         "properties": {
           "run_id": {
             "type": "string",
-            "title": "Run Id"
+            "title": "Run Id",
+            "description": "The probe run's id."
           },
           "variants": {
             "items": {
               "$ref": "#/components/schemas/ProbeVariant"
             },
             "type": "array",
-            "title": "Variants"
+            "title": "Variants",
+            "description": "The probes the run made."
           },
           "cells": {
             "items": {
               "$ref": "#/components/schemas/ProbeCell"
             },
             "type": "array",
-            "title": "Cells"
+            "title": "Cells",
+            "description": "One cell for each case, target, and probe that has instances."
           },
           "summary": {
             "items": {
               "$ref": "#/components/schemas/ProbeSummary"
             },
             "type": "array",
-            "title": "Summary"
+            "title": "Summary",
+            "description": "One row for each target and probe."
           }
         },
         "additionalProperties": false,
@@ -3918,14 +4150,17 @@
         "properties": {
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "variant": {
-            "$ref": "#/components/schemas/ProbeVariant"
+            "$ref": "#/components/schemas/ProbeVariant",
+            "description": "The probe."
           },
           "cases": {
             "type": "integer",
-            "title": "Cases"
+            "title": "Cases",
+            "description": "Cases with at least one instance of the probe."
           },
           "change_rate": {
             "anyOf": [
@@ -3936,7 +4171,8 @@
                 "type": "null"
               }
             ],
-            "title": "Change Rate"
+            "title": "Change Rate",
+            "description": "Changed instances divided by all instances, across every case. `null` when the probe made no instances on this\ntarget."
           }
         },
         "additionalProperties": false,
@@ -4020,7 +4256,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "The question's id."
           },
           "status": {
             "$ref": "#/components/schemas/DiffStatus"
@@ -4033,7 +4270,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The question in the older version. `null` when it was added."
           },
           "after": {
             "anyOf": [
@@ -4043,7 +4281,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "The question in the newer version. `null` when it was removed."
           },
           "changed_fields": {
             "items": {
@@ -4055,18 +4294,21 @@
               ]
             },
             "type": "array",
-            "title": "Changed Fields"
+            "title": "Changed Fields",
+            "description": "The question's fields that differ between the versions."
           },
           "options": {
             "items": {
               "$ref": "#/components/schemas/OptionDiff"
             },
             "type": "array",
-            "title": "Options"
+            "title": "Options",
+            "description": "Options or levels in the newer version's order, then removed ones."
           },
           "order_changed": {
             "type": "boolean",
-            "title": "Order Changed"
+            "title": "Order Changed",
+            "description": "Whether the options that both versions have are in a different order."
           }
         },
         "additionalProperties": false,
@@ -4087,14 +4329,17 @@
         "properties": {
           "question": {
             "type": "string",
-            "title": "Question"
+            "title": "Question",
+            "description": "The question's id."
           },
           "type": {
-            "$ref": "#/components/schemas/QuestionType"
+            "$ref": "#/components/schemas/QuestionType",
+            "description": "The question's type."
           },
           "n": {
             "type": "integer",
-            "title": "N"
+            "title": "N",
+            "description": "Answers scored against an expectation."
           },
           "accuracy": {
             "anyOf": [
@@ -4105,7 +4350,8 @@
                 "type": "null"
               }
             ],
-            "title": "Accuracy"
+            "title": "Accuracy",
+            "description": "The share of scored answers that match the expected answer, or one of the `acceptable` ones. For a score, only\nthe exact level counts. A missing answer is wrong."
           },
           "macro_f1": {
             "anyOf": [
@@ -4116,7 +4362,8 @@
                 "type": "null"
               }
             ],
-            "title": "Macro F1"
+            "title": "Macro F1",
+            "description": "Choice only: F1 averaged across options."
           },
           "mae": {
             "anyOf": [
@@ -4127,7 +4374,8 @@
                 "type": "null"
               }
             ],
-            "title": "Mae"
+            "title": "Mae",
+            "description": "Score only: mean absolute error between `score` and the expected level."
           },
           "within_tolerance": {
             "anyOf": [
@@ -4138,7 +4386,8 @@
                 "type": "null"
               }
             ],
-            "title": "Within Tolerance"
+            "title": "Within Tolerance",
+            "description": "Score only: the share of answers whose `level` is within the case's tolerance."
           },
           "brier": {
             "anyOf": [
@@ -4149,7 +4398,8 @@
                 "type": "null"
               }
             ],
-            "title": "Brier"
+            "title": "Brier",
+            "description": "Noul only."
           },
           "log_loss": {
             "anyOf": [
@@ -4160,7 +4410,8 @@
                 "type": "null"
               }
             ],
-            "title": "Log Loss"
+            "title": "Log Loss",
+            "description": "Noul only."
           },
           "auroc": {
             "anyOf": [
@@ -4171,7 +4422,8 @@
                 "type": "null"
               }
             ],
-            "title": "Auroc"
+            "title": "Auroc",
+            "description": "Noul only. `None` when the cases are all yes or all no."
           },
           "ece": {
             "anyOf": [
@@ -4182,7 +4434,8 @@
                 "type": "null"
               }
             ],
-            "title": "Ece"
+            "title": "Ece",
+            "description": "Expected calibration error. `None` for a target without probabilities."
           },
           "abstention_rate": {
             "anyOf": [
@@ -4193,7 +4446,8 @@
                 "type": "null"
               }
             ],
-            "title": "Abstention Rate"
+            "title": "Abstention Rate",
+            "description": "Choice only: how often the target chose the question's abstention option. `None` when it has none."
           },
           "consistency": {
             "anyOf": [
@@ -4204,7 +4458,8 @@
                 "type": "null"
               }
             ],
-            "title": "Consistency"
+            "title": "Consistency",
+            "description": "The share of cases whose answer was the same in every repeat. `None` with one repeat."
           }
         },
         "additionalProperties": false,
@@ -4231,7 +4486,8 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The question set's name. It must match the file name without `.yaml`."
           },
           "questions": {
             "additionalProperties": {
@@ -4239,7 +4495,8 @@
             },
             "type": "object",
             "minProperties": 1,
-            "title": "Questions"
+            "title": "Questions",
+            "description": "Questions keyed by the id each answer comes back under."
           },
           "version": {
             "type": "string",
@@ -4266,7 +4523,8 @@
             },
             "type": "object",
             "minProperties": 1,
-            "title": "Questions"
+            "title": "Questions",
+            "description": "The questions, keyed by the id each answer comes back under. They replace every question in the set."
           }
         },
         "additionalProperties": false,
@@ -4280,21 +4538,24 @@
       "QuestionSetDetail": {
         "properties": {
           "question_set": {
-            "$ref": "#/components/schemas/QuestionSet"
+            "$ref": "#/components/schemas/QuestionSet",
+            "description": "The question set as its file has it now, with its `version`."
           },
           "suites": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Suites"
+            "title": "Suites",
+            "description": "Suites that use this question set."
           },
           "checks": {
             "items": {
               "$ref": "#/components/schemas/WordingCheck"
             },
             "type": "array",
-            "title": "Checks"
+            "title": "Checks",
+            "description": "Question-wording findings for the questions."
           }
         },
         "additionalProperties": false,
@@ -4311,22 +4572,26 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The question set's name."
           },
           "from_version": {
             "type": "string",
-            "title": "From Version"
+            "title": "From Version",
+            "description": "The older version's full hash."
           },
           "to_version": {
             "type": "string",
-            "title": "To Version"
+            "title": "To Version",
+            "description": "The newer version's full hash."
           },
           "questions": {
             "items": {
               "$ref": "#/components/schemas/QuestionDiff"
             },
             "type": "array",
-            "title": "Questions"
+            "title": "Questions",
+            "description": "How each question changed."
           }
         },
         "additionalProperties": false,
@@ -4347,7 +4612,8 @@
               "$ref": "#/components/schemas/QuestionSetSummary"
             },
             "type": "array",
-            "title": "Question Sets"
+            "title": "Question Sets",
+            "description": "Every question set, by name."
           }
         },
         "additionalProperties": false,
@@ -4362,22 +4628,26 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The question set's name: its file name in `suites/question-sets/`, without `.yaml`."
           },
           "version": {
             "type": "string",
-            "title": "Version"
+            "title": "Version",
+            "description": "The current version: the SHA-256 hash of the questions."
           },
           "question_count": {
             "type": "integer",
-            "title": "Question Count"
+            "title": "Question Count",
+            "description": "The number of questions in the current version."
           },
           "suites": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Suites"
+            "title": "Suites",
+            "description": "Suites that use this question set."
           },
           "updated_at": {
             "anyOf": [
@@ -4389,7 +4659,8 @@
                 "type": "null"
               }
             ],
-            "title": "Updated At"
+            "title": "Updated At",
+            "description": "When the current version was first seen."
           }
         },
         "additionalProperties": false,
@@ -4408,24 +4679,29 @@
         "properties": {
           "version": {
             "type": "string",
-            "title": "Version"
+            "title": "Version",
+            "description": "The version's SHA-256 hash."
           },
           "first_seen": {
             "type": "string",
             "format": "date-time",
-            "title": "First Seen"
+            "title": "First Seen",
+            "description": "When jevtester first saw this version: when a suite or question set was read or saved, or when a run used it."
           },
           "question_count": {
             "type": "integer",
-            "title": "Question Count"
+            "title": "Question Count",
+            "description": "The number of questions in this version."
           },
           "run_count": {
             "type": "integer",
-            "title": "Run Count"
+            "title": "Run Count",
+            "description": "Runs that used this version."
           },
           "current": {
             "type": "boolean",
-            "title": "Current"
+            "title": "Current",
+            "description": "Whether this is the version in the YAML file now."
           }
         },
         "additionalProperties": false,
@@ -4444,14 +4720,16 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The question set's name."
           },
           "versions": {
             "items": {
               "$ref": "#/components/schemas/QuestionSetVersion"
             },
             "type": "array",
-            "title": "Versions"
+            "title": "Versions",
+            "description": "Every version jevtester has seen, newest first."
           }
         },
         "additionalProperties": false,
@@ -4475,11 +4753,13 @@
         "properties": {
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "question": {
             "type": "string",
-            "title": "Question"
+            "title": "Question",
+            "description": "The question's id."
           },
           "metric": {
             "type": "string",
@@ -4487,19 +4767,23 @@
               "accuracy",
               "within_tolerance"
             ],
-            "title": "Metric"
+            "title": "Metric",
+            "description": "`within_tolerance` for a score question, or `accuracy` for any other."
           },
           "baseline": {
             "type": "number",
-            "title": "Baseline"
+            "title": "Baseline",
+            "description": "The metric in the baseline run."
           },
           "value": {
             "type": "number",
-            "title": "Value"
+            "title": "Value",
+            "description": "The metric in this run."
           },
           "drop": {
             "type": "number",
-            "title": "Drop"
+            "title": "Drop",
+            "description": "`baseline - value`."
           }
         },
         "additionalProperties": false,
@@ -4518,11 +4802,13 @@
       "ResultError": {
         "properties": {
           "code": {
-            "$ref": "#/components/schemas/ErrorCode"
+            "$ref": "#/components/schemas/ErrorCode",
+            "description": "Why the target returned no answers: `not_ready`, `preflight`, `auth`, `rate_limited`, `bad_request`,\n`request_too_large`, `server_error`, `timeout`, `connection`, `invalid_response`, or `cancelled`."
           },
           "message": {
             "type": "string",
-            "title": "Message"
+            "title": "Message",
+            "description": "What went wrong, for a person."
           },
           "status": {
             "anyOf": [
@@ -4533,7 +4819,8 @@
                 "type": "null"
               }
             ],
-            "title": "Status"
+            "title": "Status",
+            "description": "The HTTP status, when the server sent one."
           }
         },
         "additionalProperties": false,
@@ -4549,11 +4836,13 @@
       "ResultWarning": {
         "properties": {
           "code": {
-            "$ref": "#/components/schemas/WarningCode"
+            "$ref": "#/components/schemas/WarningCode",
+            "description": "Why the result has a warning: `missing_answer`, `invalid_answer`, `unknown_option`, `missing_probability`,\n`unexpected_answer`, `strict_parse_failed`, `truncation_on`, or `state_may_truncate`."
           },
           "message": {
             "type": "string",
-            "title": "Message"
+            "title": "Message",
+            "description": "What the warning is about, for a person."
           },
           "question": {
             "anyOf": [
@@ -4564,7 +4853,8 @@
                 "type": "null"
               }
             ],
-            "title": "Question"
+            "title": "Question",
+            "description": "The question id the warning is about, if it's about one."
           }
         },
         "additionalProperties": false,
@@ -4581,24 +4871,28 @@
         "properties": {
           "run_id": {
             "type": "string",
-            "title": "Run Id"
+            "title": "Run Id",
+            "description": "The run's id."
           },
           "case": {
-            "$ref": "#/components/schemas/Case-Output"
+            "$ref": "#/components/schemas/Case-Output",
+            "description": "The case as the run sent it. Editing the suite later doesn't change it."
           },
           "questions": {
             "additionalProperties": {
               "$ref": "#/components/schemas/Question-Output"
             },
             "type": "object",
-            "title": "Questions"
+            "title": "Questions",
+            "description": "The questions the run asked, so the answers can be labeled."
           },
           "results": {
             "items": {
               "$ref": "#/components/schemas/CaseResult"
             },
             "type": "array",
-            "title": "Results"
+            "title": "Results",
+            "description": "Every job's result for the case: each target, repeat, and probe variant."
           }
         },
         "additionalProperties": false,
@@ -4616,25 +4910,29 @@
         "properties": {
           "run_id": {
             "type": "string",
-            "title": "Run Id"
+            "title": "Run Id",
+            "description": "The run's id."
           },
           "baseline": {
             "type": "string",
-            "title": "Baseline"
+            "title": "Baseline",
+            "description": "The baseline run's id."
           },
           "changes": {
             "items": {
               "$ref": "#/components/schemas/AnswerChange"
             },
             "type": "array",
-            "title": "Changes"
+            "title": "Changes",
+            "description": "Each answer that changed, on the first repeat of each case."
           },
           "summary": {
             "items": {
               "$ref": "#/components/schemas/ChangeSummary"
             },
             "type": "array",
-            "title": "Summary"
+            "title": "Summary",
+            "description": "One row for each target both runs ran."
           }
         },
         "additionalProperties": false,
@@ -4651,24 +4949,29 @@
       "RunComparison": {
         "properties": {
           "run_metrics": {
-            "$ref": "#/components/schemas/RunMetrics"
+            "$ref": "#/components/schemas/RunMetrics",
+            "description": "This run's metrics."
           },
           "baseline_metrics": {
-            "$ref": "#/components/schemas/RunMetrics"
+            "$ref": "#/components/schemas/RunMetrics",
+            "description": "The baseline run's metrics."
           },
           "changes": {
-            "$ref": "#/components/schemas/RunChanges"
+            "$ref": "#/components/schemas/RunChanges",
+            "description": "The answers that changed from the baseline."
           },
           "max_drop": {
             "type": "number",
-            "title": "Max Drop"
+            "title": "Max Drop",
+            "description": "The largest drop allowed in accuracy, or in within-tolerance accuracy for a score question."
           },
           "regressions": {
             "items": {
               "$ref": "#/components/schemas/Regression"
             },
             "type": "array",
-            "title": "Regressions"
+            "title": "Regressions",
+            "description": "Each target and question whose metric dropped by more than `max_drop`. Empty when none did."
           }
         },
         "additionalProperties": false,
@@ -4687,34 +4990,41 @@
         "properties": {
           "jobs": {
             "type": "integer",
-            "title": "Jobs"
+            "title": "Jobs",
+            "description": "Jobs in the run. A job is one case on one target for one repeat, or for one probe variant."
           },
           "done": {
             "type": "integer",
-            "title": "Done"
+            "title": "Done",
+            "description": "Jobs finished. `done / jobs` is the run's progress."
           },
           "sent": {
             "type": "integer",
-            "title": "Sent"
+            "title": "Sent",
+            "description": "Jobs sent that got an answer."
           },
           "cached": {
             "type": "integer",
-            "title": "Cached"
+            "title": "Cached",
+            "description": "Jobs answered from the cache."
           },
           "failed": {
             "type": "integer",
-            "title": "Failed"
+            "title": "Failed",
+            "description": "Jobs sent that failed."
           },
           "skipped": {
             "type": "integer",
-            "title": "Skipped"
+            "title": "Skipped",
+            "description": "Jobs skipped because their target was down when the run started."
           },
           "targets": {
             "items": {
               "$ref": "#/components/schemas/TargetCounts"
             },
             "type": "array",
-            "title": "Targets"
+            "title": "Targets",
+            "description": "The counts for each target, in the run's target order."
           }
         },
         "additionalProperties": false,
@@ -4735,14 +5045,16 @@
         "properties": {
           "suite": {
             "type": "string",
-            "title": "Suite"
+            "title": "Suite",
+            "description": "The suite's name."
           },
           "targets": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Targets"
+            "title": "Targets",
+            "description": "Target names. Empty means the suite's default targets, or else the config's."
           },
           "question_set_version": {
             "anyOf": [
@@ -4753,7 +5065,8 @@
                 "type": "null"
               }
             ],
-            "title": "Question Set Version"
+            "title": "Question Set Version",
+            "description": "A question set version to run, as its hash or a prefix of 8 or more characters. `null` runs the current\nversion."
           },
           "repeats": {
             "anyOf": [
@@ -4765,11 +5078,13 @@
                 "type": "null"
               }
             ],
-            "title": "Repeats"
+            "title": "Repeats",
+            "description": "Times to send each request. `None` uses the config's default."
           },
           "no_cache": {
             "type": "boolean",
             "title": "No Cache",
+            "description": "Send every request, even when a cached result exists.",
             "default": false
           },
           "baseline": {
@@ -4781,7 +5096,8 @@
                 "type": "null"
               }
             ],
-            "title": "Baseline"
+            "title": "Baseline",
+            "description": "A run to compare with. It must exist. A report of this run then includes the answers that changed from the\nbaseline."
           }
         },
         "additionalProperties": false,
@@ -4796,7 +5112,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "The run's id, like `0002`. Pass it to `GET /api/runs/{id}/events` to follow the run."
           }
         },
         "additionalProperties": false,
@@ -4821,7 +5138,8 @@
               "$ref": "#/components/schemas/RunSummary"
             },
             "type": "array",
-            "title": "Runs"
+            "title": "Runs",
+            "description": "Every run, newest first."
           }
         },
         "additionalProperties": false,
@@ -4836,21 +5154,24 @@
         "properties": {
           "run_id": {
             "type": "string",
-            "title": "Run Id"
+            "title": "Run Id",
+            "description": "The run's id."
           },
           "questions": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Questions"
+            "title": "Questions",
+            "description": "The question ids, in the question set's order."
           },
           "targets": {
             "items": {
               "$ref": "#/components/schemas/TargetMetrics"
             },
             "type": "array",
-            "title": "Targets"
+            "title": "Targets",
+            "description": "Metrics for each target, in the run's target order."
           }
         },
         "additionalProperties": false,
@@ -4866,14 +5187,17 @@
       "RunReport": {
         "properties": {
           "summary": {
-            "$ref": "#/components/schemas/RunSummary"
+            "$ref": "#/components/schemas/RunSummary",
+            "description": "The run's summary."
           },
           "metrics": {
-            "$ref": "#/components/schemas/RunMetrics"
+            "$ref": "#/components/schemas/RunMetrics",
+            "description": "The run's metrics."
           },
           "markdown": {
             "type": "string",
-            "title": "Markdown"
+            "title": "Markdown",
+            "description": "The same report as Markdown."
           }
         },
         "additionalProperties": false,
@@ -4900,22 +5224,27 @@
         "properties": {
           "id": {
             "type": "string",
-            "title": "Id"
+            "title": "Id",
+            "description": "The run's id: four or more digits, like `0002`, counting up from `0001`."
           },
           "kind": {
-            "$ref": "#/components/schemas/RunKind"
+            "$ref": "#/components/schemas/RunKind",
+            "description": "`suite` for a suite run, or `probe` for a probe run."
           },
           "suite": {
             "type": "string",
-            "title": "Suite"
+            "title": "Suite",
+            "description": "The suite's name."
           },
           "question_set": {
             "type": "string",
-            "title": "Question Set"
+            "title": "Question Set",
+            "description": "The question set's name."
           },
           "question_set_version": {
             "type": "string",
-            "title": "Question Set Version"
+            "title": "Question Set Version",
+            "description": "The full hash of the question set version the run asked."
           },
           "policy": {
             "anyOf": [
@@ -4926,7 +5255,8 @@
                 "type": "null"
               }
             ],
-            "title": "Policy"
+            "title": "Policy",
+            "description": "The suite's policy when the run started. `null` when it has none."
           },
           "policy_version": {
             "anyOf": [
@@ -4937,29 +5267,34 @@
                 "type": "null"
               }
             ],
-            "title": "Policy Version"
+            "title": "Policy Version",
+            "description": "The hash of the policy as it was when the run started. `null` without a policy."
           },
           "targets": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Targets"
+            "title": "Targets",
+            "description": "The targets the run used, in order."
           },
           "repeats": {
             "type": "integer",
-            "title": "Repeats"
+            "title": "Repeats",
+            "description": "Times each case was sent to each target. Always 1 for a probe run."
           },
           "variants": {
             "items": {
               "$ref": "#/components/schemas/ProbeVariant"
             },
             "type": "array",
-            "title": "Variants"
+            "title": "Variants",
+            "description": "The probe variants. Empty for a suite run."
           },
           "no_cache": {
             "type": "boolean",
-            "title": "No Cache"
+            "title": "No Cache",
+            "description": "Whether the run sent every request, even when a cached result existed."
           },
           "baseline": {
             "anyOf": [
@@ -4970,17 +5305,21 @@
                 "type": "null"
               }
             ],
-            "title": "Baseline"
+            "title": "Baseline",
+            "description": "The run to compare with. `null` when the run has none."
           },
           "status": {
-            "$ref": "#/components/schemas/RunStatus"
+            "$ref": "#/components/schemas/RunStatus",
+            "description": "`queued`, then `running`, then `finished`, `cancelled`, or `failed`. A run that was running when the server\nstopped becomes `failed`."
           },
           "case_count": {
             "type": "integer",
-            "title": "Case Count"
+            "title": "Case Count",
+            "description": "Cases the run sent. Claude drafts aren't included."
           },
           "counts": {
-            "$ref": "#/components/schemas/RunCounts"
+            "$ref": "#/components/schemas/RunCounts",
+            "description": "Job counts, as they stand now."
           },
           "cost_usd": {
             "anyOf": [
@@ -4991,12 +5330,14 @@
                 "type": "null"
               }
             ],
-            "title": "Cost Usd"
+            "title": "Cost Usd",
+            "description": "The total cost of sent requests. Cached results cost nothing. `None` until a result arrives from the cache or\nfrom a target whose price is known."
           },
           "created_at": {
             "type": "string",
             "format": "date-time",
-            "title": "Created At"
+            "title": "Created At",
+            "description": "When the run was queued."
           },
           "started_at": {
             "anyOf": [
@@ -5008,7 +5349,8 @@
                 "type": "null"
               }
             ],
-            "title": "Started At"
+            "title": "Started At",
+            "description": "When the run started sending. `null` while it's queued."
           },
           "finished_at": {
             "anyOf": [
@@ -5020,7 +5362,8 @@
                 "type": "null"
               }
             ],
-            "title": "Finished At"
+            "title": "Finished At",
+            "description": "When the run ended. `null` until it does."
           },
           "error": {
             "anyOf": [
@@ -5030,7 +5373,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Why the run failed, when `status` is `failed`."
           }
         },
         "additionalProperties": false,
@@ -5070,7 +5414,8 @@
           },
           "score": {
             "type": "number",
-            "title": "Score"
+            "title": "Score",
+            "description": "The probability-weighted level index. It can fall between levels."
           },
           "level": {
             "anyOf": [
@@ -5081,7 +5426,8 @@
                 "type": "null"
               }
             ],
-            "title": "Level"
+            "title": "Level",
+            "description": "The most probable level, and the lowest of any tied. Evaluation compares this level with the expected one.\n`None` when the server sent no level probabilities."
           },
           "probabilities": {
             "items": {
@@ -5095,14 +5441,16 @@
               ]
             },
             "type": "array",
-            "title": "Probabilities"
+            "title": "Probabilities",
+            "description": "The probability of each level, lowest first. `None` for a level the server sent no probability for, with a\n`missing_probability` warning."
           },
           "legend": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Legend"
+            "title": "Legend",
+            "description": "The question's level descriptions, lowest first."
           },
           "confidence": {
             "anyOf": [
@@ -5113,7 +5461,8 @@
                 "type": "null"
               }
             ],
-            "title": "Confidence"
+            "title": "Confidence",
+            "description": "Always `None`: jevtester uses the server's value for scores, since the formula isn't published."
           },
           "server_confidence": {
             "anyOf": [
@@ -5124,7 +5473,8 @@
                 "type": "null"
               }
             ],
-            "title": "Server Confidence"
+            "title": "Server Confidence",
+            "description": "The server's confidence."
           }
         },
         "additionalProperties": false,
@@ -5151,7 +5501,8 @@
           },
           "instructions": {
             "type": "string",
-            "title": "Instructions"
+            "title": "Instructions",
+            "description": "The question. The model sees this text and not the question's id."
           },
           "criteria": {
             "items": {
@@ -5159,7 +5510,8 @@
             },
             "type": "array",
             "minItems": 2,
-            "title": "Criteria"
+            "title": "Criteria",
+            "description": "One description per level, lowest first. Level `i` is `criteria[i]`."
           }
         },
         "additionalProperties": false,
@@ -5181,7 +5533,8 @@
           },
           "instructions": {
             "type": "string",
-            "title": "Instructions"
+            "title": "Instructions",
+            "description": "The question. The model sees this text and not the question's id."
           },
           "criteria": {
             "items": {
@@ -5189,7 +5542,8 @@
             },
             "type": "array",
             "minItems": 2,
-            "title": "Criteria"
+            "title": "Criteria",
+            "description": "One description per level, lowest first. Level `i` is `criteria[i]`."
           }
         },
         "additionalProperties": false,
@@ -5225,18 +5579,21 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The suite's name. It must match the file name without `.yaml`."
           },
           "question_set": {
             "type": "string",
-            "title": "Question Set"
+            "title": "Question Set",
+            "description": "The name of the question set."
           },
           "cases": {
             "items": {
               "$ref": "#/components/schemas/Case-Output"
             },
             "type": "array",
-            "title": "Cases"
+            "title": "Cases",
+            "description": "The cases, in the order a run sends them."
           },
           "policy": {
             "anyOf": [
@@ -5247,14 +5604,16 @@
                 "type": "null"
               }
             ],
-            "title": "Policy"
+            "title": "Policy",
+            "description": "The name of the policy that turns answers into actions."
           },
           "targets": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Targets"
+            "title": "Targets",
+            "description": "Target names to run when a run names none. Empty means the config's default targets."
           }
         },
         "additionalProperties": false,
@@ -5273,25 +5632,29 @@
         "properties": {
           "suite": {
             "type": "string",
-            "title": "Suite"
+            "title": "Suite",
+            "description": "The suite's name."
           },
           "valid": {
             "type": "boolean",
-            "title": "Valid"
+            "title": "Valid",
+            "description": "Whether the suite, its question set, and its policy load, and every case's expectations name real questions."
           },
           "errors": {
             "items": {
               "$ref": "#/components/schemas/ErrorDetail"
             },
             "type": "array",
-            "title": "Errors"
+            "title": "Errors",
+            "description": "Every problem that makes the suite invalid. Empty when `valid` is true."
           },
           "checks": {
             "items": {
               "$ref": "#/components/schemas/WordingCheck"
             },
             "type": "array",
-            "title": "Checks"
+            "title": "Checks",
+            "description": "Question-wording findings. Each is a prompt to look at a question, and none makes the suite invalid."
           }
         },
         "additionalProperties": false,
@@ -5308,10 +5671,12 @@
       "SuiteDetail": {
         "properties": {
           "suite": {
-            "$ref": "#/components/schemas/Suite"
+            "$ref": "#/components/schemas/Suite",
+            "description": "The suite as its file has it, with every case."
           },
           "question_set": {
-            "$ref": "#/components/schemas/QuestionSet"
+            "$ref": "#/components/schemas/QuestionSet",
+            "description": "The suite's question set as its file has it now, with its `version`."
           }
         },
         "additionalProperties": false,
@@ -5330,7 +5695,8 @@
               "$ref": "#/components/schemas/SuiteSummary"
             },
             "type": "array",
-            "title": "Suites"
+            "title": "Suites",
+            "description": "Every suite, by name."
           }
         },
         "additionalProperties": false,
@@ -5345,11 +5711,13 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The suite's name: its file name in `suites/`, without `.yaml`."
           },
           "question_set": {
             "type": "string",
-            "title": "Question Set"
+            "title": "Question Set",
+            "description": "The name of the question set the suite asks."
           },
           "question_set_version": {
             "anyOf": [
@@ -5360,7 +5728,8 @@
                 "type": "null"
               }
             ],
-            "title": "Question Set Version"
+            "title": "Question Set Version",
+            "description": "The current version of the suite's question set. `None` when the question set doesn't exist."
           },
           "policy": {
             "anyOf": [
@@ -5371,22 +5740,26 @@
                 "type": "null"
               }
             ],
-            "title": "Policy"
+            "title": "Policy",
+            "description": "The name of the suite's policy. `null` when it has none."
           },
           "targets": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Targets"
+            "title": "Targets",
+            "description": "The targets a run of the suite uses when the run names none. Empty means the config's default targets."
           },
           "case_count": {
             "type": "integer",
-            "title": "Case Count"
+            "title": "Case Count",
+            "description": "Cases that count in evaluation. Claude drafts aren't included."
           },
           "draft_count": {
             "type": "integer",
-            "title": "Draft Count"
+            "title": "Draft Count",
+            "description": "Cases with `provenance: \"claude-draft\"`."
           }
         },
         "additionalProperties": false,
@@ -5407,30 +5780,36 @@
         "properties": {
           "run_id": {
             "type": "string",
-            "title": "Run Id"
+            "title": "Run Id",
+            "description": "The id of the run whose answers the sweep measures."
           },
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "A target the run ran."
           },
           "threshold": {
             "type": "string",
-            "title": "Threshold"
+            "title": "Threshold",
+            "description": "The name of the policy threshold to move."
           },
           "start": {
             "type": "number",
             "title": "Start",
+            "description": "The first value.",
             "default": 0.0
           },
           "stop": {
             "type": "number",
             "title": "Stop",
+            "description": "The last value. The sweep includes it when `start` plus a whole number of steps reaches it.",
             "default": 1.0
           },
           "step": {
             "type": "number",
             "exclusiveMinimum": 0.0,
             "title": "Step",
+            "description": "The gap between values. A sweep has at most 1,000 points.",
             "default": 0.05
           }
         },
@@ -5448,7 +5827,8 @@
         "properties": {
           "value": {
             "type": "number",
-            "title": "Value"
+            "title": "Value",
+            "description": "The threshold's value."
           },
           "decided_share": {
             "anyOf": [
@@ -5459,7 +5839,8 @@
                 "type": "null"
               }
             ],
-            "title": "Decided Share"
+            "title": "Decided Share",
+            "description": "The share of cases the policy decided without escalating."
           },
           "error_rate": {
             "anyOf": [
@@ -5470,7 +5851,8 @@
                 "type": "null"
               }
             ],
-            "title": "Error Rate"
+            "title": "Error Rate",
+            "description": "The error rate among the cases the policy decided."
           },
           "cost": {
             "anyOf": [
@@ -5481,7 +5863,8 @@
                 "type": "null"
               }
             ],
-            "title": "Cost"
+            "title": "Cost",
+            "description": "The total error cost from the policy's cost matrix. `null` when the policy has no `costs`."
           }
         },
         "additionalProperties": false,
@@ -5499,19 +5882,23 @@
         "properties": {
           "policy": {
             "type": "string",
-            "title": "Policy"
+            "title": "Policy",
+            "description": "The policy's name."
           },
           "run_id": {
             "type": "string",
-            "title": "Run Id"
+            "title": "Run Id",
+            "description": "The run's id."
           },
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "threshold": {
             "type": "string",
-            "title": "Threshold"
+            "title": "Threshold",
+            "description": "The threshold's name."
           },
           "current": {
             "anyOf": [
@@ -5522,14 +5909,16 @@
                 "type": "null"
               }
             ],
-            "title": "Current"
+            "title": "Current",
+            "description": "The threshold's value in the policy, for this target."
           },
           "points": {
             "items": {
               "$ref": "#/components/schemas/SweepPoint"
             },
             "type": "array",
-            "title": "Points"
+            "title": "Points",
+            "description": "One point for each value, from `start` up to `stop`."
           }
         },
         "additionalProperties": false,
@@ -5549,27 +5938,33 @@
         "properties": {
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "jobs": {
             "type": "integer",
-            "title": "Jobs"
+            "title": "Jobs",
+            "description": "Jobs for this target."
           },
           "sent": {
             "type": "integer",
-            "title": "Sent"
+            "title": "Sent",
+            "description": "Jobs sent that got an answer."
           },
           "cached": {
             "type": "integer",
-            "title": "Cached"
+            "title": "Cached",
+            "description": "Jobs answered from the cache."
           },
           "failed": {
             "type": "integer",
-            "title": "Failed"
+            "title": "Failed",
+            "description": "Jobs sent that failed."
           },
           "skipped": {
             "type": "integer",
-            "title": "Skipped"
+            "title": "Skipped",
+            "description": "Jobs skipped because the target was down when the run started."
           },
           "skip_reason": {
             "anyOf": [
@@ -5580,7 +5975,8 @@
                 "type": "null"
               }
             ],
-            "title": "Skip Reason"
+            "title": "Skip Reason",
+            "description": "Why the target's jobs were skipped, like `Ollama isn't running`."
           }
         },
         "additionalProperties": false,
@@ -5601,18 +5997,22 @@
         "properties": {
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "description": "The target's id, like `decision-1@foundry`. Pass it in a request's `targets`."
           },
           "label": {
             "type": "string",
-            "title": "Label"
+            "title": "Label",
+            "description": "The name people read, like `Microsoft-Decision-1, Azure Foundry`."
           },
           "provider": {
-            "$ref": "#/components/schemas/ProviderName"
+            "$ref": "#/components/schemas/ProviderName",
+            "description": "The provider that sends the target its requests: `systemone` for System One servers (Foundry, Ollama, and the MLX\nserver), `workers-ai` for Cloudflare Workers AI, or `claude`, which isn't built yet."
           },
           "model": {
             "type": "string",
-            "title": "Model"
+            "title": "Model",
+            "description": "The model name sent in each request. On Foundry it's the deployment name."
           },
           "base_url": {
             "anyOf": [
@@ -5623,14 +6023,17 @@
                 "type": "null"
               }
             ],
-            "title": "Base Url"
+            "title": "Base Url",
+            "description": "The API root of the target's server. `null` for a target with no `base_url` in the config, like a Workers AI\ntarget."
           },
           "local": {
             "type": "boolean",
-            "title": "Local"
+            "title": "Local",
+            "description": "Whether the target runs on this machine: its `base_url` host is `localhost`, `127.0.0.1`, or `::1`. It doesn't\naffect cost, which comes from the target's `input_cost_per_mtok_usd`."
           },
           "status": {
-            "$ref": "#/components/schemas/TargetStatus"
+            "$ref": "#/components/schemas/TargetStatus",
+            "description": "The target's state after its last health check: `ready`, `warning` (ready, with `warnings`), `down` (see\n`reason`), or `unchecked` (no health check has run since the server started)."
           },
           "reason": {
             "anyOf": [
@@ -5641,7 +6044,8 @@
                 "type": "null"
               }
             ],
-            "title": "Reason"
+            "title": "Reason",
+            "description": "Why the target is down, like `Ollama isn't running`. `null` unless `status` is `down`."
           },
           "detail": {
             "anyOf": [
@@ -5652,7 +6056,8 @@
                 "type": "null"
               }
             ],
-            "title": "Detail"
+            "title": "Detail",
+            "description": "What to do about it, or more about the target's state, like `Needs 0.35.1 or later`. `null` when the health check\nhas nothing to add."
           },
           "credential": {
             "anyOf": [
@@ -5663,14 +6068,16 @@
                 "type": "null"
               }
             ],
-            "title": "Credential"
+            "title": "Credential",
+            "description": "Where the credential comes from and when it expires, like `Azure CLI, refreshes in 41 min`. `null` for a target\nwithout a credential, or before a health check."
           },
           "warnings": {
             "items": {
               "$ref": "#/components/schemas/ResultWarning"
             },
             "type": "array",
-            "title": "Warnings"
+            "title": "Warnings",
+            "description": "Warnings that apply to every request, from the target's config: `state_may_truncate` when\n`capabilities.truncates_state` is true, and `truncation_on` when the target sets `truncate = true`."
           },
           "checked_at": {
             "anyOf": [
@@ -5682,10 +6089,12 @@
                 "type": "null"
               }
             ],
-            "title": "Checked At"
+            "title": "Checked At",
+            "description": "When the target's last health check ran. `null` before the first one."
           },
           "capabilities": {
-            "$ref": "#/components/schemas/Capabilities"
+            "$ref": "#/components/schemas/Capabilities",
+            "description": "What the target accepts and returns, from the config."
           }
         },
         "additionalProperties": false,
@@ -5715,14 +6124,16 @@
               "$ref": "#/components/schemas/TargetInfo"
             },
             "type": "array",
-            "title": "Targets"
+            "title": "Targets",
+            "description": "Every target, in the config's order."
           },
           "default_targets": {
             "items": {
               "type": "string"
             },
             "type": "array",
-            "title": "Default Targets"
+            "title": "Default Targets",
+            "description": "The targets a request goes to when it names none, from the config's `defaults.targets`, in order."
           },
           "checked_at": {
             "anyOf": [
@@ -5734,7 +6145,8 @@
                 "type": "null"
               }
             ],
-            "title": "Checked At"
+            "title": "Checked At",
+            "description": "When the last health check ran. `None` before the first one."
           }
         },
         "additionalProperties": false,
@@ -5751,23 +6163,28 @@
         "properties": {
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "results": {
             "type": "integer",
-            "title": "Results"
+            "title": "Results",
+            "description": "Results for the original cases, failed ones included. Probe variants aren't counted."
           },
           "errors": {
             "type": "integer",
-            "title": "Errors"
+            "title": "Errors",
+            "description": "Results that failed."
           },
           "skipped": {
             "type": "integer",
-            "title": "Skipped"
+            "title": "Skipped",
+            "description": "Jobs skipped because the target was down when the run started."
           },
           "probabilities": {
             "type": "boolean",
-            "title": "Probabilities"
+            "title": "Probabilities",
+            "description": "Whether the target returns probabilities. Calibration metrics are `None` when it doesn't."
           },
           "latency_p50_ms": {
             "anyOf": [
@@ -5778,7 +6195,8 @@
                 "type": "null"
               }
             ],
-            "title": "Latency P50 Ms"
+            "title": "Latency P50 Ms",
+            "description": "The median latency of successful results, in milliseconds. `null` without one."
           },
           "latency_p95_ms": {
             "anyOf": [
@@ -5789,7 +6207,8 @@
                 "type": "null"
               }
             ],
-            "title": "Latency P95 Ms"
+            "title": "Latency P95 Ms",
+            "description": "The 95th percentile latency of successful results, in milliseconds. `null` without one."
           },
           "cost_usd": {
             "anyOf": [
@@ -5800,7 +6219,8 @@
                 "type": "null"
               }
             ],
-            "title": "Cost Usd"
+            "title": "Cost Usd",
+            "description": "The cost of the requests the run sent. `0` when every result came from the cache. `null` when the target's price\nis unknown."
           },
           "cost_per_1k_usd": {
             "anyOf": [
@@ -5811,14 +6231,16 @@
                 "type": "null"
               }
             ],
-            "title": "Cost Per 1K Usd"
+            "title": "Cost Per 1K Usd",
+            "description": "The cost of 1,000 requests at this run's average cost per request."
           },
           "questions": {
             "items": {
               "$ref": "#/components/schemas/QuestionMetrics"
             },
             "type": "array",
-            "title": "Questions"
+            "title": "Questions",
+            "description": "Metrics for each question, in the question set's order. Empty when the target has no results."
           },
           "decision": {
             "anyOf": [
@@ -5828,7 +6250,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "`None` when the suite has no policy."
           }
         },
         "additionalProperties": false,
@@ -5853,11 +6276,13 @@
         "properties": {
           "target": {
             "type": "string",
-            "title": "Target"
+            "title": "Target",
+            "description": "The target's name."
           },
           "ok": {
             "type": "boolean",
-            "title": "Ok"
+            "title": "Ok",
+            "description": "`True` when the target answered. Some answers may still be missing; see `warnings`."
           },
           "latency_ms": {
             "anyOf": [
@@ -5868,10 +6293,12 @@
                 "type": "null"
               }
             ],
-            "title": "Latency Ms"
+            "title": "Latency Ms",
+            "description": "Milliseconds from sending the request to receiving the response. `None` when it isn't known, like when nothing\nwas sent."
           },
           "usage": {
-            "$ref": "#/components/schemas/Usage"
+            "$ref": "#/components/schemas/Usage",
+            "description": "Token counts the server reports."
           },
           "cost_usd": {
             "anyOf": [
@@ -5882,14 +6309,16 @@
                 "type": "null"
               }
             ],
-            "title": "Cost Usd"
+            "title": "Cost Usd",
+            "description": "`None` when the target's price or token count is unknown."
           },
           "warnings": {
             "items": {
               "$ref": "#/components/schemas/ResultWarning"
             },
             "type": "array",
-            "title": "Warnings"
+            "title": "Warnings",
+            "description": "Things a person should know about the result. A warning doesn't stop the result from counting."
           },
           "error": {
             "anyOf": [
@@ -5899,20 +6328,24 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Why the target returned no answers. `None` when `ok` is `True`."
           },
           "answers": {
             "additionalProperties": {
               "$ref": "#/components/schemas/Answer"
             },
             "type": "object",
-            "title": "Answers"
+            "title": "Answers",
+            "description": "Answers keyed by question id, in the request's question order. Empty when `ok` is `False`."
           },
           "request_body": {
-            "$ref": "#/components/schemas/JsonValue"
+            "$ref": "#/components/schemas/JsonValue",
+            "description": "The exact body sent to the server. `None` when nothing was sent, and in a run's `result` events."
           },
           "raw": {
-            "$ref": "#/components/schemas/JsonValue"
+            "$ref": "#/components/schemas/JsonValue",
+            "description": "The server's response body, unchanged. For Workers AI, it's the whole Cloudflare response. `None` when no\nresponse arrived, and in a run's `result` events."
           }
         },
         "additionalProperties": false,
@@ -5952,7 +6385,8 @@
                 "type": "null"
               }
             ],
-            "title": "Input Tokens"
+            "title": "Input Tokens",
+            "description": "Input tokens the server counted. `None` when it reports none."
           },
           "output_tokens": {
             "anyOf": [
@@ -5963,7 +6397,8 @@
                 "type": "null"
               }
             ],
-            "title": "Output Tokens"
+            "title": "Output Tokens",
+            "description": "Output tokens the server counted. `None` when it reports none."
           }
         },
         "additionalProperties": false,
@@ -5992,14 +6427,17 @@
         "properties": {
           "question": {
             "type": "string",
-            "title": "Question"
+            "title": "Question",
+            "description": "The id of the question the finding is about."
           },
           "code": {
-            "$ref": "#/components/schemas/WordingCheckCode"
+            "$ref": "#/components/schemas/WordingCheckCode",
+            "description": "Which check found it: `multiple_dimensions` (more than one question mark), `degree_words` (criteria with words\nlike \"very\" or \"somewhat\"), `bare_number_levels` (score levels that are only numbers), `no_abstention` (a choice\nwith no option like `cannot_tell`), or `duplicate_options`."
           },
           "message": {
             "type": "string",
-            "title": "Message"
+            "title": "Message",
+            "description": "What the check found, for a person."
           }
         },
         "additionalProperties": false,
@@ -6029,18 +6467,22 @@
           "type": {
             "const": "cancelled",
             "default": "cancelled",
+            "description": "The event type. It matches the SSE `event` field.",
             "title": "Type",
             "type": "string"
           },
           "run_id": {
+            "description": "The run's id.",
             "title": "Run Id",
             "type": "string"
           },
           "counts": {
-            "$ref": "#/components/schemas/RunCounts"
+            "$ref": "#/components/schemas/RunCounts",
+            "description": "The run's counts when it was cancelled."
           },
           "summary": {
-            "$ref": "#/components/schemas/RunSummary"
+            "$ref": "#/components/schemas/RunSummary",
+            "description": "The run's final summary."
           }
         },
         "required": [
@@ -6059,18 +6501,22 @@
           "type": {
             "const": "finished",
             "default": "finished",
+            "description": "The event type. It matches the SSE `event` field.",
             "title": "Type",
             "type": "string"
           },
           "run_id": {
+            "description": "The run's id.",
             "title": "Run Id",
             "type": "string"
           },
           "counts": {
-            "$ref": "#/components/schemas/RunCounts"
+            "$ref": "#/components/schemas/RunCounts",
+            "description": "The run's final counts."
           },
           "summary": {
-            "$ref": "#/components/schemas/RunSummary"
+            "$ref": "#/components/schemas/RunSummary",
+            "description": "The run's final summary."
           }
         },
         "required": [
@@ -6089,18 +6535,22 @@
           "type": {
             "const": "progress",
             "default": "progress",
+            "description": "The event type. It matches the SSE `event` field.",
             "title": "Type",
             "type": "string"
           },
           "run_id": {
+            "description": "The run's id.",
             "title": "Run Id",
             "type": "string"
           },
           "status": {
-            "$ref": "#/components/schemas/RunStatus"
+            "$ref": "#/components/schemas/RunStatus",
+            "description": "The run's status."
           },
           "counts": {
-            "$ref": "#/components/schemas/RunCounts"
+            "$ref": "#/components/schemas/RunCounts",
+            "description": "The run's counts."
           }
         },
         "required": [
@@ -6119,22 +6569,27 @@
           "type": {
             "const": "result",
             "default": "result",
+            "description": "The event type. It matches the SSE `event` field.",
             "title": "Type",
             "type": "string"
           },
           "run_id": {
+            "description": "The run's id.",
             "title": "Run Id",
             "type": "string"
           },
           "case_id": {
+            "description": "The case's id.",
             "title": "Case Id",
             "type": "string"
           },
           "target": {
+            "description": "The target's name.",
             "title": "Target",
             "type": "string"
           },
           "repeat": {
+            "description": "The repeat index, from 0.",
             "title": "Repeat",
             "type": "integer"
           },
@@ -6148,17 +6603,21 @@
               }
             ],
             "default": null,
+            "description": "The probe variant id, like `option_order:2`. `None` for the original case.",
             "title": "Variant"
           },
           "cached": {
+            "description": "Whether the result came from the cache.",
             "title": "Cached",
             "type": "boolean"
           },
           "result": {
-            "$ref": "#/components/schemas/TargetResult"
+            "$ref": "#/components/schemas/TargetResult",
+            "description": "The result, with `request_body` and `raw` set to `null`. Get them from `GET /api/runs/{id}/cases/{case_id}`."
           },
           "counts": {
-            "$ref": "#/components/schemas/RunCounts"
+            "$ref": "#/components/schemas/RunCounts",
+            "description": "The run's counts after this job."
           }
         },
         "required": [
@@ -6182,21 +6641,26 @@
           "type": {
             "const": "error",
             "default": "error",
+            "description": "The event type. It matches the SSE `event` field.",
             "title": "Type",
             "type": "string"
           },
           "run_id": {
+            "description": "The run's id.",
             "title": "Run Id",
             "type": "string"
           },
           "error": {
-            "$ref": "#/components/schemas/ApiErrorBody"
+            "$ref": "#/components/schemas/ApiErrorBody",
+            "description": "Why the run failed."
           },
           "counts": {
-            "$ref": "#/components/schemas/RunCounts"
+            "$ref": "#/components/schemas/RunCounts",
+            "description": "The run's counts when it failed."
           },
           "summary": {
-            "$ref": "#/components/schemas/RunSummary"
+            "$ref": "#/components/schemas/RunSummary",
+            "description": "The run's final summary."
           }
         },
         "required": [
@@ -6211,28 +6675,33 @@
       },
       "TargetSkippedEvent": {
         "additionalProperties": false,
-        "description": "A target's jobs were skipped, because it isn't ready or a preflight check failed for every case.",
+        "description": "A target's jobs were skipped, because its health check failed when the run started.",
         "properties": {
           "type": {
             "const": "target_skipped",
             "default": "target_skipped",
+            "description": "The event type. It matches the SSE `event` field.",
             "title": "Type",
             "type": "string"
           },
           "run_id": {
+            "description": "The run's id.",
             "title": "Run Id",
             "type": "string"
           },
           "target": {
+            "description": "The target's name.",
             "title": "Target",
             "type": "string"
           },
           "reason": {
+            "description": "Why the jobs were skipped, like `Ollama isn't running`.",
             "title": "Reason",
             "type": "string"
           },
           "counts": {
-            "$ref": "#/components/schemas/RunCounts"
+            "$ref": "#/components/schemas/RunCounts",
+            "description": "The run's counts after the skip."
           }
         },
         "required": [
@@ -6279,5 +6748,35 @@
         ]
       }
     }
-  }
+  },
+  "tags": [
+    {
+      "name": "targets",
+      "description": "A target is one decision model on one runtime, like `decision-1@foundry`. The config file lists them. List them with `GET /api/targets`, and run their health checks with `POST /api/targets/check`."
+    },
+    {
+      "name": "decide",
+      "description": "Send one state and its questions to one or more targets, and get their answers in the response. A state is what the model reads: text, a JSON object, or a JSON array. Use it to try a question before you add it to a suite."
+    },
+    {
+      "name": "suites",
+      "description": "A suite is a YAML file in `suites/` with cases, the question set they're asked, an optional policy, and default targets. A case is one state with the answers and action it expects. Read suites, check them, and add cases here, then run one with `POST /api/runs`."
+    },
+    {
+      "name": "question sets",
+      "description": "A question set is a named set of questions in `suites/question-sets/`. A version is the SHA-256 hash of its questions in order, so any edit makes a new version. Read and save question sets, list their versions, and compare two versions here."
+    },
+    {
+      "name": "runs",
+      "description": "A run sends every case in a suite to each target and scores the answers. Start one with `POST /api/runs`, follow it with `GET /api/runs/{id}/events`, then read `GET /api/runs/{id}/metrics`, `GET /api/runs/{id}/report`, or `GET /api/runs/{id}/compare`. A job is one case on one target for one repeat."
+    },
+    {
+      "name": "probes",
+      "description": "A probe changes something about a case that shouldn't change the answers, like the order of a choice's options, and counts how often they change anyway. Start a probe run with `POST /api/probes`, then read `GET /api/runs/{id}/probes`."
+    },
+    {
+      "name": "policies",
+      "description": "A policy is a YAML file in `suites/policies/` that turns a result's answers into an action, like `parley_succeeds` or `escalate`. A suite gives its policy's name in `policy`, and run metrics measure the policy's decisions. Tune a threshold against a finished run with `POST /api/policies/{name}/sweep`."
+    }
+  ]
 }

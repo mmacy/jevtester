@@ -1,0 +1,5 @@
+/* The screenshots are of a dark UI and a dark terminal: frame them so they stand out on both palettes. */
+.md-typeset img[src*="images/"] {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+}

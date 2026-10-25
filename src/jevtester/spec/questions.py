@@ -67,6 +67,7 @@ class QuestionSet(Model):
     """A named set of questions. Its content hash identifies a version."""
 
     name: str
+    """The question set's name. It must match the file name without `.yaml`."""
     questions: dict[str, Question] = Field(min_length=1)
     """Questions keyed by the id each answer comes back under."""
 
@@ -92,6 +93,7 @@ class DecisionRequest(Model):
     """One request to a decision model, before a target adds its model name and settings."""
 
     state: State
+    """What the decision model reads: text, a JSON object, or a JSON array."""
     questions: dict[str, Question] = Field(min_length=1)
     """Questions keyed by the id each answer comes back under."""
     images: list[str] = Field(default_factory=list[str])
