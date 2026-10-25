@@ -166,8 +166,9 @@ export interface paths {
          * Add a case
          * @description Add a case to the end of a suite's YAML file.
          *
-         *     jevtester rewrites the file from its parsed contents, so the change shows up in `git diff` and comments in the file
-         *     are lost. A case id the suite already has returns 409, and nothing is saved.
+         *     jevtester appends the case's text after the last case and leaves the rest of the file as it is, comments included,
+         *     so the change shows up in `git diff` as added lines. A case id the suite already has returns 409, and nothing is
+         *     saved.
          */
         post: operations["add_case"];
         delete?: never;
@@ -1352,7 +1353,7 @@ export interface components {
         /** @enum {string} */
         DiffStatus: "added" | "removed" | "changed" | "unchanged";
         /** @enum {string} */
-        ErrorCode: "not_ready" | "preflight" | "auth" | "rate_limited" | "bad_request" | "request_too_large" | "server_error" | "timeout" | "connection" | "invalid_response" | "cancelled";
+        ErrorCode: "not_ready" | "preflight" | "auth" | "rate_limited" | "bad_request" | "request_too_large" | "server_error" | "timeout" | "connection" | "invalid_response";
         /**
          * ErrorDetail
          * @description One validation error.
@@ -2128,7 +2129,7 @@ export interface components {
         ResultError: {
             /**
              * @description Why the target returned no answers: `not_ready`, `preflight`, `auth`, `rate_limited`, `bad_request`,
-             *     `request_too_large`, `server_error`, `timeout`, `connection`, `invalid_response`, or `cancelled`.
+             *     `request_too_large`, `server_error`, `timeout`, `connection`, or `invalid_response`.
              */
             code: components["schemas"]["ErrorCode"];
             /**
@@ -2441,8 +2442,8 @@ export interface components {
              */
             baseline: string | null;
             /**
-             * @description `queued`, then `running`, then `finished`, `cancelled`, or `failed`. A run that was running when the server
-             *     stopped becomes `failed`.
+             * @description `queued`, then `running`, then `finished`, `cancelled`, or `failed`. A queued or running run whose jevtester
+             *     process stopped becomes `failed` when the next jevtester process starts.
              */
             status: components["schemas"]["RunStatus"];
             /**

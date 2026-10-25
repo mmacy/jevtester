@@ -23,7 +23,7 @@ For the steps to write a suite, see the [how-to guides](../how-to.md). For why q
 
 Check a suite, its question set, and its policy together with [`jevtester suite check`](cli.md#jevtester-suite-check).
 
-When jevtester writes a suite or question set, through [`jevtester case add`](cli.md#jevtester-case-add) or the HTTP API, it rewrites the file from its parsed contents, so comments are lost. It saves a policy as you wrote it, comments included.
+When jevtester adds a case to a suite, through [`jevtester case add`](cli.md#jevtester-case-add) or the HTTP API, it appends the case's text after the last case and keeps the rest of the file, comments included. When it saves a question set through the HTTP API, it rewrites the file from its parsed contents, so comments are lost. It saves a policy as you wrote it, comments included.
 
 ## Question sets
 

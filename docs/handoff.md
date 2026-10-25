@@ -162,15 +162,6 @@ npm run screenshots
 
 Then check the images and update [`docs/images/README.md`](images/README.md) if a screen changed what it shows.
 
-## Known issues
-
-These are confirmed in the code and not fixed yet:
-
-- Every CLI command and every server start marks each run recorded as `queued` or `running` as `failed`, even a run that another jevtester process is still running.
-- The CLI's suite argument drops its directory. `other/x.yaml` loads suite `x` from the config's suites directory.
-- The `cancelled` result error code is in the contract, but nothing returns it.
-- `jevtester case add` and `POST /api/suites/{name}/cases` rewrite the suite file, so they drop its YAML comments.
-
 ## Messages between the sessions
 
 The sessions are named `JEVTESTER-BACKEND` and `JEVTESTER-FRONTEND`. Use the `ListAgents` tool to find the other session by that name, and `SendMessage` to write to it. The user starts the backend session first, so the frontend session may find the contract already on `origin/main`. Send a message when:

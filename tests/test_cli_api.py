@@ -65,6 +65,7 @@ def test_serve_binds_to_this_machine(monkeypatch: pytest.MonkeyPatch, tmp_path: 
 def service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Service:
     prepared = api_fixtures.fixture_service(tmp_path)
     monkeypatch.setattr(Service, "load", classmethod(lambda cls, path=None: prepared))
+    monkeypatch.chdir(tmp_path)
     return prepared
 
 

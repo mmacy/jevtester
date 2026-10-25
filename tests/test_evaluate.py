@@ -322,8 +322,9 @@ def test_report_includes_the_changes(service: Service) -> None:
 
 
 @pytest.fixture
-def cli_service(service: Service, monkeypatch: pytest.MonkeyPatch) -> Service:
+def cli_service(service: Service, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Service:
     monkeypatch.setattr(Service, "load", classmethod(lambda cls, path=None: service))
+    monkeypatch.chdir(tmp_path)
     return service
 
 

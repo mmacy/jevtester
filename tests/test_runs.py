@@ -1,5 +1,8 @@
 import asyncio
 import json
+import subprocess
+import sys
+import textwrap
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -29,7 +32,7 @@ from jevtester.spec import (
     ScoreQuestion,
     Target,
 )
-from jevtester.store.files import SuiteFiles
+from jevtester.store.files import SuiteFiles, suite_reference
 from jevtester.store.runs import RunStore
 
 ROOT = Path(__file__).parent.parent
@@ -318,6 +321,48 @@ def test_an_interrupted_run_is_marked_failed(tmp_path: Path) -> None:
     assert summary.error.message == INTERRUPTED
 
 
+def running(run_id: str) -> RunSummary:
+    return api_fixtures.CANCELLED_RUN.model_copy(update={"id": run_id, "status": "running", "finished_at": None})
+
+
+def test_a_run_another_live_process_owns_is_left_running(tmp_path: Path) -> None:
+    owner = RunStore(tmp_path / "runs.sqlite")
+    owner.create_run(running("0001"))
+    other = RunStore(tmp_path / "runs.sqlite")
+    service = Service(CONFIG, {}, files=SuiteFiles(tmp_path), store=other, clock=lambda: NOW)
+    assert service.get_run("0001").status == "running"
+    owner.close()
+    again = Service(CONFIG, {}, files=SuiteFiles(tmp_path), store=RunStore(tmp_path / "runs.sqlite"), clock=lambda: NOW)
+    assert again.get_run("0001").status == "failed"
+
+
+def test_a_run_whose_process_crashed_is_marked_failed(tmp_path: Path) -> None:
+    script = textwrap.dedent(
+        f"""
+        import os, sys
+        from pathlib import Path
+        sys.path.insert(0, {str(Path(__file__).parent)!r})
+        import api_fixtures
+        from jevtester.store.runs import RunStore
+        store = RunStore(Path({str(tmp_path / "runs.sqlite")!r}))
+        store.create_run(api_fixtures.CANCELLED_RUN.model_copy(update={{"status": "running", "finished_at": None}}))
+        os._exit(0)
+        """
+    )
+    subprocess.run([sys.executable, "-c", script], check=True)
+    store = RunStore(tmp_path / "runs.sqlite")
+    service = Service(CONFIG, {}, files=SuiteFiles(tmp_path), store=store, clock=lambda: NOW)
+    assert service.get_run(api_fixtures.CANCELLED_RUN.id).status == "failed"
+    assert [lock.stem for lock in (tmp_path / "runs.sqlite.owners").glob("*.lock")] == [store.owner]
+
+
+def test_a_run_in_this_process_is_left_running(tmp_path: Path) -> None:
+    store = RunStore(tmp_path / "runs.sqlite")
+    store.create_run(running("0001"))
+    service = Service(CONFIG, {}, files=SuiteFiles(tmp_path), store=store, clock=lambda: NOW)
+    assert service.get_run("0001").status == "running"
+
+
 @pytest.mark.parametrize(
     ("body", "error"),
     [
@@ -362,6 +407,104 @@ def test_add_case_appends_and_rejects_a_duplicate(tmp_path: Path) -> None:
     assert service.get_suite("parley").suite.cases[-1].id == "new-case"
     with pytest.raises(ConflictError):
         service.add_case("parley", Case(id="new-case", state="Again."))
+
+
+COMMENTED_SUITE = """\
+# The parley suite, with notes for reviewers.
+name: parley
+question_set: parley   # The questions every case asks.
+policy: parley
+targets:
+- decision-1@foundry
+cases:
+# Bribes come first.
+- id: goblin-bribe
+  state:
+    party: "Three adventurers, torches lit"
+    monsters: Six goblins, weapons drawn, 40 feet away, standing in a wide ring around the stairs that lead down
+    player_says: We come in peace.
+  expected:
+    intent:
+      answer: parley   # A bribe is a parley.
+"""
+
+
+def test_add_case_keeps_the_suite_files_comments_and_formatting(tmp_path: Path) -> None:
+    service = make_service(tmp_path)
+    path = tmp_path / "suites" / "parley.yaml"
+    path.write_text(COMMENTED_SUITE)
+    service.add_case("parley", Case(id="new-case", state="Two bugbears.", tags=["new"]))
+    text = path.read_text()
+    assert text.startswith(COMMENTED_SUITE)
+    assert text[len(COMMENTED_SUITE) :] == "- id: new-case\n  state: Two bugbears.\n  tags:\n  - new\n"
+    assert [case.id for case in service.get_suite("parley").suite.cases] == ["goblin-bribe", "new-case"]
+
+
+def test_add_case_keeps_an_indented_sequence_style(tmp_path: Path) -> None:
+    service = make_service(tmp_path)
+    path = tmp_path / "suites" / "parley.yaml"
+    original = "name: parley\nquestion_set: parley\ncases:\n  - id: one  # First.\n    state: A troll.\n"
+    path.write_text(original)
+    service.add_case("parley", Case(id="two", state="An ogre."))
+    assert path.read_text() == original + "  - id: two\n    state: An ogre.\n"
+
+
+def test_add_case_to_a_suite_without_cases(tmp_path: Path) -> None:
+    service = make_service(tmp_path)
+    path = tmp_path / "suites" / "parley.yaml"
+    path.write_text("# No cases yet.\nname: parley\nquestion_set: parley\ncases: []\n")
+    service.add_case("parley", Case(id="one", state="A troll."))
+    assert (
+        path.read_text()
+        == "# No cases yet.\nname: parley\nquestion_set: parley\ncases:\n- id: one\n  state: A troll.\n"
+    )
+    path.write_text("name: parley\nquestion_set: parley\n")
+    service.add_case("parley", Case(id="one", state="A troll."))
+    assert path.read_text() == "name: parley\nquestion_set: parley\ncases:\n- id: one\n  state: A troll.\n"
+
+
+# Suite references
+
+
+def other_suites(tmp_path: Path) -> Path:
+    other = tmp_path / "other"
+    files = SuiteFiles(other)
+    files.save_question_set(api_fixtures.QUESTION_SET.model_copy(update={"name": "x"}))
+    suite = SuiteFiles(ROOT / "suites").load_suite("parley")
+    files.save_suite(
+        suite.model_copy(update={"name": "x", "question_set": "x", "policy": None, "cases": suite.cases[:2]})
+    )
+    return other
+
+
+def test_a_bare_suite_name_reads_the_suites_directory(tmp_path: Path) -> None:
+    files = SuiteFiles(tmp_path / "suites")
+    assert suite_reference("parley", files) == (files, "parley")
+
+
+@pytest.mark.parametrize("value", ["other/x.yaml", "other/x"])
+def test_a_suite_path_reads_that_file_and_its_directory(tmp_path: Path, value: str) -> None:
+    other = other_suites(tmp_path)
+    files, name = suite_reference(str(tmp_path / value), SuiteFiles(tmp_path / "suites"))
+    assert (files.root, name) == (other, "x")
+    assert files.load_question_set(files.load_suite(name).question_set).name == "x"
+
+
+def test_a_suite_file_name_reads_the_working_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    other_suites(tmp_path)
+    monkeypatch.chdir(tmp_path / "other")
+    files, name = suite_reference("x.yaml", SuiteFiles(tmp_path / "suites"))
+    assert (files.root, name) == (Path("."), "x")
+
+
+def test_a_suite_path_must_end_in_yaml(tmp_path: Path) -> None:
+    with pytest.raises(InvalidRequestError, match=r"\.yaml"):
+        suite_reference("other/x.yml", SuiteFiles(tmp_path))
+
+
+def test_a_missing_suite_path_is_not_found(tmp_path: Path) -> None:
+    with pytest.raises(NotFoundError, match=r"other/x\.yaml"):
+        suite_reference("other/x.yaml", SuiteFiles(tmp_path))
 
 
 # The diff
@@ -419,6 +562,7 @@ def test_diff_of_identical_sets_is_unchanged() -> None:
 def cli_service(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Service:
     service = make_service(tmp_path)
     monkeypatch.setattr(Service, "load", classmethod(lambda cls, path=None: service))
+    monkeypatch.chdir(tmp_path)
     return service
 
 
@@ -444,3 +588,20 @@ def test_cli_run_of_a_missing_suite_exits_with_2(cli_service: Service) -> None:
 
 def test_cli_run_exits_with_3_when_nothing_answers(cli_service: Service) -> None:
     assert cli.main(["run", "parley", "--target", WORKERS.name]) == 3
+
+
+def test_cli_commands_read_a_suite_path_from_its_own_directory(
+    cli_service: Service, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    other_suites(tmp_path)
+    assert cli.main(["suite", "check", "other/x.yaml"]) == 0
+    assert capsys.readouterr().out.startswith("Suite x is valid")
+    assert cli.main(["run", "other/x.yaml", "--target", FOUNDRY.name, "--format", "json"]) == 0
+    summary = RunSummary.model_validate(json.loads(capsys.readouterr().out))
+    assert (summary.suite, summary.question_set, summary.counts.sent) == ("x", "x", 2)
+    assert cli.main(["probe", "other/x.yaml", "--target", FOUNDRY.name, "--variant", "key_order"]) == 0
+    capsys.readouterr()
+    argv = ["case", "add", "other/x.yaml", "--id", "added", "--state", "A troll.", "--expect", "intent=parley"]
+    assert cli.main(argv) == 0
+    assert SuiteFiles(tmp_path / "other").load_suite("x").cases[-1].id == "added"
+    assert [case.id for case in SuiteFiles(tmp_path / "suites").load_suite("parley").cases][-1] != "added"

@@ -52,6 +52,7 @@ from jevtester.schemas import (
 )
 from jevtester.service import Service
 from jevtester.spec import Case, ChoiceQuestion, ConfigError, NoulQuestion, Question, ScoreQuestion
+from jevtester.store.files import suite_reference
 
 EXIT_OK = 0
 EXIT_CHECK_FAILED = 1
@@ -244,8 +245,9 @@ examples:
     run.add_argument(
         "suite",
         help=(
-            "The suite's name, like parley, or its file name, like suites/parley.yaml. jevtester reads the suite from "
-            "the config's suites directory either way."
+            "The suite's name, like parley, which jevtester reads from the config's suites directory. Or a path to "
+            "a suite file, like other/x.yaml, which jevtester reads with the question set and policy beside it, in "
+            "other/question-sets/ and other/policies/."
         ),
     )
     run.add_argument(
@@ -296,7 +298,7 @@ examples:
   jevtester probe parley
   jevtester probe parley --variant option_order --target decision-1@foundry""",
     )
-    probe.add_argument("suite", help="The suite's name, or its file name. See 'jevtester run --help'.")
+    probe.add_argument("suite", help="The suite's name, or a path to its file. See 'jevtester run --help'.")
     probe.add_argument(
         "--variant",
         action="append",
@@ -383,7 +385,7 @@ prompts to look at a question and don't make the suite invalid.
 Exits with 2 when the suite is invalid or doesn't exist.""",
         epilog="examples:\n  jevtester suite check parley",
     )
-    check.add_argument("suite", help="The suite's name, or its file name. See 'jevtester run --help'.")
+    check.add_argument("suite", help="The suite's name, or a path to its file. See 'jevtester run --help'.")
     add_format(check)
 
     policy = commands.add_parser(
@@ -435,8 +437,8 @@ examples:
         formatter_class=raw,
         help="Save a case to a suite, including one promoted from a decide result.",
         description="""\
-Add a case to the end of a suite's file. jevtester rewrites the file, so
-comments in it are lost.
+Add a case to the end of a suite's file. jevtester appends the case's text and
+leaves the rest of the file as it is, comments included.
 
 Give the state with --state, or promote a decide result with --from-decide,
 which reads the output of "jevtester decide --format json" and takes its
@@ -456,7 +458,7 @@ examples:
   jevtester case add parley --id goblin-silver --from-decide decide.json \\
       --expect-from decision-1@foundry --expect reaction=3""",
     )
-    add.add_argument("suite", help="The suite's name, or its file name. See 'jevtester run --help'.")
+    add.add_argument("suite", help="The suite's name, or a path to its file. See 'jevtester run --help'.")
     add.add_argument("--id", required=True, help="The case's id. It must be new in the suite.")
     add.add_argument(
         "--state",
@@ -668,9 +670,13 @@ def _targets(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
-def _suite_name(value: str) -> str:
-    path = Path(value)
-    return path.stem if path.suffix in (".yaml", ".yml") else value
+def _suite_name(service: Service, value: str) -> str:
+    # A suite path points the service at the file's directory, where its question set and policy are read too.
+    try:
+        service.files, name = suite_reference(value, service.files)
+    except ServiceError as error:
+        _fail(str(error))
+    return name
 
 
 def _print_run(summary: RunSummary) -> None:
@@ -702,9 +708,10 @@ async def _run_and_follow(service: Service, body: RunCreate) -> RunSummary:
 
 
 def _run(args: argparse.Namespace) -> int:
+    service = _load_service(args.config)
     try:
         body = RunCreate(
-            suite=_suite_name(args.suite),
+            suite=_suite_name(service, args.suite),
             targets=list(args.target),
             repeats=args.repeats,
             question_set_version=args.question_set_version,
@@ -713,7 +720,6 @@ def _run(args: argparse.Namespace) -> int:
         )
     except ValidationError as error:
         _fail(f"The run is invalid:\n{_describe_validation(error)}")
-    service = _load_service(args.config)
     try:
         summary = asyncio.run(_run_and_follow(service, body))
     except ServiceError as error:
@@ -758,15 +764,15 @@ async def _probe_and_follow(service: Service, body: ProbeCreate) -> ProbeReport:
 
 
 def _probe(args: argparse.Namespace) -> int:
+    service = _load_service(args.config)
     body = ProbeCreate.model_validate(
         {
-            "suite": _suite_name(args.suite),
+            "suite": _suite_name(service, args.suite),
             "targets": list(args.target),
             "variants": args.variant or DEFAULT_PROBES,
             "no_cache": args.no_cache,
         }
     )
-    service = _load_service(args.config)
     try:
         report = asyncio.run(_probe_and_follow(service, body))
     except ServiceError as error:
@@ -827,7 +833,7 @@ def _report(args: argparse.Namespace) -> int:
 def _suite_check(args: argparse.Namespace) -> int:
     service = _load_service(args.config)
     try:
-        result = service.check_suite(_suite_name(args.suite))
+        result = service.check_suite(_suite_name(service, args.suite))
     except ServiceError as error:
         _fail(str(error))
     if args.format == "json":
@@ -950,7 +956,7 @@ def _case_from_args(args: argparse.Namespace, questions: Mapping[str, Question])
 
 def _case_add(args: argparse.Namespace) -> int:
     service = _load_service(args.config)
-    name = _suite_name(args.suite)
+    name = _suite_name(service, args.suite)
     try:
         questions = service.get_suite(name).question_set.questions
         case = _case_from_args(args, questions)

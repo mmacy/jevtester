@@ -1,5 +1,6 @@
 """Suites and question sets as YAML files under `suites/`, reviewed in git."""
 
+import json
 import re
 from pathlib import Path
 from typing import Any
@@ -9,13 +10,14 @@ from pydantic import BaseModel, ValidationError
 
 from jevtester.errors import InvalidRequestError, NotFoundError
 from jevtester.schemas import ErrorDetail
-from jevtester.spec import QuestionSet, Suite
+from jevtester.spec import Case, QuestionSet, Suite
 from jevtester.spec.policy import Policy
 
 NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 """Suite, question set, and policy names: lowercase letters, digits, `-`, and `_`, so a name is a safe file name."""
 QUESTION_SETS = "question-sets"
 POLICIES = "policies"
+SUITE_SUFFIX = ".yaml"
 
 
 def check_name(name: str, kind: str) -> str:
@@ -90,8 +92,47 @@ def parse_policy(text: str, name: str) -> Policy:
     return policy
 
 
-def _dump(data: dict[str, Any]) -> str:
-    return yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=120)
+def _dump(data: dict[str, Any], indent: int = 2) -> str:
+    return yaml.safe_dump(data, sort_keys=False, allow_unicode=True, width=120, indent=indent)
+
+
+def _with_newline(text: str) -> str:
+    return text if not text or text.endswith("\n") else f"{text}\n"
+
+
+def _line_end(text: str, index: int) -> int:
+    # The start of the line after `index`. A block scalar's end already includes its newline.
+    if index > 0 and text[index - 1] == "\n":
+        return index
+    newline = text.find("\n", index)
+    return len(text) if newline < 0 else newline + 1
+
+
+def _last_end(node: yaml.Node) -> int:
+    # Where the node's last scalar or flow collection ends, before any comment or blank line that follows it.
+    match node:
+        case yaml.MappingNode(flow_style=False) if node.value:
+            return max(_last_end(value) for _, value in node.value)
+        case yaml.SequenceNode(flow_style=False) if node.value:
+            return max(_last_end(item) for item in node.value)
+        case _:
+            return node.end_mark.index
+
+
+def _mapping_indent(node: yaml.Node) -> int:
+    # How far a nested mapping is indented from its key in this case, or 2 when the case has none.
+    if isinstance(node, yaml.MappingNode):
+        for key, value in node.value:
+            if isinstance(value, yaml.MappingNode) and not value.flow_style and value.value:
+                return value.value[0][0].start_mark.column - key.start_mark.column
+    return 2
+
+
+def _block_item(data: dict[str, Any], dash: int, content: int, indent: int = 2) -> str:
+    # One block list item: `-` at column `dash`, and the mapping's keys at column `content`.
+    lines = _dump(data, indent).splitlines()
+    first = f"{' ' * dash}-{' ' * (content - dash - 1)}{lines[0]}"
+    return "".join(f"{line}\n" for line in [first, *(f"{' ' * content}{line}" for line in lines[1:])])
 
 
 class SuiteFiles:
@@ -172,6 +213,53 @@ class SuiteFiles:
         if cases is not None:
             data["cases"] = cases
         self.suite_path(suite.name).write_text(_dump(data))
+
+    def append_case(self, name: str, case: Case) -> None:
+        """Add a case to the end of a suite's `cases`, leaving the rest of the file's text as it is.
+
+        The case is inserted as text after the last case, so the file keeps its comments, quoting, and layout. A new
+        block case lines up with the cases before it.
+
+        Args:
+            name: The suite's name.
+            case: The case.
+
+        Raises:
+            InvalidRequestError: The file isn't a YAML mapping.
+        """
+        path = self.suite_path(name)
+        text = path.read_text()
+        try:
+            loader = yaml.SafeLoader(text)
+            try:
+                root = loader.get_single_node()
+            finally:
+                loader.dispose()
+        except yaml.YAMLError as error:
+            raise InvalidRequestError(f"{path.name} isn't valid YAML: {error}") from error
+        if not isinstance(root, yaml.MappingNode):
+            raise InvalidRequestError(f"{path.name} isn't a YAML mapping")
+        data = case.model_dump(mode="json", exclude_defaults=True)
+        found = next(((key, value) for key, value in root.value if key.value == "cases"), None)
+        if found is None:
+            text = _with_newline(text) + "cases:\n" + _block_item(data, 0, 2)
+        else:
+            key, cases = found
+            if isinstance(cases, yaml.SequenceNode) and cases.value and cases.flow_style:
+                at = cases.end_mark.index - 1
+                text = f"{text[:at]}, {json.dumps(data, ensure_ascii=False)}{text[at:]}"
+            elif isinstance(cases, yaml.SequenceNode) and cases.value:
+                last = cases.value[-1]
+                item = _block_item(data, cases.start_mark.column, last.start_mark.column, _mapping_indent(last))
+                at = _line_end(text, _last_end(last))
+                text = text[:at] + item + text[at:]
+            else:
+                # `cases:` with nothing, or `cases: []`, becomes a block list under the key.
+                colon = text.index(":", key.end_mark.index) + 1
+                text = text[:colon] + text[cases.end_mark.index :]
+                at = _line_end(text, colon)
+                text = text[:at] + _block_item(data, key.start_mark.column, key.start_mark.column + 2) + text[at:]
+        path.write_text(text)
 
     def list_question_sets(self) -> list[QuestionSet]:
         """Read every question set.
@@ -281,3 +369,34 @@ class SuiteFiles:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text if text.endswith("\n") else f"{text}\n")
         return policy
+
+
+def suite_reference(value: str, files: SuiteFiles) -> tuple[SuiteFiles, str]:
+    """Resolve a suite argument to the suites directory to read and the suite's name.
+
+    A bare name, like `parley`, is a suite in `files`. A path, which has a directory or ends in `.yaml`, like
+    `other/x.yaml`, `other/x`, or `x.yaml`, is that file. Its directory is then the suites directory, so the suite's
+    question set and policy are read from that directory's `question-sets/` and `policies/`.
+
+    Args:
+        value: The suite's name or file path.
+        files: The configured suites directory.
+
+    Returns:
+        The suites directory and the suite's name.
+
+    Raises:
+        InvalidRequestError: The path ends in a suffix other than `.yaml`, or its file name isn't a valid suite name.
+        NotFoundError: The path's file doesn't exist.
+    """
+    path = Path(value)
+    if path.parent == Path() and path.suffix != SUITE_SUFFIX:
+        return files, value
+    if not path.suffix:
+        path = path.with_suffix(SUITE_SUFFIX)
+    if path.suffix != SUITE_SUFFIX:
+        raise InvalidRequestError(f"A suite file ends in {SUITE_SUFFIX}, got {value}", field="suite")
+    name = check_name(path.stem, "suite")
+    if not path.is_file():
+        raise NotFoundError(f"No suite file {path}", field="suite")
+    return SuiteFiles(path.parent), name

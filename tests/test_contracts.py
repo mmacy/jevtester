@@ -424,3 +424,9 @@ def test_question_set_round_trips_with_its_version(parley_request: DecisionReque
     assert loaded == saved
     stale = {**saved.model_dump(mode="json"), "version": "stale"}
     assert QuestionSet.model_validate(stale).version == saved.version
+
+
+def test_a_result_error_has_no_cancelled_code() -> None:
+    # A cancelled run stops its jobs without a result, so no result carries a `cancelled` error.
+    with pytest.raises(ValidationError):
+        ResultError.model_validate({"code": "cancelled", "message": "The run was cancelled"})

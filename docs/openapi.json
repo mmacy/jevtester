@@ -361,7 +361,7 @@
           "suites"
         ],
         "summary": "Add a case",
-        "description": "Add a case to the end of a suite's YAML file.\n\njevtester rewrites the file from its parsed contents, so the change shows up in `git diff` and comments in the file\nare lost. A case id the suite already has returns 409, and nothing is saved.",
+        "description": "Add a case to the end of a suite's YAML file.\n\njevtester appends the case's text after the last case and leaves the rest of the file as it is, comments included,\nso the change shows up in `git diff` as added lines. A case id the suite already has returns 409, and nothing is\nsaved.",
         "operationId": "add_case",
         "parameters": [
           {
@@ -3375,8 +3375,7 @@
           "server_error",
           "timeout",
           "connection",
-          "invalid_response",
-          "cancelled"
+          "invalid_response"
         ]
       },
       "ErrorDetail": {
@@ -4803,7 +4802,7 @@
         "properties": {
           "code": {
             "$ref": "#/components/schemas/ErrorCode",
-            "description": "Why the target returned no answers: `not_ready`, `preflight`, `auth`, `rate_limited`, `bad_request`,\n`request_too_large`, `server_error`, `timeout`, `connection`, `invalid_response`, or `cancelled`."
+            "description": "Why the target returned no answers: `not_ready`, `preflight`, `auth`, `rate_limited`, `bad_request`,\n`request_too_large`, `server_error`, `timeout`, `connection`, or `invalid_response`."
           },
           "message": {
             "type": "string",
@@ -5310,7 +5309,7 @@
           },
           "status": {
             "$ref": "#/components/schemas/RunStatus",
-            "description": "`queued`, then `running`, then `finished`, `cancelled`, or `failed`. A run that was running when the server\nstopped becomes `failed`."
+            "description": "`queued`, then `running`, then `finished`, `cancelled`, or `failed`. A queued or running run whose jevtester\nprocess stopped becomes `failed` when the next jevtester process starts."
           },
           "case_count": {
             "type": "integer",
