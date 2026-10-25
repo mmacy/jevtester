@@ -16,6 +16,7 @@ from jevtester.normalize import (
 )
 from jevtester.normalize.answers import ResultError, Usage
 from jevtester.providers import RawResult, target_result
+from jevtester.service import CONFIG_ENV, config_path
 from jevtester.spec import (
     Capabilities,
     Case,
@@ -210,6 +211,27 @@ def test_config_loads_every_target() -> None:
     assert foundry.capabilities.requests_per_minute == 100
     assert config.targets["clef-flash@workers-ai"].capabilities.truncates_state
     assert set(config.defaults.targets) <= set(config.targets)
+
+
+def test_config_path_defaults_to_the_shared_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv(CONFIG_ENV, raising=False)
+    assert config_path() == Path("jevtester.toml")
+
+
+def test_config_path_prefers_a_local_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv(CONFIG_ENV, raising=False)
+    (tmp_path / "jevtester.toml").write_text("")
+    (tmp_path / "jevtester.local.toml").write_text("")
+    assert config_path() == Path("jevtester.local.toml")
+
+
+def test_config_path_env_wins_over_a_local_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "jevtester.local.toml").write_text("")
+    monkeypatch.setenv(CONFIG_ENV, "other.toml")
+    assert config_path() == Path("other.toml")
 
 
 def test_config_rejects_unknown_target_fields(tmp_path: Path) -> None:

@@ -11,3 +11,4 @@ src/jevtester/static/
 web/test-results/
 web/playwright-report/
 .playwright-cli/
+jevtester.local.toml

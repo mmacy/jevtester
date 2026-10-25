@@ -60,7 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="jevtester", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--version", action="version", version=f"jevtester {__version__}")
-    parser.add_argument("--config", type=Path, help="The config file. Defaults to $JEVTESTER_CONFIG or jevtester.toml.")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="The config file. Defaults to $JEVTESTER_CONFIG, then jevtester.local.toml, then jevtester.toml.",
+    )
     commands = parser.add_subparsers(dest="command", metavar="<command>")
 
     def add_format(command: argparse.ArgumentParser) -> None:

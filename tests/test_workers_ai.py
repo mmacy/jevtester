@@ -17,7 +17,8 @@ from jevtester.spec import DecisionRequest, load_config
 ROOT = Path(__file__).parent.parent
 CONFIG = load_config(ROOT / "jevtester.toml")
 TARGET = CONFIG.targets["clef-flash@workers-ai"]
-ACCOUNT = CONFIG.cloudflare.account_id
+ACCOUNT = "test-account"
+"""A made-up account. The shared jevtester.toml leaves `cloudflare.account_id` unset."""
 RUN_PATH = f"/client/v4/accounts/{ACCOUNT}/ai/run/@cf/cloudflare/clef-flash"
 SEARCH_PATH = f"/client/v4/accounts/{ACCOUNT}/ai/models/search"
 
@@ -248,12 +249,12 @@ def test_wrangler_that_cant_run_raises() -> None:
         asyncio.run(WranglerToken(run=run, environ={}).token())
 
 
-# Live checks, run with `uv run pytest -m live`
+# Live checks, run with `uv run pytest -m live` from the repository root. They read your jevtester.local.toml.
 
 
 @pytest.mark.live
 def test_live_workers_ai_decide() -> None:
-    service = Service.load(ROOT / "jevtester.toml")
+    service = Service.load()
     body = DecideBody(state=REQUEST.state, questions=REQUEST.questions, targets=[TARGET.name])
     result = asyncio.run(service.decide(body)).results[0]
     assert result.ok, result.error
@@ -263,7 +264,7 @@ def test_live_workers_ai_decide() -> None:
 
 @pytest.mark.live
 def test_live_workers_ai_health_check() -> None:
-    service = Service.load(ROOT / "jevtester.toml")
+    service = Service.load()
     targets = asyncio.run(service.check_targets())
     workers = [info for info in targets.targets if info.provider == "workers-ai"]
     assert [info.status for info in workers] == ["warning", "warning", "warning"], [info.reason for info in workers]

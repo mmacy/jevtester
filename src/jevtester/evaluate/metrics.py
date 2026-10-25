@@ -230,7 +230,8 @@ def question_metrics(
                 if isinstance(answer, NoulAnswer)
             ]
             if pairs:
-                metrics.brier = mean((p - y) ** 2 for p, y in pairs)
+                # Multiply instead of `** 2`, which calls the C library's pow() and can differ by an ulp per platform.
+                metrics.brier = mean((p - y) * (p - y) for p, y in pairs)
                 metrics.log_loss = mean(-math.log(min(max(p if y else 1 - p, LOG_LOSS_EPSILON), 1.0)) for p, y in pairs)
                 metrics.auroc = _auroc(pairs)
     if probabilities and isinstance(question, NoulQuestion | ChoiceQuestion):
