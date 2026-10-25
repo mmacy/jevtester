@@ -4,7 +4,7 @@ Two Claude Code sessions can build jevtester at the same time: one builds the ba
 
 ## Before you start
 
-- Copy `jevtester.toml` to `jevtester.local.toml` and set your own Foundry resource and Cloudflare account there. Git ignores the copy. See the [README](../README.md).
+- Copy `jevtester.toml` to `jevtester.local.toml` and set your own Foundry resource and Cloudflare account there. Git ignores the copy. See the [README](https://github.com/mmacy/jevtester/blob/main/README.md).
 - The Claude provider and the assist features are deferred.
 - Don't start a local model download (Ollama or MLX) without asking the user. After an MLX download finishes, delete any `__pycache__` directory in the model repository before you run `clef_mlx.py`. The plan explains why.
 
@@ -13,14 +13,14 @@ Two Claude Code sessions can build jevtester at the same time: one builds the ba
 | | Backend session | Frontend session |
 |---|---|---|
 | Builds | The library, the CLI, and the HTTP API: steps 1 through 9 of the plan's [build order](plan.md#build-order) | The web UI, from the matrix mockup |
-| Changes | `src/jevtester/`, `tests/`, `pyproject.toml`, `jevtester.toml`, `suites/`, `docs/api.md`, `docs/openapi.json`, `tests/fixtures/api/` | `web/` |
+| Changes | `src/jevtester/`, `tests/`, `pyproject.toml`, `jevtester.toml`, `suites/`, `docs/reference/http-api.md`, `docs/openapi.json`, `tests/fixtures/api/` | `web/` |
 | Doesn't change | `web/` | Everything outside `web/`. Ask the backend session instead. |
 
 `docs/plan.md` and this file belong to the user. Either session may propose a change to them in a message to the user. Neither session edits them without the user's approval.
 
 ## Git
 
-The repository is on GitHub at <https://github.com/mmacy/jevtester>, and `main` takes pull requests. [AGENTS.md](../AGENTS.md) has the pull request rules.
+The repository is on GitHub at <https://github.com/mmacy/jevtester>, and `main` takes pull requests. [AGENTS.md](https://github.com/mmacy/jevtester/blob/main/AGENTS.md) has the pull request rules.
 
 Each session works on a separate branch, in a separate worktree next to the main checkout. Cut each branch from `origin/main`:
 
@@ -45,7 +45,7 @@ Every pull request gets a review from the other session before it merges. Both s
 
 What each session checks:
 
-- **A backend pull request**, reviewed by the frontend session: the API models, `docs/openapi.json`, `docs/api.md`, and the fixtures agree with each other, and the UI can get what it needs from them. Also check the code for bugs.
+- **A backend pull request**, reviewed by the frontend session: the API models, `docs/openapi.json`, `docs/reference/http-api.md`, and the fixtures agree with each other, and the UI can get what it needs from them. Also check the code for bugs.
 - **A frontend pull request**, reviewed by the backend session: the UI calls the API the way the contract says, handles errors and targets that aren't ready, and doesn't depend on a field the contract doesn't have. Also check the code for bugs.
 
 Don't write `@` followed by a GitHub username in a pull request or a comment, since GitHub notifies that account. A pull request that changes `docs/plan.md` or `docs/handoff.md` also needs the user's approval before it merges.
@@ -56,7 +56,7 @@ Don't write `@` followed by a GitHub username in a pull request or a comment, si
 The backend session owns the contract. Write it before you implement it, so the frontend session can build against it from the start:
 
 1. Write the API's pydantic request and response models and a FastAPI app whose routes return fixtures.
-2. Export the OpenAPI document to `docs/openapi.json`, and write `docs/api.md`, which lists the endpoints and the event format.
+2. Export the OpenAPI document to `docs/openapi.json`, and write the [HTTP API reference](reference/http-api.md) (`docs/reference/http-api.md`), which lists the endpoints and the event format.
 3. Save one fixture for each response in `tests/fixtures/api/`. Use real responses where a target is available. The two verified responses in the plan are the first fixtures.
 4. Open the pull request, and merge it after the frontend session's review.
 
@@ -137,7 +137,7 @@ Follow the plan's build order, with one change: write the API contract (above) r
 
 ## Frontend session
 
-Build the UI from [`mockups/3-matrix.html`](../mockups/3-matrix.html) and the plan's [What the UI must show](plan.md#what-the-ui-must-show).
+Build the UI from [`mockups/3-matrix.html`](https://github.com/mmacy/jevtester/blob/main/mockups/3-matrix.html) and the plan's [What the UI must show](plan.md#what-the-ui-must-show).
 
 1. Before you build views, write `docs/ui-plan.md` in your worktree: the views, the components, each component's states (loading, empty, error, and a target that isn't ready), and the API calls each view makes. Send it to the user for review. Scaffolding and design tokens can go ahead while you wait.
 2. Use the stack [osr-editor](https://github.com/mmacy/osr-editor)'s frontend uses: React, TypeScript, Vite, Tailwind CSS, vitest, Playwright, prettier, and eslint. Generate API types from `docs/openapi.json` with `openapi-typescript`, and don't edit the generated file.
@@ -151,6 +151,31 @@ UI text follows two rules from the user:
 
 - Use sentence case for every label, button, card, tab, and panel.
 - Write each string as a label or a fact the person acts on. Don't add sentences that explain the UI, like "Nothing you typed is lost." A legend or an axis label explains what a color means.
+
+## Docs screenshots
+
+The screenshots in `docs/images/` come from `web/screenshots/capture.spec.ts`. It runs the UI in fixture mode with the API fixtures, as the Playwright suite does, so it needs no backend, no target, and no network. Its CLI shots also need uv. To make them again after a UI or fixture change, run this from `web/`:
+
+```sh
+npm run screenshots
+```
+
+Then check the images and update [`docs/images/README.md`](images/README.md) if a screen changed what it shows.
+
+## Known issues
+
+These are confirmed in the code and not fixed yet:
+
+- A `systemone` target without `base_url` makes every command, and `jevtester serve`, stop with a Python traceback. `SystemOneProvider` raises `ValueError` while the service builds its providers, and nothing catches it.
+- A config file that isn't valid TOML stops the command with a `tomllib.TOMLDecodeError` traceback and exit code 1, not a message and exit code 2. The CLI catches only `OSError` and `ValidationError` when it loads the config.
+- Every CLI command and every server start marks each run recorded as `queued` or `running` as `failed`, even a run that another jevtester process is still running.
+- The CLI's suite argument drops its directory. `other/x.yaml` loads suite `x` from the config's suites directory.
+- The capabilities `tokens_per_minute`, `max_image_bytes`, `max_total_image_bytes`, and `image_formats` are shown with the target but never enforced.
+- The `cancelled` result error code is in the contract, but nothing returns it.
+- The Foundry health check only gets an `az` token. It never contacts `base_url`, so the target shows `ready` even with the placeholder `example-resource` URL.
+- `jevtester serve` returns 404 at `/` until `npm run build` has run in `web/`. The server looks for the build when it starts, so it also needs a restart after the first build.
+- `jevtester case add` and `POST /api/suites/{name}/cases` rewrite the suite file, so they drop its YAML comments.
+- `jevtester.local.toml` replaces `jevtester.toml` instead of merging with it. A target added to `jevtester.toml` is missing until you copy it to your local file.
 
 ## Messages between the sessions
 

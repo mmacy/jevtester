@@ -49,3 +49,15 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npx playwright test
       - run: npm run build
+
+  docs:
+    name: Docs build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv publishes exact release tags only, so it's pinned to one.
+      - uses: astral-sh/setup-uv@v10.3.2
+        with:
+          enable-cache: true
+      - run: uv sync --locked --only-dev
+      - run: uv run --no-sync zensical build --clean

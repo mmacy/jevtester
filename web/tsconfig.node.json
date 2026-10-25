@@ -27,6 +27,8 @@
     "fixture-server.test.ts",
     "e2e",
     "playwright.serve.config.ts",
-    "e2e-serve"
+    "e2e-serve",
+    "playwright.screenshots.config.ts",
+    "screenshots"
   ]
 }
