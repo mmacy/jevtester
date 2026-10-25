@@ -460,8 +460,8 @@ class RunSummary(Model):
     baseline: str | None
     """The run to compare with. `null` when the run has none."""
     status: RunStatus
-    """`queued`, then `running`, then `finished`, `cancelled`, or `failed`. A run that was running when the server
-    stopped becomes `failed`."""
+    """`queued`, then `running`, then `finished`, `cancelled`, or `failed`. A queued or running run whose jevtester
+    process stopped becomes `failed` when the next jevtester process starts."""
     case_count: int
     """Cases the run sent. Claude drafts aren't included."""
     counts: RunCounts

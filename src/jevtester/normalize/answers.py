@@ -109,7 +109,6 @@ type ErrorCode = Literal[
     "timeout",
     "connection",
     "invalid_response",
-    "cancelled",
 ]
 """Why a target returned no answers."""
 
@@ -119,7 +118,7 @@ class ResultError(Model):
 
     code: ErrorCode
     """Why the target returned no answers: `not_ready`, `preflight`, `auth`, `rate_limited`, `bad_request`,
-    `request_too_large`, `server_error`, `timeout`, `connection`, `invalid_response`, or `cancelled`."""
+    `request_too_large`, `server_error`, `timeout`, `connection`, or `invalid_response`."""
     message: str
     """What went wrong, for a person."""
     status: int | None = None

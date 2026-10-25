@@ -300,7 +300,7 @@ uv run jevtester decide --target clef-flash@ollama --format json \
 uv run jevtester case add door --id knock --from-decide knock.json --expect-from clef-flash@ollama
 ```
 
-`case add` rewrites the suite file, so it drops any comments in it. In the web UI, **Save as case** in the **Compare** view does the same thing.
+`case add` appends the case to the end of the suite file and keeps the file's comments. In the web UI, **Save as case** in the **Compare** view does the same thing.
 
 ### Check the suite
 

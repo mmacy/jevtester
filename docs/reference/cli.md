@@ -86,7 +86,7 @@ Each command's JSON output matches a route:
 | Code | Meaning | What to do |
 |---|---|---|
 | 0 | Success. | |
-| 1 | `jevtester compare` found a regression. Also an unhandled error, which prints a Python traceback, like a config that isn't valid TOML. | Look at the regressions it printed. For a traceback, see [Known issues](../handoff.md#known-issues). |
+| 1 | `jevtester compare` found a regression. Also an unhandled error, which prints a Python traceback. | Look at the regressions it printed. A traceback is a bug in jevtester. |
 | 2 | The command line, an input, or the config is invalid, or a suite, run, policy, case, or target doesn't exist, or a case id is taken. `jevtester suite check` also returns 2 for an invalid suite. | Read the message on stderr, which starts with `jevtester:`. Fix the input before you run the command again. |
 | 3 | `jevtester decide` got no answer from any target, or `jevtester run` had jobs and got no answer for any of them. | Run `jevtester targets check` to see which targets are down and why. |
 
@@ -108,7 +108,12 @@ jevtester: No suite named nope
 
 ## Naming a suite
 
-`run`, `probe`, `suite check`, and `case add` take the suite as its name, like `parley`, or as its file name, like `suites/parley.yaml`. A value that ends in `.yaml` or `.yml` is reduced to the file name without the extension. jevtester then reads the suite from the suites directory in the config (`suites/` by default), whatever directory the value names.
+`run`, `probe`, `suite check`, and `case add` take the suite as its name or as a path to its file:
+
+- A name, like `parley`, is read from the suites directory in the config (`suites/` by default).
+- A path, which has a directory or ends in `.yaml`, like `other/x.yaml`, `other/x`, or `x.yaml`, is read from that file, relative to the working directory. The file's directory is the suites directory for that command, so the suite's question set and policy are read from `other/question-sets/` and `other/policies/`. A path that ends in another suffix, like `.yml`, is invalid.
+
+The suite's `name` must match its file name without `.yaml`, either way.
 
 ## jevtester targets list
 
@@ -314,7 +319,7 @@ jevtester case add SUITE --id ID (--state STATE | --from-decide PATH) [options]
 
 Give the state with `--state`, or promote a `decide` result with `--from-decide`, which reads the output of `jevtester decide --format json` and takes its state. `--expect-from` then takes the expected answers from one target's answers in that output. `--expect` sets single answers, and replaces an answer that `--expect-from` set.
 
-jevtester rewrites the suite file from its parsed contents, so comments in the file are lost. Run [`jevtester suite check`](#jevtester-suite-check) afterward to check the case against the question set.
+jevtester appends the case's text after the suite's last case and leaves the rest of the file as it is, comments included. Run [`jevtester suite check`](#jevtester-suite-check) afterward to check the case against the question set.
 
 | Argument or option | Description |
 |---|---|
@@ -600,7 +605,7 @@ jevtester serve [--port PORT]
 
 The server listens only on `127.0.0.1`, and runs until you stop it with Ctrl-C. Every API route is under `/api`, and the [HTTP API reference](http-api.md) describes them. The server also serves interactive API docs at `/docs`. It serves the web UI at `/`. Until the frontend is built, `/` returns a short page with the commands that build it. The [how-to guides](../how-to.md#build-the-web-ui) cover building it.
 
-The server reads the config when it starts, so a config error exits before it listens, with 2 for most errors. The server keeps health check results and runs in progress in memory. When the server, or any other jevtester command, starts, it marks every run still recorded as queued or running as `failed`, even a run that another jevtester process is still running.
+The server reads the config when it starts, so a config error exits before it listens, with 2 for most errors. The server keeps health check results and runs in progress in memory. When the server, or any other jevtester command, starts, it marks a run still recorded as queued or running as `failed` when the jevtester process that started it has stopped. A run that another live jevtester process is running stays as it is.
 
 | Option | Description |
 |---|---|

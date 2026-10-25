@@ -26,7 +26,6 @@ export const ERROR_LABELS: Record<ErrorCode, string> = {
   timeout: 'Timed out',
   connection: 'No connection',
   invalid_response: 'Invalid response',
-  cancelled: 'Cancelled',
 }
 
 /** The label for a code, or the code itself when it isn't one the contract lists. */

@@ -72,7 +72,7 @@ A run starts from `jevtester run` or `POST /api/runs`. Both call `Service.start_
 
 Events go to every subscriber. The CLI prints them to stderr. The API streams them as server-sent events from `GET /api/runs/{id}/events`. Each event contains the run's counts, so a client that reconnects needs no history.
 
-A run lives in the process that started it. Each time a `Service` is built, which happens on every CLI command and every server start, it marks every run recorded as `queued` or `running` as `failed`. This catches a run whose server stopped, but it also fails a run that another process is still running. See [Known issues](handoff.md#known-issues).
+A run lives in the process that started it, and the run store records that process as the run's owner. Each `RunStore` opened on a file holds an exclusive lock on `<database>.owners/<token>.lock`, and the operating system releases the lock when the process ends, even after a crash. Each time a `Service` is built, which happens on every CLI command and every server start, it marks a run recorded as `queued` or `running` as `failed` only when its owner's lock is free. A run that another live process is running stays as it is.
 
 jevtester computes metrics when you ask for them, from the stored results. It doesn't store them. So a change to the metrics code applies to old runs too.
 
@@ -136,7 +136,7 @@ Neither provider sends images yet. A request with images gets a `preflight` erro
 
 Run ids are numbers with at least four digits, starting at `0001`.
 
-`store/files.py` reads and writes the YAML files under `suites/`: suites at `suites/<name>.yaml`, question sets in `suites/question-sets/`, and policies in `suites/policies/`. A name uses only lowercase letters, digits, `-`, and `_`, so it's always a safe file name. Saving a suite or a question set rewrites the file. Saving a policy writes its text as you wrote it, with its comments.
+`store/files.py` reads and writes the YAML files under `suites/`: suites at `suites/<name>.yaml`, question sets in `suites/question-sets/`, and policies in `suites/policies/`. A name uses only lowercase letters, digits, `-`, and `_`, so it's always a safe file name. Saving a question set rewrites its file. Adding a case to a suite appends the case's text and leaves the rest of the file, comments included, as it is. A suite argument in the CLI can also be a path to a suite file, and then its directory is the suites directory for that command. Saving a policy writes its text as you wrote it, with its comments.
 
 ## Design rules
 

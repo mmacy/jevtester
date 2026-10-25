@@ -2,10 +2,17 @@
 
 The database lives at `.jevtester/runs.sqlite`, which git ignores. Each row keeps its model as JSON, so the schema
 changes with the models and not with SQL migrations.
+
+Each `RunStore` is an owner with a random token, and each run records the owner that started it. A file store holds an
+exclusive lock on `<database>.owners/<token>.lock` while it's open. The operating system releases the lock when the
+process ends, even after a crash, so a run whose owner's lock is free belongs to a process that has gone.
 """
 
+import fcntl
+import os
 import sqlite3
 import threading
+import uuid
 from datetime import datetime
 from pathlib import Path
 
@@ -44,6 +51,10 @@ create table if not exists run_cases (
     run_id text primary key,
     cases text not null
 );
+create table if not exists run_owners (
+    run_id text primary key,
+    owner text not null
+);
 create table if not exists run_policies (
     run_id text primary key,
     policy text not null
@@ -59,6 +70,7 @@ create table if not exists question_set_versions (
 
 
 _CASES = TypeAdapter(list[Case])
+_ACTIVE = ("queued", "running")
 
 
 class StoredResult(Model):
@@ -88,16 +100,70 @@ class RunStore:
         Args:
             path: The database file. `:memory:` keeps it in memory, for tests.
         """
+        self.owner = uuid.uuid4().hex
+        """This store's owner token. Runs this store creates record it."""
+        self._owners: Path | None = None
+        self._owner_fd: int | None = None
         if str(path) != ":memory:":
             path.parent.mkdir(parents=True, exist_ok=True)
+            self._owners = path.with_name(f"{path.name}.owners")
+            self._owners.mkdir(exist_ok=True)
+            # Lock the file before it gets its .lock name, so no other store sees it unlocked and takes it for a
+            # dead owner's.
+            pending = self._owners / f"{self.owner}.pending"
+            self._owner_fd = os.open(pending, os.O_RDWR | os.O_CREAT, 0o644)
+            fcntl.flock(self._owner_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            pending.rename(self._owners / f"{self.owner}.lock")
         self._db = sqlite3.connect(path, check_same_thread=False)
         self._lock = threading.Lock()
         with self._lock, self._db:
             self._db.executescript(_SCHEMA)
 
     def close(self) -> None:
-        """Close the database."""
+        """Close the database and release this store's owner lock."""
         self._db.close()
+        if self._owners is not None and self._owner_fd is not None:
+            (self._owners / f"{self.owner}.lock").unlink(missing_ok=True)
+            os.close(self._owner_fd)
+            self._owner_fd = None
+
+    # Owners
+
+    def _live_owners(self) -> set[str]:
+        # Every owner whose lock is held, and this store. Removes the lock files of owners that have gone.
+        live = {self.owner}
+        if self._owners is None:
+            return live
+        for lock in self._owners.glob("*.lock"):
+            if lock.stem == self.owner:
+                continue
+            try:
+                fd = os.open(lock, os.O_RDWR)
+            except FileNotFoundError:
+                continue
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                live.add(lock.stem)
+            else:
+                lock.unlink(missing_ok=True)
+            finally:
+                os.close(fd)
+        return live
+
+    def interrupted_runs(self) -> list[RunSummary]:
+        """Find the queued and running runs whose owner has gone.
+
+        A run's owner has gone when the process that started it has ended. A run saved without an owner has none
+        to wait for. A run that another open store owns, in this process or another one, isn't interrupted.
+
+        Returns:
+            The runs, newest first.
+        """
+        live = self._live_owners()
+        with self._lock:
+            owners = dict(self._db.execute("select run_id, owner from run_owners").fetchall())
+        return [run for run in self.list_runs() if run.status in _ACTIVE and owners.get(run.id) not in live]
 
     # Runs
 
@@ -106,6 +172,19 @@ class RunStore:
         with self._lock:
             row = self._db.execute("select max(cast(id as integer)) from runs").fetchone()
         return f"{(row[0] or 0) + 1:04d}"
+
+    def create_run(self, summary: RunSummary) -> None:
+        """Save a new run's summary, with this store as its owner.
+
+        Args:
+            summary: The run.
+        """
+        with self._lock, self._db:
+            self._db.execute(
+                "insert or replace into runs (id, created_at, summary) values (?, ?, ?)",
+                (summary.id, summary.created_at.isoformat(), summary.model_dump_json()),
+            )
+            self._db.execute("insert or replace into run_owners values (?, ?)", (summary.id, self.owner))
 
     def save_run(self, summary: RunSummary) -> None:
         """Insert or replace a run's summary.

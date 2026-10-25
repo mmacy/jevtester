@@ -161,7 +161,6 @@ The probabilities are rounded here, and `request_body` and `raw` are shortened.
 | `timeout` | No answer within the timeout. | Yes, maybe with a longer timeout. |
 | `connection` | The server couldn't be reached. | After the server is up. |
 | `invalid_response` | The response wasn't a System One response jevtester could read. | Not usually. |
-| `cancelled` | Reserved for a cancelled request. jevtester doesn't return it yet. | |
 
 ## Targets
 
@@ -372,7 +371,7 @@ $ curl -s http://127.0.0.1:8640/api/suites/parley/check
 
 Adds a case to the end of a suite's file, and returns 201 with a `CaseCreated`: the suite's name, the case as saved, and the suite's new case count. The body is a `Case`, which the [suite format reference](suite-format.md#cases) describes. Only `id` and `state` are required.
 
-jevtester rewrites the file from its parsed contents, so the change shows up in `git diff` and comments in the file are lost. The route doesn't check the case against the question set, so check the suite afterward with [`GET /api/suites/{name}/check`](#check-a-suite).
+jevtester appends the case's text after the last case and leaves the rest of the file as it is, comments included, so the change shows up in `git diff` as added lines. The route doesn't check the case against the question set, so check the suite afterward with [`GET /api/suites/{name}/check`](#check-a-suite).
 
 Errors: 409 `conflict` with the field `id` for a case id the suite already has, and nothing is saved. 404 for a missing suite. 422 for an invalid case.
 
@@ -497,7 +496,7 @@ Response, with one question and its `before` and `after` shortened:
 
 A run sends every case in a suite to each target and scores the answers. Start one with [`POST /api/runs`](#start-a-run), follow it with [`GET /api/runs/{id}/events`](#stream-run-events), then read [`GET /api/runs/{id}/metrics`](#get-run-metrics), [`GET /api/runs/{id}/report`](#get-a-run-report), or [`GET /api/runs/{id}/compare`](#compare-two-runs).
 
-A run's `status` moves from `queued` to `running`, then ends as `finished`, `cancelled`, or `failed`. Each time a jevtester process loads its config and run store, it marks every queued or running run `failed`, with the error `The server stopped during the run`. `jevtester serve` does this when it starts, and so does each CLI command that loads the config, like `jevtester run` or `jevtester report`. It happens even to a run that another process is still running.
+A run's `status` moves from `queued` to `running`, then ends as `finished`, `cancelled`, or `failed`. Each run records the jevtester process that started it as its owner. Each time a jevtester process loads its config and run store, it marks a queued or running run `failed`, with the error `The jevtester process running it stopped`, when that owner has stopped. `jevtester serve` does this when it starts, and so does each CLI command that loads the config, like `jevtester run` or `jevtester report`. A run that another live process is running stays queued or running.
 
 A run's `counts` count jobs. A job is one case on one target for one repeat, or for one probe variant in a probe run. `done` is `sent + cached + failed + skipped`, so `done / jobs` is the progress. `sent` counts jobs that got an answer. `failed` counts jobs whose result has `ok: false`, including `preflight` and `not_ready` results where nothing was sent. `targets` breaks the counts down by target, with `skip_reason` for a target whose jobs were skipped.
 

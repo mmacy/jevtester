@@ -341,8 +341,9 @@ async def check_suite(name: SuiteName, service: ServiceDep) -> SuiteCheck:
 async def add_case(name: SuiteName, case: Case, service: ServiceDep) -> CaseCreated:
     """Add a case to the end of a suite's YAML file.
 
-    jevtester rewrites the file from its parsed contents, so the change shows up in `git diff` and comments in the file
-    are lost. A case id the suite already has returns 409, and nothing is saved.
+    jevtester appends the case's text after the last case and leaves the rest of the file as it is, comments included,
+    so the change shows up in `git diff` as added lines. A case id the suite already has returns 409, and nothing is
+    saved.
     """
     return service.add_case(name, case)
 

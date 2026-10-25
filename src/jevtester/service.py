@@ -102,7 +102,7 @@ LOCAL_CONFIG = "jevtester.local.toml"
 SHARED_CONFIG = "jevtester.toml"
 HEALTH_CHECK_TIMEOUT_S = 15.0
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
-INTERRUPTED = "The server stopped during the run"
+INTERRUPTED = "The jevtester process running it stopped"
 MAX_SWEEP_POINTS = 1000
 
 
@@ -444,7 +444,7 @@ class Service:
         return SuiteCheck(suite=name, valid=not errors, errors=errors, checks=wording_checks(question_set))
 
     def add_case(self, name: str, case: Case) -> CaseCreated:
-        """Add a case to the end of a suite's file.
+        """Add a case to the end of a suite's file, keeping the file's comments and formatting.
 
         Args:
             name: The suite's name.
@@ -460,9 +460,9 @@ class Service:
         suite = self.files.load_suite(name)
         if any(existing.id == case.id for existing in suite.cases):
             raise ConflictError(f"The suite already has a case {case.id}", field="id")
-        suite = suite.model_copy(update={"cases": [*suite.cases, case]})
-        self.files.save_suite(suite)
-        return CaseCreated(suite=name, case=case, case_count=sum(1 for c in suite.cases if c.provenance == "human"))
+        self.files.append_case(name, case)
+        cases = [*suite.cases, case]
+        return CaseCreated(suite=name, case=case, case_count=sum(1 for c in cases if c.provenance == "human"))
 
     # Question sets
 
@@ -588,12 +588,11 @@ class Service:
     # Runs
 
     def _fail_interrupted_runs(self) -> None:
-        for run in self.store.list_runs():
-            if run.status in ("queued", "running"):
-                error = ApiErrorBody(code="internal", message=INTERRUPTED)
-                self.store.save_run(
-                    run.model_copy(update={"status": "failed", "error": error, "finished_at": self._clock()})
-                )
+        error = ApiErrorBody(code="internal", message=INTERRUPTED)
+        for run in self.store.interrupted_runs():
+            self.store.save_run(
+                run.model_copy(update={"status": "failed", "error": error, "finished_at": self._clock()})
+            )
 
     def _empty_counts(self, targets: list[Target], jobs: list[Job]) -> RunCounts:
         rows = [
@@ -715,7 +714,7 @@ class Service:
             started_at=None,
             finished_at=None,
         )
-        self.store.save_run(summary)
+        self.store.create_run(summary)
         self.store.save_cases(summary.id, cases)
         if policy is not None:
             self.store.save_policy(summary.id, policy)
