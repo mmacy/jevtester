@@ -90,8 +90,8 @@ FOUNDRY_RESPONSE = load_json(SYSTEMONE / "parley_response_foundry.json")
 WORKERS_RESPONSE = load_json(SYSTEMONE / "parley_response_workers_ai.json")
 """A real Clef-flash response to the plan's request, from 2026-10-24, in its Cloudflare envelope."""
 
-# The fixtures ask the plan's questions, whatever suites/question-sets/parley.yaml has become, so the real
-# responses in tests/fixtures/systemone/ still answer them. The cases come from suites/parley.yaml.
+# The fixtures ask the plan's questions, not the ones in suites/question-sets/parley.yaml, so the real responses in
+# tests/fixtures/systemone/ answer them. The cases come from suites/parley.yaml.
 QUESTIONS = DecisionRequest.model_validate(
     {"state": PLAN_REQUEST["state"], "questions": PLAN_REQUEST["questions"]}
 ).questions

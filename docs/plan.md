@@ -61,7 +61,7 @@ Every decision model jevtester targets accepts the same request format, called t
 }
 ```
 
-Microsoft-Decision-1 returned this response to that request on 2026-10-24, in about 1.5 seconds. Use it as the first test fixture.
+Microsoft-Decision-1 returns this response to that request, in about 1.5 seconds. It's the first test fixture.
 
 ```json
 {
@@ -121,34 +121,31 @@ The vendors give this guidance for writing questions. The app's question checks 
 
 ## Environment
 
-These facts were checked on 2026-10-24. Recheck anything a step depends on.
-
-| Item | State |
+| Item | Requirement |
 |---|---|
-| Machine | Apple M1 Max, 10 cores, 64 GB memory, macOS 26.6.1, 189 GB free disk |
-| Tools | Python 3.14.4, uv, Node 24.4.1, Claude Code 2.1.310, Azure CLI 2.85.0 |
-| Ollama | 0.32.15 installed at `/usr/local/bin/ollama`, not running. Clef-flash needs 0.35.1 or later. |
-| Azure | Signed in with the Azure CLI. A deployment named `decision-1` of Microsoft-Decision-1 exists on a Foundry resource. |
-| Cloudflare | Wrangler is signed in with OAuth, with the `ai (write)` scope. jevtester uses this sign-in. Clef-flash on Workers AI was verified this way. |
-| Anthropic | No `ANTHROPIC_API_KEY` is set. The user chose to build without Claude for now. |
-| TypeSafe | No account. TypeSafe's hosted decision model, Jev, is out of scope unless you add an OpenRouter key later. |
+| Tools | Python 3.14, uv, and Node 24 or later. |
+| Ollama | Clef-flash needs Ollama 0.35.1 or later. |
+| Azure | A Foundry resource with a deployment of Microsoft-Decision-1, and an Azure CLI sign-in. |
+| Cloudflare | A Wrangler sign-in with the `ai (write)` scope. |
+| Anthropic | Out of scope: jevtester builds without Claude. |
+| TypeSafe | Out of scope: TypeSafe's hosted decision model, Jev, needs an OpenRouter key. |
 
 ## Targets
 
 A *target* is one model on one runtime, with its settings. The plan supports these targets:
 
-| Target | Runtime | Endpoint | Client | Status |
+| Target | Runtime | Endpoint | Client | Needs |
 |---|---|---|---|---|
-| Microsoft-Decision-1 | Azure Foundry | `https://<your Foundry resource>.services.ai.azure.com/providers/microsoft/v1/systemone`, `"model": "decision-1"` | TypeSafe SDK | Verified raw and through the SDK |
-| Clef-flash | Ollama, local | `http://localhost:11434/v1/systemone` | TypeSafe SDK | Needs the Ollama upgrade and a model pull (11-12 GB) |
-| Clef-flash, 4-bit or 8-bit | MLX, local | `http://127.0.0.1:8000/v1/systemone` from `python clef_mlx.py serve` | TypeSafe SDK | Needs a model download |
-| Clef (27B), 8-bit | MLX, local | Same server, a different model | TypeSafe SDK | Needs a download (peak memory about 31-33 GB) |
-| Clef, Clef-flash, Clef-omni | Cloudflare Workers AI | `https://api.cloudflare.com/client/v4/accounts/<account>/ai/run/@cf/cloudflare/<model>`, with `"model": "<model>"` in the body | jevtester's adapter | Clef-flash verified with a Wrangler token |
-| Claude | Anthropic API | Messages API | `anthropic` SDK | Needs an API key |
+| Microsoft-Decision-1 | Azure Foundry | `https://<your Foundry resource>.services.ai.azure.com/providers/microsoft/v1/systemone`, `"model": "decision-1"` | TypeSafe SDK | An Azure CLI sign-in |
+| Clef-flash | Ollama, local | `http://localhost:11434/v1/systemone` | TypeSafe SDK | Ollama 0.35.1 or later and a model pull (11-12 GB) |
+| Clef-flash, 4-bit or 8-bit | MLX, local | `http://127.0.0.1:8000/v1/systemone` from `python clef_mlx.py serve` | TypeSafe SDK | A model download |
+| Clef (27B), 8-bit | MLX, local | Same server, a different model | TypeSafe SDK | A model download (peak memory about 31-33 GB) |
+| Clef, Clef-flash, Clef-omni | Cloudflare Workers AI | `https://api.cloudflare.com/client/v4/accounts/<account>/ai/run/@cf/cloudflare/<model>`, with `"model": "<model>"` in the body | jevtester's adapter | A Wrangler sign-in |
+| Claude | Anthropic API | Messages API | `anthropic` SDK | An API key |
 
 ### TypeSafe SDK
 
-Use `typesafe-sdk` (Python, MIT license, version 0.7.5 on 2026-10-24) for every target that serves `/v1/systemone`. It has sync and async clients, the `Noul`, `Choice`, `Score`, and `Box` question classes, typed answers, error classes, and retries. It appends `/v1/systemone` to `base_url`, sends `api_key` as `Authorization: Bearer`, and puts the raw HTTP response on `response.raw_http_response`.
+Use `typesafe-sdk` (Python, MIT license, version 0.7.x) for every target that serves `/v1/systemone`. It has sync and async clients, the `Noul`, `Choice`, `Score`, and `Box` question classes, typed answers, error classes, and retries. It appends `/v1/systemone` to `base_url`, sends `api_key` as `Authorization: Bearer`, and puts the raw HTTP response on `response.raw_http_response`.
 
 Four behaviors affect jevtester:
 
@@ -157,7 +154,7 @@ Four behaviors affect jevtester:
 - **Images.** The SDK sends images as named `assets` referenced from the state. Clef on Workers AI expects an `images` array. Send image requests to Clef servers as direct HTTP until you've confirmed what each server accepts.
 - **Version.** The SDK is at 0.x. Wrap it in one module, so a breaking release means changing only one file.
 
-A verified call to Foundry:
+A call to Foundry:
 
 ```python
 from azure.identity import AzureCliCredential
@@ -181,7 +178,7 @@ print(response.choices["intent"].choice)
 
 - **Foundry.** The Foundry resource used here has API keys disabled, so authenticate with Entra ID. Request a token for the scope `https://cognitiveservices.azure.com/.default` through `azure-identity`, and refresh it before it expires (tokens last about an hour). The request's `model` is the deployment name. The response's `model` is the underlying model name, `microsoft-decision-1`. Microsoft-Decision-1 is in preview, and its catalog entry shows inference retiring on 2027-02-04. It's built on Qwen3.5-9B, the same base model as Clef-flash.
 - **Ollama.** Ollama's library page lists 1-64 questions per request and 2-26 options or levels, and Pydantic AI's docs list a 64 KiB request limit. Decision models aren't available in the Ollama CLI or its client libraries, only over HTTP.
-- **MLX.** Use `mlx-community/clef-flash-4bit`, `clef-flash-8bit`, or `clef-8bit`, with the `clef_mlx.py` loader included in the model repository on Hugging Face. The loader is confirmed for `clef-8bit`, so check that the flash builds include it too. Install its dependencies with `pip install "mlx-vlm>=0.7.4,<0.8" huggingface_hub`. Generic MLX tools and LM Studio load the backbone and produce meaningless text. The server binds to `127.0.0.1`, has no authentication, and handles one request at a time. By default it truncates input at 16,384 tokens without telling you. Start it with `--no-truncate`, or send `"truncate": false` in a request body, and a long input returns HTTP 413 instead. `--max-length` changes the token limit. The server adds `latency_ms` to `usage`. The loader is custom Python code. The `clef-flash-4bit` copy was reviewed on 2026-10-24: it imports only the standard library, MLX, mlx-vlm or mlx-lm, Pillow, and `huggingface_hub`, and it fetches `http(s)` image URLs sent in requests. The repository also contains a compiled `__pycache__/clef_mlx.cpython-312.pyc`. Delete it so Python runs the reviewed source.
+- **MLX.** Use `mlx-community/clef-flash-4bit`, `clef-flash-8bit`, or `clef-8bit`, with the `clef_mlx.py` loader included in the model repository on Hugging Face. The loader is confirmed for `clef-8bit`, so check that the flash builds include it too. Install its dependencies with `pip install "mlx-vlm>=0.7.4,<0.8" huggingface_hub`. Generic MLX tools and LM Studio load the backbone and produce meaningless text. The server binds to `127.0.0.1`, has no authentication, and handles one request at a time. By default it truncates input at 16,384 tokens without telling you. Start it with `--no-truncate`, or send `"truncate": false` in a request body, and a long input returns HTTP 413 instead. `--max-length` changes the token limit. The server adds `latency_ms` to `usage`. The loader is custom Python code. The reviewed `clef-flash-4bit` copy imports only the standard library, MLX, mlx-vlm or mlx-lm, Pillow, and `huggingface_hub`, and it fetches `http(s)` image URLs sent in requests. The repository also contains a compiled `__pycache__/clef_mlx.cpython-312.pyc`. Delete it so Python runs the reviewed source.
 - **GGUF builds.** Community GGUF quantizations of Clef don't include the decision head (the part that scores options), so llama.cpp and LM Studio generate text instead of answers. Don't add them as targets.
 - **Workers AI.** The request body is the System One body. The response wraps the System One response in a Cloudflare envelope (`{"result": {...}, "success": true, "errors": [], "messages": []}`). Unwrap `result` and validate it with the SDK's `SystemOneResponse` model so the answer types match every other target. Clef-flash rounds probabilities to four decimal places and reports `output_tokens` as 0. For authentication, run `npx wrangler auth token --json` and read its `token` field. The token is short-lived, so get a new one when a request returns 401. Let `CLOUDFLARE_API_TOKEN`, when it's set, take the place of the Wrangler token. The Clef-flash model page lists a 24,576-token context window and says the server truncates `state` to fit, while the launch changelog says 64K. Images go in an `images` array: at most 4, PNG, JPEG, or WebP, 4 MiB each, 8 MiB in total. Input costs $0.038 per million tokens for Clef-flash, and output is free.
 - **Claude.** Claude isn't a decision model, and the Messages API returns no token probabilities. Use it as a text-reasoning baseline: send each question with structured outputs constrained to the allowed options, and record the answer with no probabilities. On current models, the API returns a 400 for sampling parameters, so don't try to estimate a distribution by sampling repeatedly. Exclude Claude targets from calibration metrics. Use `claude-opus-5-5` unless the user names another model.
@@ -481,14 +478,14 @@ Each step ends with a command that shows the step works. Write the contracts (mo
 
 ## Decisions
 
-The user made these decisions on 2026-10-24:
+The user made these decisions:
 
 - **Local models.** Support both Ollama and MLX, so runs can compare runtimes and quantization on the same model.
 - **osrlib.** State builders read exported JSON first. Importing osrlib is a later, optional extra.
 - **Evaluation library.** Build the evaluation code in jevtester instead of adopting pydantic-evals. jevtester's requests have several questions each and run across a matrix of targets, which a library built around evaluating one task function doesn't fit, and jevtester needs calibration and confusion-matrix metrics that pydantic-evals' docs don't show.
 - **Cloudflare.** Authenticate Workers AI with the Wrangler sign-in instead of creating an API token.
 - **UI direction.** The heat matrix mockup, `mockups/3-matrix.html`.
-- **Claude.** Build without the Claude provider and the assist features for now. Design the provider protocol so a Claude provider can be added later without changes elsewhere.
+- **Claude.** Build without the Claude provider and the assist features. Design the provider protocol so a Claude provider can be added later without changes elsewhere.
 
 ## References
 

@@ -827,8 +827,7 @@ class Service:
             raise NotFoundError(f"Run {run_id} used a question set version jevtester has no record of")
         cases = self.store.cases(run_id)
         if cases is None:
-            # Runs saved before jevtester kept each run's cases are scored against the suite as it is now.
-            cases = [case for case in self.files.load_suite(summary.suite).cases if case.provenance == "human"]
+            raise NotFoundError(f"Run {run_id} has no saved cases")
         return summary, self.store.results(run_id), dict(stored.question_set.questions), {c.id: c for c in cases}
 
     def _question(self, questions: dict[str, Question], question_id: str) -> Question:

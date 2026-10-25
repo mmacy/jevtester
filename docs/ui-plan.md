@@ -2,7 +2,7 @@
 
 This plan covers the web UI that the frontend session (`JEVTESTER-FRONTEND`) builds. It follows [the plan](plan.md#what-the-ui-must-show), the [handoff notes](handoff.md#frontend-session), and the heat matrix mockup in [`mockups/3-matrix.html`](https://github.com/mmacy/jevtester/blob/main/mockups/3-matrix.html). It lists the views, the components, each component's states, and the API calls each view makes.
 
-Endpoint names come from the handoff's [starting endpoints](handoff.md#starting-endpoints). The backend session added the endpoints the UI needs that the list didn't have: `GET /api/question-sets`, `PUT /api/question-sets/{name}`, `GET /api/policies`, `GET /api/runs/{id}/calibration`, and `GET /api/runs/{id}/cases/{case_id}`. This plan changes to match the contract it publishes.
+Endpoint names come from the API contract: `docs/openapi.json` and the [HTTP API reference](reference/http-api.md). This plan follows the contract.
 
 ## Principles
 
@@ -29,7 +29,7 @@ The build writes to `src/jevtester/static/`. In development, Vite proxies `/api`
 
 ### Fixture mode
 
-Until an endpoint is live, the UI reads its fixture from `tests/fixtures/api/`. `npm run dev:fixtures` starts Vite with a middleware that answers each `/api` request from the fixture file named for its method and path, and replays an SSE fixture for run events. Playwright runs against fixture mode, so the frontend gates don't need the backend. A later Playwright project runs the same specs against `jevtester serve`.
+In fixture mode, the UI reads each response from `tests/fixtures/api/`. `npm run dev:fixtures` starts Vite with a middleware that answers each `/api` request from the fixture file named for its method and path, and replays an SSE fixture for run events. Playwright runs against fixture mode, so the frontend gates don't need the backend. An opt-in Playwright project, `npm run e2e:serve`, runs smoke specs against `jevtester serve`.
 
 ## Design tokens
 
@@ -54,7 +54,7 @@ The heat ramp has five stops: `rgb(24,47,59)` at 0, `rgb(31,74,94)` at 0.15, `rg
 
 Type: Noto Sans for body text at 14 px, Noto Sans Display condensed (62.5% to 85% width) for headings, target names, and big numbers, and Noto Sans Mono for ids, question ids, and code. Numbers use tabular figures.
 
-The mockup is dark only. The UI ships dark only for now.
+The mockup is dark only, and so is the UI.
 
 ## Layout
 
@@ -249,5 +249,5 @@ Each step is one pull request, reviewed by the backend session, and ends with th
 
 ## Open questions
 
-- Claude drafts are deferred with the assist features. The Suites cases grid shows a "Draft" tag now, and review and approval come with that work.
+- Claude drafts are deferred with the assist features. The Suites cases grid shows a "Draft" tag. Review and approval come with that work.
 - A light theme isn't planned. The mockup is dark only.

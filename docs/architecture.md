@@ -1,6 +1,6 @@
 # Architecture
 
-If you want to change jevtester, start here. If the terms are new to you, read [Concepts](concepts.md) first. [The plan](plan.md) is the original specification, and [the handoff](handoff.md) describes how two agent sessions split the backend and frontend work.
+If you want to change jevtester, start here. If the terms are new to you, read [Concepts](concepts.md) first. [The plan](plan.md) is the specification, and [the handoff](handoff.md) describes how two agent sessions split the backend and frontend work.
 
 ## Overview
 
@@ -34,7 +34,7 @@ Every operation goes into `service.py` first, so the CLI, the API, the UI, and a
 | `store/` | Runs, results, the cache, and question set versions in SQLite (`runs.py`), and suites, question sets, and policies as YAML files (`files.py`). |
 | `states/` | A placeholder for builders that turn game data into states. It has no code yet. |
 
-The plan also describes an `assist/` package and a Claude provider. Neither exists yet. The config accepts `provider = "claude"`, and such a target reports `The claude provider isn't built yet`.
+The plan also describes an `assist/` package and a Claude provider. jevtester has neither. The config accepts `provider = "claude"`, and such a target reports `The claude provider isn't built yet`.
 
 ## The web UI
 

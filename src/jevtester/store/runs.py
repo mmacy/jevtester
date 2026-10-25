@@ -154,8 +154,8 @@ class RunStore:
     def interrupted_runs(self) -> list[RunSummary]:
         """Find the queued and running runs whose owner has gone.
 
-        A run's owner has gone when the process that started it has ended. A run saved without an owner has none
-        to wait for. A run that another open store owns, in this process or another one, isn't interrupted.
+        A run's owner has gone when the process that started it has ended. A run with no recorded owner counts as
+        interrupted. A run that another open store owns, in this process or another one, isn't interrupted.
 
         Returns:
             The runs, newest first.
@@ -240,7 +240,7 @@ class RunStore:
             run_id: The run's id.
 
         Returns:
-            The cases, or `None` for a run saved without them.
+            The cases, or `None` when the run has none saved.
         """
         with self._lock:
             row = self._db.execute("select cases from run_cases where run_id = ?", (run_id,)).fetchone()
