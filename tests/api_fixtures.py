@@ -319,13 +319,17 @@ def providers() -> dict[str, DecisionProvider]:
     return fakes
 
 
-# The runs use a config without Foundry's request rate, so a fixture run doesn't wait between requests. The targets
-# fixtures use the real config.
+# The runs use a config without Foundry's request and token rates, so a fixture run doesn't wait between requests.
+# The targets fixtures use the real config.
 RUN_CONFIG = CONFIG.model_copy(
     update={
         "targets": {
             name: target.model_copy(
-                update={"capabilities": target.capabilities.model_copy(update={"requests_per_minute": None})}
+                update={
+                    "capabilities": target.capabilities.model_copy(
+                        update={"requests_per_minute": None, "tokens_per_minute": None}
+                    )
+                }
             )
             for name, target in CONFIG.targets.items()
         }

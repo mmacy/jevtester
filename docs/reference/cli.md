@@ -598,7 +598,7 @@ Starts the HTTP API and the web UI.
 jevtester serve [--port PORT]
 ```
 
-The server listens only on `127.0.0.1`, and runs until you stop it with Ctrl-C. Every API route is under `/api`, and the [HTTP API reference](http-api.md) describes them. The server also serves interactive API docs at `/docs`. It serves the web UI at `/` only when the frontend was built before the server started. Otherwise `/` returns 404. The [how-to guides](../how-to.md) cover building it.
+The server listens only on `127.0.0.1`, and runs until you stop it with Ctrl-C. Every API route is under `/api`, and the [HTTP API reference](http-api.md) describes them. The server also serves interactive API docs at `/docs`. It serves the web UI at `/`. Until the frontend is built, `/` returns a short page with the commands that build it. The [how-to guides](../how-to.md#build-the-web-ui) cover building it.
 
 The server reads the config when it starts, so a config error exits before it listens, with 2 for most errors. The server keeps health check results and runs in progress in memory. When the server, or any other jevtester command, starts, it marks every run still recorded as queued or running as `failed`, even a run that another jevtester process is still running.
 

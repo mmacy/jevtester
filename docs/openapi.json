@@ -2504,7 +2504,7 @@
               }
             ],
             "title": "Max Image Bytes",
-            "description": "The largest image the target accepts, in bytes. Shown with the target; preflight doesn't check it yet."
+            "description": "The largest image the target accepts, in bytes. Preflight reads each image file at its path as given and rejects\na request with a larger one."
           },
           "max_total_image_bytes": {
             "anyOf": [
@@ -2516,7 +2516,7 @@
               }
             ],
             "title": "Max Total Image Bytes",
-            "description": "The largest total size of a request's images, in bytes. Shown with the target; preflight doesn't check it yet."
+            "description": "The largest total size of a request's images, in bytes. Preflight rejects a request whose images add up to\nmore."
           },
           "image_formats": {
             "items": {
@@ -2524,7 +2524,7 @@
             },
             "type": "array",
             "title": "Image Formats",
-            "description": "The image formats the target accepts. Shown with the target; preflight doesn't check it yet."
+            "description": "The image formats the target accepts. Preflight reads each image file's first bytes and rejects a request with an\nimage in any other format. Empty means any format."
           },
           "context_window": {
             "anyOf": [
@@ -2633,7 +2633,7 @@
               }
             ],
             "title": "Tokens Per Minute",
-            "description": "The target's limit on tokens per minute. Shown with the target; runs don't enforce it yet."
+            "description": "The most input tokens a run sends per minute to the target, estimated as preflight does: the request's JSON size\nin bytes divided by 4. A run spaces its requests to stay under it."
           },
           "input_cost_per_mtok_usd": {
             "anyOf": [

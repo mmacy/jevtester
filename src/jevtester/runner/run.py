@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from jevtester.normalize import TargetResult
+from jevtester.preflight import estimate_tokens
 from jevtester.providers import DecisionProvider
 from jevtester.runner.jobs import ask, cache_key
 from jevtester.schemas import (
@@ -107,19 +108,21 @@ class RunHandle:
 
 
 class _Pacer:
-    """Spaces request starts to stay under a requests-per-minute limit."""
+    """Spaces request starts to stay under a per-minute limit on requests or tokens."""
 
-    def __init__(self, requests_per_minute: int) -> None:
-        self._interval = 60 / requests_per_minute
+    def __init__(self, per_minute: int) -> None:
+        self._seconds_each = 60 / per_minute
         self._next = 0.0
         self._lock = asyncio.Lock()
 
-    async def wait(self) -> None:
+    async def wait(self, amount: int = 1) -> None:
+        # The request starts once the amounts sent before it fit in the limit, and pushes the next start back by
+        # its own amount's share of a minute.
         async with self._lock:
             now = time.monotonic()
             if self._next > now:
                 await asyncio.sleep(self._next - now)
-            self._next = max(now, self._next) + self._interval
+            self._next = max(now, self._next) + amount * self._seconds_each
 
 
 class _Tally:
@@ -182,6 +185,7 @@ class Runner:
         self._clock = clock
         self._limits: dict[str, asyncio.Semaphore] = {}
         self._pacers: dict[str, _Pacer] = {}
+        self._token_pacers: dict[str, _Pacer] = {}
 
     def _limit(self, target: Target) -> asyncio.Semaphore:
         # Targets that share a group, like the models of one MLX server, share one limit.
@@ -197,6 +201,14 @@ class Runner:
         if target.name not in self._pacers:
             self._pacers[target.name] = _Pacer(rpm)
         return self._pacers[target.name]
+
+    def _token_pacer(self, target: Target) -> _Pacer | None:
+        tpm = target.capabilities.tokens_per_minute
+        if tpm is None:
+            return None
+        if target.name not in self._token_pacers:
+            self._token_pacers[target.name] = _Pacer(tpm)
+        return self._token_pacers[target.name]
 
     def _save(self, handle: RunHandle, tally: _Tally, **changes: object) -> None:
         handle.summary = handle.summary.model_copy(update={"counts": tally.counts(), "cost_usd": tally.cost, **changes})
@@ -219,6 +231,9 @@ class Runner:
                 pacer = self._pacer(job.target)
                 if pacer is not None:
                     await pacer.wait()
+                token_pacer = self._token_pacer(job.target)
+                if token_pacer is not None:
+                    await token_pacer.wait(estimate_tokens(job.request.system_one_body(job.target.model)))
                 result = await ask(job.target, provider, job.request, timeout)
             if result.ok:
                 self._store.cache_put(key, result, self._clock())

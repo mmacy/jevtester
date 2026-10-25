@@ -24,11 +24,14 @@ class Capabilities(Model):
     max_images: int | None = None
     """The most images one request may have. Preflight rejects a request with more."""
     max_image_bytes: int | None = None
-    """The largest image the target accepts, in bytes. Shown with the target; preflight doesn't check it yet."""
+    """The largest image the target accepts, in bytes. Preflight reads each image file at its path as given and rejects
+    a request with a larger one."""
     max_total_image_bytes: int | None = None
-    """The largest total size of a request's images, in bytes. Shown with the target; preflight doesn't check it yet."""
+    """The largest total size of a request's images, in bytes. Preflight rejects a request whose images add up to
+    more."""
     image_formats: list[ImageFormat] = Field(default_factory=list[ImageFormat])
-    """The image formats the target accepts. Shown with the target; preflight doesn't check it yet."""
+    """The image formats the target accepts. Preflight reads each image file's first bytes and rejects a request with an
+    image in any other format. Empty means any format."""
     context_window: int | None = None
     """The input limit in tokens. Preflight estimates a request's tokens as its JSON size in bytes divided by 4. Over
     the window, it warns with `state_may_truncate` when the target truncates, and otherwise rejects a request more than
@@ -52,7 +55,8 @@ class Capabilities(Model):
     requests_per_minute: int | None = None
     """The most requests a run starts per minute on the target. A run spaces its requests to stay under it."""
     tokens_per_minute: int | None = None
-    """The target's limit on tokens per minute. Shown with the target; runs don't enforce it yet."""
+    """The most input tokens a run sends per minute to the target, estimated as preflight does: the request's JSON size
+    in bytes divided by 4. A run spaces its requests to stay under it."""
     input_cost_per_mtok_usd: float | None = None
     """The cost of one million input tokens, in US dollars. Output tokens are free on every current target. `None`
     leaves each result's `cost_usd` unknown."""

@@ -70,7 +70,7 @@ curl -s "http://127.0.0.1:8640/api/runs/$RUN_ID/report" | jq -r .markdown
 - Suite, question set, and policy names use lowercase letters, digits, `-`, and `_`, start with a letter or digit, and have at most 64 characters. Any other name is a 422.
 - Run ids are four or more digits, like `0002`, counting up from `0001`.
 - The API allows cross-origin requests only from the Vite dev server at `http://127.0.0.1:5173`, for UI development.
-- Outside `/api`, the server answers with the built web UI: a built file if one exists, a 404 for a missing file under `/assets/`, and `index.html` for any other path. Until you build the UI with `npm run build` in `web/`, those paths are 404, `GET /` included.
+- Outside `/api`, the server answers with the built web UI: a built file if one exists, a 404 for a missing file under `/assets/`, and `index.html` for any other path. Until you build the UI with `npm run build` in `web/`, every one of those paths except `/assets/` returns a short HTML page with the commands that build it.
 
 ## Errors
 
@@ -176,7 +176,7 @@ A target's `status` comes from its last health check:
 | `warning` | The target is ready, and `warnings` isn't empty. |
 | `ready` | The target is ready, with no warnings. |
 
-A target's `warnings` come from its config, not from the check: `state_may_truncate` when `capabilities.truncates_state` is true, and `truncation_on` when the target sets `truncate = true`. `local` is true for a target whose `base_url` host is this machine, like Ollama and the MLX server. `capabilities` has every field for every target, and `null` means the limit is unknown. jevtester shows `tokens_per_minute`, `max_image_bytes`, `max_total_image_bytes`, and `image_formats`, but doesn't enforce them. The [configuration reference](config.md#capabilities) describes each capability.
+A target's `warnings` come from its config, not from the check: `state_may_truncate` when `capabilities.truncates_state` is true, and `truncation_on` when the target sets `truncate = true`. `local` is true for a target whose `base_url` host is this machine, like Ollama and the MLX server. `capabilities` has every field for every target, and `null` means the limit is unknown. The [configuration reference](config.md#capabilities) describes each capability.
 
 ### List targets
 

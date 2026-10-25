@@ -170,10 +170,8 @@ These are confirmed in the code and not fixed yet:
 - A config file that isn't valid TOML stops the command with a `tomllib.TOMLDecodeError` traceback and exit code 1, not a message and exit code 2. The CLI catches only `OSError` and `ValidationError` when it loads the config.
 - Every CLI command and every server start marks each run recorded as `queued` or `running` as `failed`, even a run that another jevtester process is still running.
 - The CLI's suite argument drops its directory. `other/x.yaml` loads suite `x` from the config's suites directory.
-- The capabilities `tokens_per_minute`, `max_image_bytes`, `max_total_image_bytes`, and `image_formats` are shown with the target but never enforced.
 - The `cancelled` result error code is in the contract, but nothing returns it.
 - The Foundry health check only gets an `az` token. It never contacts `base_url`, so the target shows `ready` even with the placeholder `example-resource` URL.
-- `jevtester serve` returns 404 at `/` until `npm run build` has run in `web/`. The server looks for the build when it starts, so it also needs a restart after the first build.
 - `jevtester case add` and `POST /api/suites/{name}/cases` rewrite the suite file, so they drop its YAML comments.
 - `jevtester.local.toml` replaces `jevtester.toml` instead of merging with it. A target added to `jevtester.toml` is missing until you copy it to your local file.
 

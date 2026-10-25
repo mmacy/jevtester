@@ -49,7 +49,7 @@ The web UI is in `web/`. It's built with React, TypeScript, Vite, Tailwind CSS, 
 | `src/store/` | Zustand stores for the targets and the compare view. |
 | `fixture-server.ts` | A Vite plugin that answers `/api` from `tests/fixtures/api/`, so the UI runs without a backend. |
 
-`npm run build` writes the UI to `src/jevtester/static/`, which git ignores. `jevtester serve` serves it. For any path outside `/api`, the server returns a built file if one exists, or else `index.html`, so a page in the UI, like `/runs/0002`, loads when you reload it.
+`npm run build` writes the UI to `src/jevtester/static/`, which git ignores. `jevtester serve` serves it. For any path outside `/api`, the server returns a built file if one exists, or else `index.html`, so a page in the UI, like `/runs/0002`, loads when you reload it. Without a build, it returns a short page with the commands that build the UI.
 
 The UI never sees a credential. Its requests give target names, and the server keeps the tokens.
 
@@ -63,7 +63,7 @@ A run starts from `jevtester run` or `POST /api/runs`. Both call `Service.start_
 4. **Check.** The task runs every target's health check at once. It skips each target that's down, with the reason.
 5. **Send.** For each job, the runner:
    - Computes a cache key from the target, its model and `truncate` setting, the request body, and the repeat number. Unless the run bypasses the cache, it uses a cached result when one exists.
-   - Waits for a slot under the target's `concurrency` limit. Targets with the same `concurrency_group` share one limit. It also waits to stay under `requests_per_minute`, when the target sets it.
+   - Waits for a slot under the target's `concurrency` limit. Targets with the same `concurrency_group` share one limit. It also waits to stay under `requests_per_minute` and `tokens_per_minute`, when the target sets them.
    - Runs preflight. A request that would fail isn't sent, and gets a `preflight` error.
    - Calls the provider, with the run's timeout plus 5 seconds of grace.
    - Normalizes the response into canonical answers, and adds the warnings.

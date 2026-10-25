@@ -202,16 +202,16 @@ A `workers-ai` target always gets the Workers AI check, whatever its `runtime`.
 | `truncates_state` | boolean | `false` | Whether the server cuts the state to fit its context window without an error. `true` gives the target a `state_may_truncate` warning. |
 | `images` | boolean | `false` | Whether the target accepts images. Preflight rejects a request with images when it's `false`. |
 | `max_images` | integer | none | The most images one request may have. |
-| `max_image_bytes` | integer | none | The largest image, in bytes. The API shows it, but preflight doesn't check it yet. |
-| `max_total_image_bytes` | integer | none | The largest total size of a request's images, in bytes. The API shows it, but preflight doesn't check it yet. |
-| `image_formats` | list of strings | `[]` | The image formats the target accepts: `png`, `jpeg`, or `webp`. The API shows it, but preflight doesn't check it yet. |
+| `max_image_bytes` | integer | none | The largest image, in bytes. Preflight rejects a request with a larger image. |
+| `max_total_image_bytes` | integer | none | The largest total size of a request's images, in bytes. Preflight rejects a request whose images add up to more. |
+| `image_formats` | list of strings | `[]` | The image formats the target accepts: `png`, `jpeg`, or `webp`. Preflight rejects a request with an image in another format. Empty means any format. |
 | `concurrency` | integer | `1` | How many requests a run may have in flight to the target at once. At least 1. |
 | `concurrency_group` | string | none | Targets with the same group share one concurrency limit, like several models on one MLX server. The limit is the `concurrency` of whichever target in the group sends first, so give every target in a group the same `concurrency`. |
 | `requests_per_minute` | integer | none | The most requests a run starts per minute on the target. A run spaces its requests to stay under it. |
-| `tokens_per_minute` | integer | none | The target's limit on tokens per minute. The API shows it, but runs don't enforce it yet. |
+| `tokens_per_minute` | integer | none | The most input tokens a run sends per minute to the target, by preflight's [token estimate](#context-window). A run spaces its requests to stay under it. |
 | `input_cost_per_mtok_usd` | float | none | The cost of one million input tokens, in US dollars. Output tokens are free on every current target. Without it, each result's `cost_usd` is unknown. |
 
-`concurrency`, `concurrency_group`, and `requests_per_minute` apply to runs. A decide request sends one request to each target, so it doesn't use them.
+`concurrency`, `concurrency_group`, `requests_per_minute`, and `tokens_per_minute` apply to runs. A decide request sends one request to each target, so it doesn't use them.
 
 #### Context window
 
@@ -219,6 +219,14 @@ Preflight estimates a request's tokens as the size of its JSON body in bytes, di
 
 - A target with `truncates_state = true` or `truncate = true` gets the request, with a `state_may_truncate` warning on the result.
 - Any other target gets the request when the estimate is at most 25% over the window. A request more than 25% over isn't sent.
+
+#### Rate limits
+
+A run waits before each request it sends to stay under `requests_per_minute` and `tokens_per_minute`. For `tokens_per_minute`, each request uses the same estimate as the context window check, and delays the next request to the target by its share of a minute. A request of 2,000 estimated tokens to a target with `tokens_per_minute = 100_000` delays the next one by 1.2 seconds. The estimate leaves out images.
+
+#### Images
+
+Preflight checks `max_image_bytes`, `max_total_image_bytes`, and `image_formats` by reading each image file at its path as given, relative to the directory you run jevtester from. It recognizes a format from the file's first bytes, not its name. A request with an image file that can't be read isn't sent, when the target sets any of these three limits.
 
 ## Credentials
 

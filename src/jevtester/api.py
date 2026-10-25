@@ -15,7 +15,7 @@ from fastapi import Path as PathParam
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import TypeAdapter
 from starlette.exceptions import HTTPException
@@ -861,12 +861,28 @@ TAGS: list[dict[str, Any]] = [
 """The tags in the order the reference lists them, with the overview of each."""
 
 
+NOT_BUILT_PAGE = """<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>jevtester</title></head>
+<body>
+<h1>The web UI isn't built</h1>
+<p>Build it from the repository root with Node 24 or later, then reload this page:</p>
+<pre>cd web
+npm install
+npm run build</pre>
+</body>
+</html>
+"""
+"""The page served outside `/api` while the built web UI is missing."""
+
+
 def _serve_ui(app: FastAPI, static: Path) -> None:
     # Any path outside /api is the UI's: a built file if one exists, or else index.html, so the UI's own routes
-    # like /runs/0002 load on reload. Vite puts the built files under /assets/, so a miss there is a 404.
+    # like /runs/0002 load on reload. Vite puts the built files under /assets/, so a miss there is a 404. The build is
+    # looked for on each request, so a build made while the server runs is served without a restart.
     root = static.resolve()
 
-    async def ui(path: str) -> FileResponse:
+    async def ui(path: str) -> Response:
         if path == "api" or path.startswith("api/"):
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"No route /{path}")
         candidate = (root / path).resolve()
@@ -875,7 +891,10 @@ def _serve_ui(app: FastAPI, static: Path) -> None:
         if path.startswith("assets/"):
             # A missing built file is a stale or broken build, not one of the UI's routes.
             raise HTTPException(status.HTTP_404_NOT_FOUND, f"No file /{path}")
-        return FileResponse(root / "index.html")
+        index = root / "index.html"
+        if not index.is_file():
+            return HTMLResponse(NOT_BUILT_PAGE)
+        return FileResponse(index)
 
     app.add_api_route("/{path:path}", ui, methods=["GET"], include_in_schema=False)
 
@@ -885,7 +904,8 @@ def create_app(service: Service | None = None, static: Path | None = STATIC) -> 
 
     Args:
         service: The service the routes call. `None` loads it from the config on the first request.
-        static: The built web UI to serve outside `/api`. Nothing is served there when it has no `index.html`.
+        static: The built web UI to serve outside `/api`. While it has no `index.html`, every page outside `/api`
+            says how to build it. `None` serves nothing outside `/api`.
 
     Returns:
         The app, with its routes under `/api`, errors as [`ApiError`][jevtester.schemas.ApiError] bodies, the Vite
@@ -907,7 +927,7 @@ def create_app(service: Service | None = None, static: Path | None = STATIC) -> 
     app.add_exception_handler(HTTPException, _handle_http_exception)
     app.add_exception_handler(RequestValidationError, _handle_validation_error)
     app.include_router(router)
-    if static is not None and (static / "index.html").is_file():
+    if static is not None:
         _serve_ui(app, static)
     app.openapi = lambda: _openapi(app)
     return app

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from jevtester import cli
 from jevtester.diff import diff_question_sets
 from jevtester.errors import ConflictError, InvalidRequestError, NotFoundError
 from jevtester.normalize import ResultError
+from jevtester.preflight import estimate_tokens
 from jevtester.providers import DecisionProvider, Health, RawResult
 from jevtester.schemas import QuestionSetBody, ResultEvent, RunCreate, RunSummary
 from jevtester.service import INTERRUPTED, Service
@@ -19,6 +21,7 @@ from jevtester.spec import (
     Capabilities,
     Case,
     ChoiceQuestion,
+    Config,
     DecisionRequest,
     NoulQuestion,
     Question,
@@ -41,14 +44,16 @@ def respond_ok(request: DecisionRequest, body: dict[str, Any]) -> RawResult:
     return api_fixtures.make_raw("decision-1@foundry", case)
 
 
-def make_service(tmp_path: Path, providers: dict[str, DecisionProvider] | None = None) -> Service:
+def make_service(
+    tmp_path: Path, providers: dict[str, DecisionProvider] | None = None, config: Config = CONFIG
+) -> Service:
     files = SuiteFiles(tmp_path / "suites")
     files.save_question_set(api_fixtures.QUESTION_SET)
     files.save_suite(SuiteFiles(ROOT / "suites").load_suite("parley"))
     files.save_policy("parley", (ROOT / "suites" / "policies" / "parley.yaml").read_text())
     store = RunStore(tmp_path / "runs.sqlite")
     fakes = providers if providers is not None else {FOUNDRY.name: FakeProvider(FOUNDRY, respond_ok)}
-    return Service(CONFIG, fakes, files=files, store=store, clock=lambda: NOW)
+    return Service(config, fakes, files=files, store=store, clock=lambda: NOW)
 
 
 def run(service: Service, body: RunCreate) -> RunSummary:
@@ -224,6 +229,30 @@ def test_a_target_runs_up_to_its_concurrency(tmp_path: Path) -> None:
     )
     assert summary.counts.sent == 12
     assert counter["max"] == WORKERS.capabilities.concurrency
+
+
+def test_a_run_spaces_requests_to_stay_under_the_tokens_per_minute(tmp_path: Path) -> None:
+    # Each request may start once the tokens sent before it fit in the limit, so 4 requests of at least `smallest`
+    # tokens each take at least 3 intervals of `smallest * 60 / tpm` seconds, even with a concurrency of 4.
+    smallest = min(
+        estimate_tokens(
+            DecisionRequest(state=case.state, questions=api_fixtures.QUESTION_SET.questions).system_one_body(
+                WORKERS.model
+            )
+        )
+        for case in SuiteFiles(ROOT / "suites").load_suite("parley").cases
+    )
+    tpm = int(smallest * 60 / 0.1)
+    limited = WORKERS.model_copy(
+        update={"capabilities": WORKERS.capabilities.model_copy(update={"tokens_per_minute": tpm})}
+    )
+    config = CONFIG.model_copy(update={"targets": {**CONFIG.targets, WORKERS.name: limited}})
+    counter = {"now": 0, "max": 0}
+    service = make_service(tmp_path, {WORKERS.name: SlowProvider(limited, counter, delay=0)}, config)
+    started = time.monotonic()
+    summary = run(service, RunCreate(suite="parley", targets=[WORKERS.name]))
+    assert summary.counts.sent == 4
+    assert time.monotonic() - started >= 0.3
 
 
 def test_a_run_can_be_cancelled(tmp_path: Path) -> None:
