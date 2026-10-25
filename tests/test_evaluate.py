@@ -372,3 +372,10 @@ def test_runs_save_their_cases(tmp_path: Path) -> None:
     saved = service.store.cases(run_id)
     assert saved is not None
     assert [case.id for case in saved] == [case.id for case in api_fixtures.CASES]
+
+
+def test_a_run_without_saved_cases_is_not_found(tmp_path: Path) -> None:
+    service, _ = api_fixtures.prepared_service(tmp_path)
+    assert service.store.cases(api_fixtures.CANCELLED_RUN.id) is None
+    with pytest.raises(NotFoundError, match="saved cases"):
+        service.run_metrics(api_fixtures.CANCELLED_RUN.id)
