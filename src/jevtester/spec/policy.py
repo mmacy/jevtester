@@ -19,7 +19,9 @@ class Range(Model):
     """A numeric condition. Both ends are inclusive, and either can be left out."""
 
     at_least: Bound | None = None
+    """The lowest value that matches, or the name of a threshold. `None` sets no lower bound."""
     at_most: Bound | None = None
+    """The highest value that matches, or the name of a threshold. `None` sets no upper bound."""
 
 
 type Condition = str | list[str] | bool | Range
@@ -38,13 +40,17 @@ class Band(Model):
     """
 
     act: Bound
+    """The confidence at or above which the policy acts: a number, or the name of a threshold."""
     confirm: Bound
+    """The confidence at or above which the policy acts and marks the decision for confirmation: a number, or the name
+    of a threshold. Below it, the policy escalates."""
 
 
 class Rule(Model):
     """An action and the conditions it needs. Every condition must hold."""
 
     action: str = Field(min_length=1)
+    """The action the rule chooses, like `battle`."""
     when: dict[str, Condition] = Field(default_factory=dict[str, Condition])
     """Conditions keyed by question id or composite name. An empty `when` always matches."""
 
@@ -53,6 +59,7 @@ class Policy(Model):
     """A decision policy."""
 
     name: str
+    """The policy's name. It must match the file name without `.yaml`."""
     thresholds: dict[str, float] = Field(default_factory=dict[str, float])
     """Named numbers that bands and ranges refer to, so a sweep can move them."""
     per_target: dict[str, dict[str, float]] = Field(default_factory=dict[str, dict[str, float]])

@@ -1,6 +1,6 @@
 # API fixtures
 
-One saved response for each route in [the API contract](../../../docs/api.md), for the UI's fixture mode and the contract tests. [`tests/api_fixtures.py`](../../api_fixtures.py) builds every file here from the API models. Don't edit them by hand. After a change, regenerate them:
+One saved response for each route in [the API contract](../../../docs/reference/http-api.md), for the UI's fixture mode and the contract tests. [`tests/api_fixtures.py`](../../api_fixtures.py) builds every file here from the API models. Don't edit them by hand. After a change, regenerate them:
 
 ```sh
 uv run python tests/api_fixtures.py

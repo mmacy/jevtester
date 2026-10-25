@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Annotated, Any, cast
 
 from fastapi import APIRouter, Depends, FastAPI, Query, Request, status
+from fastapi import Path as PathParam
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
@@ -77,13 +78,43 @@ _STATUS_CODES: dict[int, ApiErrorCode] = {
 }
 
 _ERRORS: dict[int | str, dict[str, Any]] = {
-    status.HTTP_404_NOT_FOUND: {"model": ApiError, "description": "Not found"},
-    status.HTTP_422_UNPROCESSABLE_CONTENT: {"model": ApiError, "description": "Invalid request"},
-    status.HTTP_500_INTERNAL_SERVER_ERROR: {"model": ApiError, "description": "Server error"},
+    status.HTTP_404_NOT_FOUND: {
+        "model": ApiError,
+        "description": (
+            "`not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. "
+            "A retry with the same name fails the same way."
+        ),
+    },
+    status.HTTP_422_UNPROCESSABLE_CONTENT: {
+        "model": ApiError,
+        "description": (
+            "`invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and "
+            "`field` is the first one's path. Fix the input before you retry."
+        ),
+    },
+    status.HTTP_500_INTERNAL_SERVER_ERROR: {
+        "model": ApiError,
+        "description": "`internal`: a bug in jevtester. `message` says what failed.",
+    },
 }
 _CONFLICT: dict[int | str, dict[str, Any]] = {
-    status.HTTP_409_CONFLICT: {"model": ApiError, "description": "Conflict, or a target that isn't ready"}
+    status.HTTP_409_CONFLICT: {
+        "model": ApiError,
+        "description": "`conflict`: the suite already has a case with this `id`. Choose another id.",
+    }
 }
+
+_NAME_RULE = "Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422."
+type SuiteName = Annotated[str, PathParam(description=f"The suite's name, like `parley`. {_NAME_RULE}")]
+type QuestionSetName = Annotated[str, PathParam(description=f"The question set's name, like `parley`. {_NAME_RULE}")]
+type PolicyName = Annotated[str, PathParam(description=f"The policy's name, like `parley`. {_NAME_RULE}")]
+type RunId = Annotated[
+    str,
+    PathParam(description="The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`."),
+]
+type QuestionId = Annotated[str, Query(description="The id of a question the run asked, like `intent`.")]
+type TargetName = Annotated[str, Query(description="A target the run ran, like `decision-1@foundry`.")]
+type BaselineId = Annotated[str, Query(description="The baseline run's id, like `0001`.")]
 
 
 class ApiException(Exception):
@@ -186,7 +217,7 @@ def _service(request: Request) -> Service:
 type ServiceDep = Annotated[Service, Depends(_service)]
 
 
-def _run(id: str, service: ServiceDep) -> RunSummary:
+def _run(id: RunId, service: ServiceDep) -> RunSummary:
     # A dependency, so an unknown run is a 404 before the event stream starts.
     return service.get_run(id)
 
@@ -204,157 +235,367 @@ async def _numbered[T](items: AsyncIterator[T]) -> AsyncIterator[tuple[int, T]]:
 router = APIRouter(prefix="/api", responses=_ERRORS)
 
 
-@router.get("/targets", tags=["targets"])
+@router.get(
+    "/targets", tags=["targets"], summary="List targets", response_description="Every target, in the config's order."
+)
 async def list_targets(service: ServiceDep) -> TargetList:
-    """List targets, their capabilities, and their last health check."""
+    """List the configured targets with their capabilities and their last health check.
+
+    This call doesn't run a health check, so a target is `unchecked` until `POST /api/targets/check` or a run checks
+    it. The server keeps health check results in memory, so they reset when it restarts.
+    """
     return service.list_targets()
 
 
-@router.post("/targets/check", tags=["targets"])
+@router.post(
+    "/targets/check",
+    tags=["targets"],
+    summary="Check targets",
+    response_description="Every target, with its new health check result.",
+)
 async def check_targets(service: ServiceDep) -> TargetList:
-    """Run every target's health check and return the targets with the results."""
+    """Run every target's health check at once and return the targets with the results.
+
+    A health check doesn't send a decision request. Foundry needs a token from the `az` sign-in. Ollama must be 0.35.1
+    or later and have the model pulled. The MLX server must have the target's model loaded. Workers AI needs a token
+    and `cloudflare.account_id`, and its catalog must list the model. A check that takes longer than 15 seconds marks
+    the target down.
+
+    After a check, `POST /api/decide` returns `not_ready` for a target that's down instead of sending to it.
+    """
     return await service.check_targets()
 
 
-@router.post("/decide", tags=["decide"])
+@router.post(
+    "/decide",
+    tags=["decide"],
+    summary="Ask targets one request",
+    response_description="One result per target, in the order the targets were named.",
+)
 async def decide(body: DecideBody, service: ServiceDep) -> DecideResponse:
-    """Send one request to each chosen target and return one result per target.
+    """Send one state and its questions to each chosen target at once, and return one result per target.
 
-    A target that can't take the request, because it isn't ready or a preflight check fails, still has a result,
-    with `ok: false` and an error.
+    The response arrives when the last target finishes. To show each target's answers as they arrive, send one
+    request per target. Name targets in `targets`, or leave it empty for the config's `defaults.targets`. Pass
+    `["all"]` for every target. To keep a result as a test case, send its state and answers to
+    `POST /api/suites/{name}/cases`.
+
+    A target that fails isn't an HTTP error. Its result has `ok: false` and an `error`, and the other targets' results
+    still arrive. A target that's down after its last health check, or a request that fails the target's preflight
+    check, gets a result with the error code `not_ready` or `preflight`, and nothing is sent to it. An unknown target
+    name, or a name given twice, returns 422 with the field `targets.<index>`.
     """
     return await service.decide(body)
 
 
-@router.get("/suites", tags=["suites"])
+@router.get(
+    "/suites", tags=["suites"], summary="List suites", response_description="Every suite under `suites/`, by name."
+)
 async def list_suites(service: ServiceDep) -> SuiteList:
-    """List the suites under `suites/`."""
+    """List the suites under `suites/`, with each suite's question set version and case counts.
+
+    An invalid suite file returns 422, which names the file.
+    """
     return service.list_suites()
 
 
-@router.get("/suites/{name}", tags=["suites"])
-async def get_suite(name: str, service: ServiceDep) -> SuiteDetail:
-    """Return a suite with its cases and its question set's current version."""
+@router.get(
+    "/suites/{name}",
+    tags=["suites"],
+    summary="Get a suite",
+    response_description="The suite and its question set.",
+)
+async def get_suite(name: SuiteName, service: ServiceDep) -> SuiteDetail:
+    """Return a suite with its cases and its question set's current version.
+
+    Reading a suite records its question set's version, if jevtester hasn't seen it before. A missing suite or
+    question set returns 404, and an invalid file returns 422.
+    """
     return service.get_suite(name)
 
 
-@router.get("/suites/{name}/check", tags=["suites"])
-async def check_suite(name: str, service: ServiceDep) -> SuiteCheck:
-    """Validate a suite and run the question-wording checks on its question set."""
+@router.get(
+    "/suites/{name}/check",
+    tags=["suites"],
+    summary="Check a suite",
+    response_description="Whether the suite is valid, its errors, and the wording findings.",
+)
+async def check_suite(name: SuiteName, service: ServiceDep) -> SuiteCheck:
+    """Validate a suite and run the question-wording checks on its question set.
+
+    The suite is valid when it, its question set, and its policy load, every case's expectations fit the questions,
+    and the policy reads only questions the question set asks. An invalid suite returns 200 with `valid: false` and
+    its `errors`. A suite that doesn't exist returns 404.
+    """
     return service.check_suite(name)
 
 
-@router.post("/suites/{name}/cases", status_code=status.HTTP_201_CREATED, tags=["suites"], responses=_CONFLICT)
-async def add_case(name: str, case: Case, service: ServiceDep) -> CaseCreated:
-    """Add a case to a suite's YAML file. A case id the suite already has is a conflict."""
+@router.post(
+    "/suites/{name}/cases",
+    status_code=status.HTTP_201_CREATED,
+    tags=["suites"],
+    responses=_CONFLICT,
+    summary="Add a case",
+    response_description="The saved case and the suite's new case count.",
+)
+async def add_case(name: SuiteName, case: Case, service: ServiceDep) -> CaseCreated:
+    """Add a case to the end of a suite's YAML file.
+
+    jevtester rewrites the file from its parsed contents, so the change shows up in `git diff` and comments in the file
+    are lost. A case id the suite already has returns 409, and nothing is saved.
+    """
     return service.add_case(name, case)
 
 
-@router.get("/question-sets", tags=["question sets"])
+@router.get(
+    "/question-sets",
+    tags=["question sets"],
+    summary="List question sets",
+    response_description="Every question set under `suites/question-sets/`, by name.",
+)
 async def list_question_sets(service: ServiceDep) -> QuestionSetList:
-    """List the question sets under `suites/`."""
+    """List the question sets under `suites/question-sets/`.
+
+    Each has its current version and the suites that use it.
+    """
     return service.list_question_sets()
 
 
-@router.get("/question-sets/{name}", tags=["question sets"])
-async def get_question_set(name: str, service: ServiceDep) -> QuestionSetDetail:
+@router.get(
+    "/question-sets/{name}",
+    tags=["question sets"],
+    summary="Get a question set",
+    response_description="The question set, the suites that use it, and its wording findings.",
+)
+async def get_question_set(name: QuestionSetName, service: ServiceDep) -> QuestionSetDetail:
     """Return a question set's current version, the suites that use it, and its wording checks."""
     return service.get_question_set(name)
 
 
-@router.put("/question-sets/{name}", tags=["question sets"])
-async def save_question_set(name: str, body: QuestionSetBody, service: ServiceDep) -> QuestionSetDetail:
-    """Save new questions to a question set's YAML file, which makes a new version. Creates the set if it's new."""
+@router.put(
+    "/question-sets/{name}",
+    tags=["question sets"],
+    summary="Save a question set",
+    response_description="The saved question set, with its new version.",
+)
+async def save_question_set(name: QuestionSetName, body: QuestionSetBody, service: ServiceDep) -> QuestionSetDetail:
+    """Replace a question set's questions, which makes a new version. Creates the question set if it's new.
+
+    jevtester rewrites `suites/question-sets/<name>.yaml`, so the change shows up in `git diff` and comments in the
+    file are lost. Saving the same questions again keeps the same version. Every suite whose `question_set` is this
+    one asks the new version in its next run. Earlier versions stay available from
+    `GET /api/question-sets/{name}/versions`.
+    """
     return service.save_question_set(name, body)
 
 
-@router.get("/question-sets/{name}/versions", tags=["question sets"])
-async def list_question_set_versions(name: str, service: ServiceDep) -> QuestionSetVersions:
-    """List a question set's versions by hash, newest first."""
+@router.get(
+    "/question-sets/{name}/versions",
+    tags=["question sets"],
+    summary="List question set versions",
+    response_description="Every version jevtester has seen, newest first.",
+)
+async def list_question_set_versions(name: QuestionSetName, service: ServiceDep) -> QuestionSetVersions:
+    """List a question set's versions, newest first, with how many runs used each.
+
+    jevtester records a version the first time it sees one: when a suite or question set is read or saved, or when a
+    run uses one. Pass a version's hash to `GET /api/question-sets/{name}/versions/{version}`, to
+    `GET /api/question-sets/{name}/diff`, or as `question_set_version` in `POST /api/runs`.
+    """
     return service.question_set_versions(name)
 
 
-@router.get("/question-sets/{name}/versions/{version}", tags=["question sets"])
-async def get_question_set_version(name: str, version: str, service: ServiceDep) -> QuestionSet:
-    """Return one version of a question set."""
+@router.get(
+    "/question-sets/{name}/versions/{version}",
+    tags=["question sets"],
+    summary="Get a question set version",
+    response_description="The question set as it was in that version.",
+)
+async def get_question_set_version(
+    name: QuestionSetName,
+    version: Annotated[
+        str, PathParam(description="The version's SHA-256 hash, or a prefix of it at least 8 characters long.")
+    ],
+    service: ServiceDep,
+) -> QuestionSet:
+    """Return one version of a question set.
+
+    A version jevtester hasn't recorded, or a prefix that matches more than one version, returns 404.
+    """
     return service.question_set_version(name, version)
 
 
-@router.get("/question-sets/{name}/diff", tags=["question sets"])
+@router.get(
+    "/question-sets/{name}/diff",
+    tags=["question sets"],
+    summary="Compare question set versions",
+    response_description="How each question changed from one version to the other.",
+)
 async def diff_question_set(
-    name: str,
-    from_version: Annotated[str, Query(alias="from")],
-    to_version: Annotated[str, Query(alias="to")],
+    name: QuestionSetName,
+    from_version: Annotated[
+        str, Query(alias="from", description="The older version's hash, or a prefix of 8 or more characters.")
+    ],
+    to_version: Annotated[
+        str, Query(alias="to", description="The newer version's hash, or a prefix of 8 or more characters.")
+    ],
     service: ServiceDep,
 ) -> QuestionSetDiff:
-    """Compare two versions of a question set."""
+    """Compare two versions of a question set, question by question and option by option."""
     return service.diff_question_set(name, from_version, to_version)
 
 
-@router.post("/runs", status_code=status.HTTP_202_ACCEPTED, tags=["runs"])
+@router.post(
+    "/runs",
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["runs"],
+    summary="Start a run",
+    response_description="The new run's id. The run continues in the background.",
+)
 async def start_run(body: RunCreate, service: ServiceDep) -> RunCreated:
-    """Start a run of a suite on the chosen targets. Follow it with `GET /api/runs/{id}/events`."""
+    """Start a run of a suite on the chosen targets, and return its id as soon as it's queued.
+
+    Follow the run with `GET /api/runs/{id}/events`, or poll `GET /api/runs/{id}`. When it finishes, read its scores
+    from `GET /api/runs/{id}/metrics` or `GET /api/runs/{id}/report`.
+
+    A run first checks each target's health, and skips every job of a target that's down. Each job's result is cached
+    by its target, its request, and its repeat, so a rerun of an unchanged suite sends nothing. Set `no_cache` to send
+    every request again. Claude draft cases aren't sent.
+
+    A suite, question set version, or baseline run that doesn't exist returns 404. An unknown target returns 422.
+    """
     return await service.start_run(body)
 
 
-@router.get("/runs", tags=["runs"])
+@router.get("/runs", tags=["runs"], summary="List runs", response_description="Every run, newest first.")
 async def list_runs(service: ServiceDep) -> RunList:
-    """List runs, newest first."""
+    """List every run, suite runs and probe runs, newest first."""
     return service.list_runs()
 
 
-@router.get("/runs/{id}", tags=["runs"])
-async def get_run(id: str, service: ServiceDep) -> RunSummary:
-    """Return a run's settings, status, and counts."""
+@router.get(
+    "/runs/{id}", tags=["runs"], summary="Get a run", response_description="The run's settings, status, and counts."
+)
+async def get_run(id: RunId, service: ServiceDep) -> RunSummary:
+    """Return a run's settings, status, and counts. Poll it to follow a run without the event stream."""
     return service.get_run(id)
 
 
-@router.get("/runs/{id}/events", response_class=EventSourceResponse, tags=["runs"])
+@router.get(
+    "/runs/{id}/events",
+    response_class=EventSourceResponse,
+    tags=["runs"],
+    summary="Stream run events",
+    response_description="The run's events, until it ends.",
+)
 async def run_events(run: RunDep, service: ServiceDep) -> AsyncIterator[ServerSentEvent]:
     """Stream a run's progress as server-sent events.
 
-    Each event's SSE `event` field is its `type`, and its `data` is a [`RunEvent`][jevtester.schemas.RunEvent] as
-    JSON. The first event is always `progress`, with the current counts, so a client that reconnects needs no
-    history. A run that has ended sends `progress` and then its final event. The stream ends after `finished`,
-    `cancelled`, or `error`.
+    Each event's SSE `event` field is its `type`, its `id` numbers it from 0, and its `data` is a
+    [`RunEvent`][jevtester.schemas.RunEvent] as one line of JSON. The first event is always `progress`, with the
+    current counts, so a client that reconnects needs no history. A `result` event follows each finished job, and a
+    `target_skipped` event each target that's down. A run that has ended sends `progress` and then its final event.
+
+    The stream ends after `finished`, `cancelled`, or `error`. A browser's `EventSource` reconnects when the server
+    closes the stream, so close it on the final event. A run that doesn't exist returns 404 before the stream starts.
     """
     async for index, event in _numbered(service.run_events(run.id)):
         yield ServerSentEvent(event=event.type, id=str(index), raw_data=event.model_dump_json())
 
 
-@router.post("/runs/{id}/cancel", tags=["runs"])
-async def cancel_run(id: str, service: ServiceDep) -> RunSummary:
-    """Cancel a queued or running run. Cancelling a run that has ended returns it unchanged."""
+@router.post("/runs/{id}/cancel", tags=["runs"], summary="Cancel a run", response_description="The run's summary.")
+async def cancel_run(id: RunId, service: ServiceDep) -> RunSummary:
+    """Cancel a queued or running run, and wait for it to stop.
+
+    Results that arrived before the cancel are kept. Cancelling a run that has ended returns it unchanged, so the call
+    is safe to retry.
+    """
     return await service.cancel_run(id)
 
 
-@router.get("/runs/{id}/metrics", tags=["runs"])
-async def get_run_metrics(id: str, service: ServiceDep) -> RunMetrics:
-    """Return metrics for each target and question."""
+@router.get(
+    "/runs/{id}/metrics",
+    tags=["runs"],
+    summary="Get run metrics",
+    response_description="Metrics for each target and question.",
+)
+async def get_run_metrics(id: RunId, service: ServiceDep) -> RunMetrics:
+    """Score a run's answers for each target and question, and its policy's decisions when the suite has a policy.
+
+    The metrics use the cases as the run sent them, so editing the suite later doesn't change them. Only original cases
+    count, not probe variants. A metric that doesn't apply to a question's type is `null`.
+    """
     return service.run_metrics(id)
 
 
-@router.get("/runs/{id}/confusion", tags=["runs"])
-async def get_run_confusion(id: str, question: str, target: str, service: ServiceDep) -> ConfusionMatrix:
-    """Return the confusion matrix for one choice question and one target."""
+@router.get(
+    "/runs/{id}/confusion",
+    tags=["runs"],
+    summary="Get a confusion matrix",
+    response_description="Expected options against answered options.",
+)
+async def get_run_confusion(
+    id: RunId, question: QuestionId, target: TargetName, service: ServiceDep
+) -> ConfusionMatrix:
+    """Count expected options against answered options, for one choice question and one target.
+
+    A question the run didn't ask, a question that isn't a choice, or a target the run didn't run returns 422.
+    """
     return service.run_confusion(id, question, target)
 
 
-@router.get("/runs/{id}/calibration", tags=["runs"])
-async def get_run_calibration(id: str, question: str, target: str, service: ServiceDep, bins: int = 10) -> Calibration:
-    """Return a reliability table for one noul or choice question and one target."""
+@router.get(
+    "/runs/{id}/calibration",
+    tags=["runs"],
+    summary="Get a calibration table",
+    response_description="The probability bins and the expected calibration error.",
+)
+async def get_run_calibration(
+    id: RunId,
+    question: QuestionId,
+    target: TargetName,
+    service: ServiceDep,
+    bins: Annotated[int, Query(description="The number of equal-width probability bins, from 1 to 100.")] = 10,
+) -> Calibration:
+    """Build a reliability table for one noul or choice question and one target.
+
+    A reliability table compares the probabilities a target gave with how often it was right. For a noul, the
+    prediction is the probability of yes. For a choice, it's the probability of the chosen option, against whether the
+    choice was right. A score question, a target the run didn't run, or `bins` outside 1 to 100 returns 422.
+    """
     return service.run_calibration(id, question, target, bins)
 
 
-@router.get("/runs/{id}/changes", tags=["runs"])
-async def get_run_changes(id: str, baseline: str, service: ServiceDep) -> RunChanges:
-    """Return the answers that changed from a baseline run, with McNemar's test for each target."""
+@router.get(
+    "/runs/{id}/changes",
+    tags=["runs"],
+    summary="Get changed answers",
+    response_description="The changed answers, and McNemar's test for each target.",
+)
+async def get_run_changes(id: RunId, baseline: BaselineId, service: ServiceDep) -> RunChanges:
+    """List the answers that changed from a baseline run, with McNemar's test for each target both runs ran.
+
+    The comparison uses the first repeat of each case. McNemar's test is an exact two-sided test on the answers that
+    went from wrong to right and from right to wrong. To get both runs' metrics and the regressions too, use
+    `GET /api/runs/{id}/compare`.
+    """
     return service.run_changes(id, baseline)
 
 
-@router.get("/runs/{id}/compare", tags=["runs"])
+@router.get(
+    "/runs/{id}/compare",
+    tags=["runs"],
+    summary="Compare two runs",
+    response_description="Both runs' metrics, the changed answers, and the regressions.",
+)
 async def compare_runs(
-    id: str, baseline: str, service: ServiceDep, max_drop: Annotated[float | None, Query(ge=0)] = None
+    id: RunId,
+    baseline: BaselineId,
+    service: ServiceDep,
+    max_drop: Annotated[
+        float | None,
+        Query(ge=0, description="The largest allowed drop in a metric. Without it, the config's `defaults.max_drop`."),
+    ] = None,
 ) -> RunComparison:
     """Compare a run with a baseline: both runs' metrics, the changed answers, and any regressions.
 
@@ -364,51 +605,121 @@ async def compare_runs(
     return service.compare_runs(id, baseline, max_drop)
 
 
-@router.get("/runs/{id}/cases/{case_id}", tags=["runs"])
-async def get_run_case(id: str, case_id: str, service: ServiceDep) -> RunCase:
-    """Return one case in a run, with every target's full result."""
+@router.get(
+    "/runs/{id}/cases/{case_id}",
+    tags=["runs"],
+    summary="Get a case in a run",
+    response_description="The case, the questions, and every target's full result.",
+)
+async def get_run_case(
+    id: RunId,
+    case_id: Annotated[str, PathParam(description="The case's id, like `goblin-bribe`.")],
+    service: ServiceDep,
+) -> RunCase:
+    """Return one case in a run, with every target's full result, whether each answer was right, and any decision.
+
+    Unlike a `result` event, each result here has `request_body` and `raw`. A case the run didn't send returns 404.
+    """
     return service.run_case(id, case_id)
 
 
-@router.get("/runs/{id}/report", tags=["runs"])
-async def get_run_report(id: str, service: ServiceDep) -> RunReport:
-    """Return a run's summary and metrics, and the same report as Markdown."""
+@router.get(
+    "/runs/{id}/report",
+    tags=["runs"],
+    summary="Get a run report",
+    response_description="The run's summary, its metrics, and the report as Markdown.",
+)
+async def get_run_report(id: RunId, service: ServiceDep) -> RunReport:
+    """Return a run's summary and metrics, and the same report as Markdown.
+
+    When the run has a baseline, the Markdown also lists the answers that changed from it.
+    """
     return service.run_report(id)
 
 
-@router.get("/runs/{id}/probes", tags=["probes"])
-async def get_run_probes(id: str, service: ServiceDep) -> ProbeReport:
-    """Return how often each case's answers changed under each probe variant."""
+@router.get(
+    "/runs/{id}/probes",
+    tags=["probes"],
+    summary="Get probe results",
+    response_description="How often answers changed, by case, target, and probe.",
+)
+async def get_run_probes(id: RunId, service: ServiceDep) -> ProbeReport:
+    """Report how often each case's answers changed under each probe, for a probe run.
+
+    An instance changed when any answer differs from the original case's answer. A failed request isn't counted. A
+    suite run returns 422.
+    """
     return service.run_probes(id)
 
 
-@router.post("/probes", status_code=status.HTTP_202_ACCEPTED, tags=["probes"])
+@router.post(
+    "/probes",
+    status_code=status.HTTP_202_ACCEPTED,
+    tags=["probes"],
+    summary="Start a probe run",
+    response_description="The new run's id. The run continues in the background.",
+)
 async def start_probe(body: ProbeCreate, service: ServiceDep) -> RunCreated:
-    """Start a probe run. It streams events like any run, and `GET /api/runs/{id}/probes` returns its results."""
+    """Start a probe run: each case as written, plus the variants each probe makes of it.
+
+    The run streams events like any run, from `GET /api/runs/{id}/events`, and a `result` event's `variant` names the
+    variant, like `option_order:2`. When it ends, `GET /api/runs/{id}/probes` reports it. A probe run sends each
+    request once, whatever the config's repeats.
+    """
     return await service.start_probe(body)
 
 
-@router.get("/policies", tags=["policies"])
+@router.get(
+    "/policies",
+    tags=["policies"],
+    summary="List policies",
+    response_description="Every policy under `suites/policies/`, by name.",
+)
 async def list_policies(service: ServiceDep) -> PolicyList:
-    """List the policies under `suites/`."""
+    """List the policies under `suites/policies/`, with each one's actions and the suites that use it."""
     return service.list_policies()
 
 
-@router.get("/policies/{name}", tags=["policies"])
-async def get_policy(name: str, service: ServiceDep) -> PolicyDetail:
-    """Return a policy's YAML text and what it defines."""
+@router.get(
+    "/policies/{name}",
+    tags=["policies"],
+    summary="Get a policy",
+    response_description="The policy's YAML text and what it defines.",
+)
+async def get_policy(name: PolicyName, service: ServiceDep) -> PolicyDetail:
+    """Return a policy's YAML text, its actions and thresholds, and the suites that use it."""
     return service.get_policy(name)
 
 
-@router.put("/policies/{name}", tags=["policies"])
-async def save_policy(name: str, body: PolicyBody, service: ServiceDep) -> PolicyDetail:
-    """Validate and save a policy's YAML text. An invalid policy returns 422 with every error in `details`."""
+@router.put(
+    "/policies/{name}",
+    tags=["policies"],
+    summary="Save a policy",
+    response_description="The saved policy.",
+)
+async def save_policy(name: PolicyName, body: PolicyBody, service: ServiceDep) -> PolicyDetail:
+    """Validate a policy's YAML text and save it as sent, comments included. Creates the policy if it's new.
+
+    An invalid policy returns 422 with every error in `details`, and nothing is saved. A YAML syntax error's detail has
+    the `line` it's on, from 1.
+    """
     return service.save_policy(name, body)
 
 
-@router.post("/policies/{name}/sweep", tags=["policies"])
-async def sweep_policy(name: str, body: SweepBody, service: ServiceDep) -> SweepResult:
-    """Sweep one threshold over a finished run's answers and return the trade-off points."""
+@router.post(
+    "/policies/{name}/sweep",
+    tags=["policies"],
+    summary="Sweep a policy threshold",
+    response_description="The share decided, the error rate, and the cost at each value.",
+)
+async def sweep_policy(name: PolicyName, body: SweepBody, service: ServiceDep) -> SweepResult:
+    """Measure a target's decisions in a run as one of the policy's thresholds moves from `start` to `stop`.
+
+    The sweep uses the policy as it is now, against the run's answers, so you can tune a threshold without running the
+    suite again. Each value replaces the threshold for the sweep's target, whether the policy sets a shared value or a
+    `per_target` one. A threshold the policy doesn't have, a target the run didn't run, or a range of more than 1,000
+    points returns 422.
+    """
     return service.sweep_policy(name, body)
 
 
@@ -419,7 +730,14 @@ def _openapi(app: FastAPI) -> dict[str, Any]:
     # The events route yields ServerSentEvent objects so each event can carry its name, which leaves FastAPI without
     # the payload's type. Add the RunEvent schemas and point the stream's item schema at them.
     if app.openapi_schema is None:
-        document = get_openapi(title=app.title, version=app.version, summary=app.summary, routes=app.routes)
+        document = get_openapi(
+            title=app.title,
+            version=app.version,
+            summary=app.summary,
+            description=app.description,
+            routes=app.routes,
+            tags=app.openapi_tags,
+        )
         event_schema = TypeAdapter[RunEvent](RunEvent).json_schema(
             ref_template="#/components/schemas/{model}", mode="serialization"
         )
@@ -451,6 +769,96 @@ def _openapi(app: FastAPI) -> dict[str, Any]:
                 response["content"] = {"application/json": response["content"]["text/event-stream"]}
         app.openapi_schema = document
     return app.openapi_schema
+
+
+DESCRIPTION = """\
+The jevtester API gives the web UI and your scripts the same operations as the `jevtester` command line. Start it with
+`jevtester serve`. It listens on `http://127.0.0.1:8640`, and every route is under `/api`.
+
+The API has no authentication, because it listens only on this machine. Requests name targets, and the server holds
+the credentials, so a client never sees a token.
+
+## Conventions
+
+- Every response field is always present. An unknown value is `null`, never a missing key.
+- Times are ISO 8601 in UTC, like `2026-10-24T14:02:00Z`.
+- A version is the full SHA-256 hash of the content. A route that takes a version also takes a prefix of 8 or more
+  characters.
+- Lists keep a meaningful order: targets in the order requested, questions and options in the question set's order,
+  and runs newest first.
+- Suite, question set, and policy names use lowercase letters, digits, `-`, and `_`.
+
+## Errors
+
+Every 4xx and 5xx response has an `ApiError` body: `{"error": {"code", "message", "field", "details"}}`. `code` is
+`invalid_request` (422), `not_found` (404), `conflict` (409), or `internal` (500). `details` lists every validation
+error, and `field` is the first one's dotted path. For a question, the path includes the question's type, as in
+`questions.intent.choice.criteria`.
+
+A target that fails during a decide request or a run isn't an HTTP error. Its result has `ok: false` and an `error`,
+and the other targets' results still arrive.
+"""
+"""The API's overview, for `info.description` in the OpenAPI document."""
+
+TAGS: list[dict[str, Any]] = [
+    {
+        "name": "targets",
+        "description": (
+            "A target is one decision model on one runtime, like `decision-1@foundry`. The config file lists them. "
+            "List them with `GET /api/targets`, and run their health checks with `POST /api/targets/check`."
+        ),
+    },
+    {
+        "name": "decide",
+        "description": (
+            "Send one state and its questions to one or more targets, and get their answers in the response. A state "
+            "is what the model reads: text, a JSON object, or a JSON array. Use it to try a question before you add "
+            "it to a suite."
+        ),
+    },
+    {
+        "name": "suites",
+        "description": (
+            "A suite is a YAML file in `suites/` with cases, the question set they're asked, an optional policy, and "
+            "default targets. A case is one state with the answers and action it expects. Read suites, check them, "
+            "and add cases here, then run one with `POST /api/runs`."
+        ),
+    },
+    {
+        "name": "question sets",
+        "description": (
+            "A question set is a named set of questions in `suites/question-sets/`. A version is the SHA-256 hash of "
+            "its questions in order, so any edit makes a new version. Read and save question sets, list their "
+            "versions, and compare two versions here."
+        ),
+    },
+    {
+        "name": "runs",
+        "description": (
+            "A run sends every case in a suite to each target and scores the answers. Start one with `POST /api/runs`, "
+            "follow it with `GET /api/runs/{id}/events`, then read `GET /api/runs/{id}/metrics`, "
+            "`GET /api/runs/{id}/report`, or `GET /api/runs/{id}/compare`. A job is one case on one target for one "
+            "repeat."
+        ),
+    },
+    {
+        "name": "probes",
+        "description": (
+            "A probe changes something about a case that shouldn't change the answers, like the order of a choice's "
+            "options, and counts how often they change anyway. Start a probe run with `POST /api/probes`, then read "
+            "`GET /api/runs/{id}/probes`."
+        ),
+    },
+    {
+        "name": "policies",
+        "description": (
+            "A policy is a YAML file in `suites/policies/` that turns a result's answers into an action, like "
+            "`parley_succeeds` or `escalate`. A suite gives its policy's name in `policy`, and run metrics measure "
+            "the policy's decisions. Tune a threshold against a finished run with `POST /api/policies/{name}/sweep`."
+        ),
+    },
+]
+"""The tags in the order the reference lists them, with the overview of each."""
 
 
 def _serve_ui(app: FastAPI, static: Path) -> None:
@@ -487,6 +895,8 @@ def create_app(service: Service | None = None, static: Path | None = STATIC) -> 
         title="jevtester",
         version=__version__,
         summary="Test decision models, the questions written for them, and the decisions built on their answers.",
+        description=DESCRIPTION,
+        openapi_tags=TAGS,
         # Operation ids are the route functions' names, like `list_targets`, for readable generated clients.
         generate_unique_id_function=lambda route: route.name,
     )

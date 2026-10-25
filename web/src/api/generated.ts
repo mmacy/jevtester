@@ -12,8 +12,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Targets
-         * @description List targets, their capabilities, and their last health check.
+         * List targets
+         * @description List the configured targets with their capabilities and their last health check.
+         *
+         *     This call doesn't run a health check, so a target is `unchecked` until `POST /api/targets/check` or a run checks
+         *     it. The server keeps health check results in memory, so they reset when it restarts.
          */
         get: operations["list_targets"];
         put?: never;
@@ -34,8 +37,15 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Check Targets
-         * @description Run every target's health check and return the targets with the results.
+         * Check targets
+         * @description Run every target's health check at once and return the targets with the results.
+         *
+         *     A health check doesn't send a decision request. Foundry needs a token from the `az` sign-in. Ollama must be 0.35.1
+         *     or later and have the model pulled. The MLX server must have the target's model loaded. Workers AI needs a token
+         *     and `cloudflare.account_id`, and its catalog must list the model. A check that takes longer than 15 seconds marks
+         *     the target down.
+         *
+         *     After a check, `POST /api/decide` returns `not_ready` for a target that's down instead of sending to it.
          */
         post: operations["check_targets"];
         delete?: never;
@@ -54,11 +64,18 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Decide
-         * @description Send one request to each chosen target and return one result per target.
+         * Ask targets one request
+         * @description Send one state and its questions to each chosen target at once, and return one result per target.
          *
-         *     A target that can't take the request, because it isn't ready or a preflight check fails, still has a result,
-         *     with `ok: false` and an error.
+         *     The response arrives when the last target finishes. To show each target's answers as they arrive, send one
+         *     request per target. Name targets in `targets`, or leave it empty for the config's `defaults.targets`. Pass
+         *     `["all"]` for every target. To keep a result as a test case, send its state and answers to
+         *     `POST /api/suites/{name}/cases`.
+         *
+         *     A target that fails isn't an HTTP error. Its result has `ok: false` and an `error`, and the other targets' results
+         *     still arrive. A target that's down after its last health check, or a request that fails the target's preflight
+         *     check, gets a result with the error code `not_ready` or `preflight`, and nothing is sent to it. An unknown target
+         *     name, or a name given twice, returns 422 with the field `targets.<index>`.
          */
         post: operations["decide"];
         delete?: never;
@@ -75,8 +92,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Suites
-         * @description List the suites under `suites/`.
+         * List suites
+         * @description List the suites under `suites/`, with each suite's question set version and case counts.
+         *
+         *     An invalid suite file returns 422, which names the file.
          */
         get: operations["list_suites"];
         put?: never;
@@ -95,8 +114,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Suite
+         * Get a suite
          * @description Return a suite with its cases and its question set's current version.
+         *
+         *     Reading a suite records its question set's version, if jevtester hasn't seen it before. A missing suite or
+         *     question set returns 404, and an invalid file returns 422.
          */
         get: operations["get_suite"];
         put?: never;
@@ -115,8 +137,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Check Suite
+         * Check a suite
          * @description Validate a suite and run the question-wording checks on its question set.
+         *
+         *     The suite is valid when it, its question set, and its policy load, every case's expectations fit the questions,
+         *     and the policy reads only questions the question set asks. An invalid suite returns 200 with `valid: false` and
+         *     its `errors`. A suite that doesn't exist returns 404.
          */
         get: operations["check_suite"];
         put?: never;
@@ -137,8 +163,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Add Case
-         * @description Add a case to a suite's YAML file. A case id the suite already has is a conflict.
+         * Add a case
+         * @description Add a case to the end of a suite's YAML file.
+         *
+         *     jevtester rewrites the file from its parsed contents, so the change shows up in `git diff` and comments in the file
+         *     are lost. A case id the suite already has returns 409, and nothing is saved.
          */
         post: operations["add_case"];
         delete?: never;
@@ -155,8 +184,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Question Sets
-         * @description List the question sets under `suites/`.
+         * List question sets
+         * @description List the question sets under `suites/question-sets/`.
+         *
+         *     Each has its current version and the suites that use it.
          */
         get: operations["list_question_sets"];
         put?: never;
@@ -175,13 +206,18 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Question Set
+         * Get a question set
          * @description Return a question set's current version, the suites that use it, and its wording checks.
          */
         get: operations["get_question_set"];
         /**
-         * Save Question Set
-         * @description Save new questions to a question set's YAML file, which makes a new version. Creates the set if it's new.
+         * Save a question set
+         * @description Replace a question set's questions, which makes a new version. Creates the question set if it's new.
+         *
+         *     jevtester rewrites `suites/question-sets/<name>.yaml`, so the change shows up in `git diff` and comments in the
+         *     file are lost. Saving the same questions again keeps the same version. Every suite whose `question_set` is this
+         *     one asks the new version in its next run. Earlier versions stay available from
+         *     `GET /api/question-sets/{name}/versions`.
          */
         put: operations["save_question_set"];
         post?: never;
@@ -199,8 +235,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Question Set Versions
-         * @description List a question set's versions by hash, newest first.
+         * List question set versions
+         * @description List a question set's versions, newest first, with how many runs used each.
+         *
+         *     jevtester records a version the first time it sees one: when a suite or question set is read or saved, or when a
+         *     run uses one. Pass a version's hash to `GET /api/question-sets/{name}/versions/{version}`, to
+         *     `GET /api/question-sets/{name}/diff`, or as `question_set_version` in `POST /api/runs`.
          */
         get: operations["list_question_set_versions"];
         put?: never;
@@ -219,8 +259,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Question Set Version
+         * Get a question set version
          * @description Return one version of a question set.
+         *
+         *     A version jevtester hasn't recorded, or a prefix that matches more than one version, returns 404.
          */
         get: operations["get_question_set_version"];
         put?: never;
@@ -239,8 +281,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Diff Question Set
-         * @description Compare two versions of a question set.
+         * Compare question set versions
+         * @description Compare two versions of a question set, question by question and option by option.
          */
         get: operations["diff_question_set"];
         put?: never;
@@ -259,14 +301,23 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Runs
-         * @description List runs, newest first.
+         * List runs
+         * @description List every run, suite runs and probe runs, newest first.
          */
         get: operations["list_runs"];
         put?: never;
         /**
-         * Start Run
-         * @description Start a run of a suite on the chosen targets. Follow it with `GET /api/runs/{id}/events`.
+         * Start a run
+         * @description Start a run of a suite on the chosen targets, and return its id as soon as it's queued.
+         *
+         *     Follow the run with `GET /api/runs/{id}/events`, or poll `GET /api/runs/{id}`. When it finishes, read its scores
+         *     from `GET /api/runs/{id}/metrics` or `GET /api/runs/{id}/report`.
+         *
+         *     A run first checks each target's health, and skips every job of a target that's down. Each job's result is cached
+         *     by its target, its request, and its repeat, so a rerun of an unchanged suite sends nothing. Set `no_cache` to send
+         *     every request again. Claude draft cases aren't sent.
+         *
+         *     A suite, question set version, or baseline run that doesn't exist returns 404. An unknown target returns 422.
          */
         post: operations["start_run"];
         delete?: never;
@@ -283,8 +334,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Run
-         * @description Return a run's settings, status, and counts.
+         * Get a run
+         * @description Return a run's settings, status, and counts. Poll it to follow a run without the event stream.
          */
         get: operations["get_run"];
         put?: never;
@@ -303,13 +354,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Run Events
+         * Stream run events
          * @description Stream a run's progress as server-sent events.
          *
-         *     Each event's SSE `event` field is its `type`, and its `data` is a [`RunEvent`][jevtester.schemas.RunEvent] as
-         *     JSON. The first event is always `progress`, with the current counts, so a client that reconnects needs no
-         *     history. A run that has ended sends `progress` and then its final event. The stream ends after `finished`,
-         *     `cancelled`, or `error`.
+         *     Each event's SSE `event` field is its `type`, its `id` numbers it from 0, and its `data` is a
+         *     [`RunEvent`][jevtester.schemas.RunEvent] as one line of JSON. The first event is always `progress`, with the
+         *     current counts, so a client that reconnects needs no history. A `result` event follows each finished job, and a
+         *     `target_skipped` event each target that's down. A run that has ended sends `progress` and then its final event.
+         *
+         *     The stream ends after `finished`, `cancelled`, or `error`. A browser's `EventSource` reconnects when the server
+         *     closes the stream, so close it on the final event. A run that doesn't exist returns 404 before the stream starts.
          */
         get: operations["run_events"];
         put?: never;
@@ -330,8 +384,11 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Cancel Run
-         * @description Cancel a queued or running run. Cancelling a run that has ended returns it unchanged.
+         * Cancel a run
+         * @description Cancel a queued or running run, and wait for it to stop.
+         *
+         *     Results that arrived before the cancel are kept. Cancelling a run that has ended returns it unchanged, so the call
+         *     is safe to retry.
          */
         post: operations["cancel_run"];
         delete?: never;
@@ -348,8 +405,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Run Metrics
-         * @description Return metrics for each target and question.
+         * Get run metrics
+         * @description Score a run's answers for each target and question, and its policy's decisions when the suite has a policy.
+         *
+         *     The metrics use the cases as the run sent them, so editing the suite later doesn't change them. Only original cases
+         *     count, not probe variants. A metric that doesn't apply to a question's type is `null`.
          */
         get: operations["get_run_metrics"];
         put?: never;
@@ -368,8 +428,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Run Confusion
-         * @description Return the confusion matrix for one choice question and one target.
+         * Get a confusion matrix
+         * @description Count expected options against answered options, for one choice question and one target.
+         *
+         *     A question the run didn't ask, a question that isn't a choice, or a target the run didn't run returns 422.
          */
         get: operations["get_run_confusion"];
         put?: never;
@@ -388,8 +450,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Run Calibration
-         * @description Return a reliability table for one noul or choice question and one target.
+         * Get a calibration table
+         * @description Build a reliability table for one noul or choice question and one target.
+         *
+         *     A reliability table compares the probabilities a target gave with how often it was right. For a noul, the
+         *     prediction is the probability of yes. For a choice, it's the probability of the chosen option, against whether the
+         *     choice was right. A score question, a target the run didn't run, or `bins` outside 1 to 100 returns 422.
          */
         get: operations["get_run_calibration"];
         put?: never;
@@ -408,8 +474,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Run Changes
-         * @description Return the answers that changed from a baseline run, with McNemar's test for each target.
+         * Get changed answers
+         * @description List the answers that changed from a baseline run, with McNemar's test for each target both runs ran.
+         *
+         *     The comparison uses the first repeat of each case. McNemar's test is an exact two-sided test on the answers that
+         *     went from wrong to right and from right to wrong. To get both runs' metrics and the regressions too, use
+         *     `GET /api/runs/{id}/compare`.
          */
         get: operations["get_run_changes"];
         put?: never;
@@ -428,7 +498,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Compare Runs
+         * Compare two runs
          * @description Compare a run with a baseline: both runs' metrics, the changed answers, and any regressions.
          *
          *     A regression is a target and question whose accuracy, or within-tolerance accuracy for a score, dropped by more
@@ -451,8 +521,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Run Case
-         * @description Return one case in a run, with every target's full result.
+         * Get a case in a run
+         * @description Return one case in a run, with every target's full result, whether each answer was right, and any decision.
+         *
+         *     Unlike a `result` event, each result here has `request_body` and `raw`. A case the run didn't send returns 404.
          */
         get: operations["get_run_case"];
         put?: never;
@@ -471,8 +543,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Run Report
+         * Get a run report
          * @description Return a run's summary and metrics, and the same report as Markdown.
+         *
+         *     When the run has a baseline, the Markdown also lists the answers that changed from it.
          */
         get: operations["get_run_report"];
         put?: never;
@@ -491,8 +565,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Run Probes
-         * @description Return how often each case's answers changed under each probe variant.
+         * Get probe results
+         * @description Report how often each case's answers changed under each probe, for a probe run.
+         *
+         *     An instance changed when any answer differs from the original case's answer. A failed request isn't counted. A
+         *     suite run returns 422.
          */
         get: operations["get_run_probes"];
         put?: never;
@@ -513,8 +590,12 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Start Probe
-         * @description Start a probe run. It streams events like any run, and `GET /api/runs/{id}/probes` returns its results.
+         * Start a probe run
+         * @description Start a probe run: each case as written, plus the variants each probe makes of it.
+         *
+         *     The run streams events like any run, from `GET /api/runs/{id}/events`, and a `result` event's `variant` names the
+         *     variant, like `option_order:2`. When it ends, `GET /api/runs/{id}/probes` reports it. A probe run sends each
+         *     request once, whatever the config's repeats.
          */
         post: operations["start_probe"];
         delete?: never;
@@ -531,8 +612,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List Policies
-         * @description List the policies under `suites/`.
+         * List policies
+         * @description List the policies under `suites/policies/`, with each one's actions and the suites that use it.
          */
         get: operations["list_policies"];
         put?: never;
@@ -551,13 +632,16 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Get Policy
-         * @description Return a policy's YAML text and what it defines.
+         * Get a policy
+         * @description Return a policy's YAML text, its actions and thresholds, and the suites that use it.
          */
         get: operations["get_policy"];
         /**
-         * Save Policy
-         * @description Validate and save a policy's YAML text. An invalid policy returns 422 with every error in `details`.
+         * Save a policy
+         * @description Validate a policy's YAML text and save it as sent, comments included. Creates the policy if it's new.
+         *
+         *     An invalid policy returns 422 with every error in `details`, and nothing is saved. A YAML syntax error's detail has
+         *     the `line` it's on, from 1.
          */
         put: operations["save_policy"];
         post?: never;
@@ -577,8 +661,13 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Sweep Policy
-         * @description Sweep one threshold over a finished run's answers and return the trade-off points.
+         * Sweep a policy threshold
+         * @description Measure a target's decisions in a run as one of the policy's thresholds moves from `start` to `stop`.
+         *
+         *     The sweep uses the policy as it is now, against the run's answers, so you can tune a threshold without running the
+         *     suite again. Each value replaces the threshold for the sweep's target, whether the policy sets a shared value or a
+         *     `per_target` one. A threshold the policy doesn't have, a target the run didn't run, or a range of more than 1,000
+         *     points returns 422.
          */
         post: operations["sweep_policy"];
         delete?: never;
@@ -597,19 +686,41 @@ export interface components {
          * @description A case whose answer changed from the baseline run.
          */
         AnswerChange: {
-            /** Case Id */
+            /**
+             * Case Id
+             * @description The case's id.
+             */
             case_id: string;
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Question */
+            /**
+             * Question
+             * @description The question's id.
+             */
             question: string;
+            /** @description The case's expected answer. `null` when the case expects none. */
             expected: components["schemas"]["AnswerValue"] | null;
+            /** @description `None` when the baseline has no answer. */
             baseline_answer: components["schemas"]["AnswerValue"] | null;
-            /** Baseline Probability */
+            /**
+             * Baseline Probability
+             * @description The probability of the baseline's answer.
+             */
             baseline_probability: number | null;
+            /** @description The answer in this run. `null` when there's none. */
             answer: components["schemas"]["AnswerValue"] | null;
-            /** Probability */
+            /**
+             * Probability
+             * @description The probability of this run's answer.
+             */
             probability: number | null;
+            /**
+             * @description `fixed` went from wrong to right, and `broken` from right to wrong. `changed` stayed right or stayed wrong, like
+             *     a score that moved within its tolerance, or the case has no expectation.
+             */
             status: components["schemas"]["ChangeStatus"];
         };
         AnswerValue: boolean | string | number;
@@ -625,12 +736,27 @@ export interface components {
          * @description What went wrong.
          */
         ApiErrorBody: {
+            /**
+             * @description Why the request failed: `invalid_request` (422), `not_found` (404), `conflict` or `not_ready` (409), or
+             *     `internal` (500).
+             */
             code: components["schemas"]["ApiErrorCode"];
-            /** Message */
+            /**
+             * Message
+             * @description What went wrong, for a person. For a validation error, it's the first error's message.
+             */
             message: string;
-            /** Field */
+            /**
+             * Field
+             * @description The dotted path of the first invalid field, like `questions.intent.choice.criteria`. `null` when the error isn't
+             *     about one field.
+             */
             field: string | null;
-            /** Details */
+            /**
+             * Details
+             * @description Every validation error, for a form or editor that shows them all. An error about one field lists that field here
+             *     too. Empty for an error that isn't about a field.
+             */
             details: components["schemas"]["ErrorDetail"][];
         };
         /** @enum {string} */
@@ -645,17 +771,36 @@ export interface components {
          *     the chosen option, and the observed rate is how often that choice was correct.
          */
         Calibration: {
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Question */
+            /**
+             * Question
+             * @description The question's id.
+             */
             question: string;
-            /** Bins */
+            /**
+             * Bins
+             * @description Equal-width bins from 0 to 1, lowest first.
+             */
             bins: components["schemas"]["CalibrationBin"][];
-            /** Ece */
+            /**
+             * Ece
+             * @description Expected calibration error: the count-weighted mean gap between each bin's mean prediction and its observed rate.
+             *     `null` when there are no predictions.
+             */
             ece: number | null;
-            /** N */
+            /**
+             * N
+             * @description Predictions counted.
+             */
             n: number;
         };
         /**
@@ -663,15 +808,30 @@ export interface components {
          * @description One probability bin of a reliability table.
          */
         CalibrationBin: {
-            /** Lower */
+            /**
+             * Lower
+             * @description The bin's lowest predicted probability.
+             */
             lower: number;
-            /** Upper */
+            /**
+             * Upper
+             * @description The bin's highest predicted probability.
+             */
             upper: number;
-            /** Count */
+            /**
+             * Count
+             * @description Predictions in the bin.
+             */
             count: number;
-            /** Mean Predicted */
+            /**
+             * Mean Predicted
+             * @description `None` when the bin is empty.
+             */
             mean_predicted: number | null;
-            /** Observed Rate */
+            /**
+             * Observed Rate
+             * @description `None` when the bin is empty.
+             */
             observed_rate: number | null;
         };
         /**
@@ -681,51 +841,102 @@ export interface components {
         Capabilities: {
             /**
              * Probabilities
+             * @description Whether the target returns a probability for every option. Targets without them are left out of calibration.
              * @default true
              */
             probabilities: boolean;
-            /** Question Types */
+            /**
+             * Question Types
+             * @description The question types the target accepts. Preflight rejects a request with any other type.
+             */
             question_types: components["schemas"]["QuestionType"][];
             /**
              * Images
+             * @description Whether the target accepts images.
              * @default false
              */
             images: boolean;
-            /** Max Images */
+            /**
+             * Max Images
+             * @description The most images one request may have. Preflight rejects a request with more.
+             */
             max_images: number | null;
-            /** Max Image Bytes */
+            /**
+             * Max Image Bytes
+             * @description The largest image the target accepts, in bytes. Shown with the target; preflight doesn't check it yet.
+             */
             max_image_bytes: number | null;
-            /** Max Total Image Bytes */
+            /**
+             * Max Total Image Bytes
+             * @description The largest total size of a request's images, in bytes. Shown with the target; preflight doesn't check it yet.
+             */
             max_total_image_bytes: number | null;
-            /** Image Formats */
+            /**
+             * Image Formats
+             * @description The image formats the target accepts. Shown with the target; preflight doesn't check it yet.
+             */
             image_formats: components["schemas"]["ImageFormat"][];
-            /** Context Window */
+            /**
+             * Context Window
+             * @description The input limit in tokens. Preflight estimates a request's tokens as its JSON size in bytes divided by 4. Over
+             *     the window, it warns with `state_may_truncate` when the target truncates, and otherwise rejects a request more than
+             *     25% over.
+             */
             context_window: number | null;
             /**
              * Truncates State
+             * @description Whether the server cuts the state to fit the context window without an error.
              * @default false
              */
             truncates_state: boolean;
-            /** Max Questions */
+            /**
+             * Max Questions
+             * @description The most questions one request may have. Preflight rejects a request with more.
+             */
             max_questions: number | null;
-            /** Min Options */
+            /**
+             * Min Options
+             * @description The fewest options or levels a question may have. Preflight rejects a request with a choice or score question
+             *     that has fewer.
+             */
             min_options: number | null;
-            /** Max Options */
+            /**
+             * Max Options
+             * @description The most options or levels a question may have. Preflight rejects a request with a choice or score question that
+             *     has more.
+             */
             max_options: number | null;
-            /** Max Request Bytes */
+            /**
+             * Max Request Bytes
+             * @description The largest request body the target accepts, in bytes of JSON. Preflight rejects a larger request.
+             */
             max_request_bytes: number | null;
             /**
              * Concurrency
+             * @description How many requests a run may have in flight to the target at once. At least 1.
              * @default 1
              */
             concurrency: number;
-            /** Concurrency Group */
+            /**
+             * Concurrency Group
+             * @description Targets with the same group share one concurrency limit, like several models on one local server.
+             */
             concurrency_group: string | null;
-            /** Requests Per Minute */
+            /**
+             * Requests Per Minute
+             * @description The most requests a run starts per minute on the target. A run spaces its requests to stay under it.
+             */
             requests_per_minute: number | null;
-            /** Tokens Per Minute */
+            /**
+             * Tokens Per Minute
+             * @description The target's limit on tokens per minute. Shown with the target; runs don't enforce it yet.
+             */
             tokens_per_minute: number | null;
-            /** Input Cost Per Mtok Usd */
+            /**
+             * Input Cost Per Mtok Usd
+             * @description The cost of one million input tokens, in US dollars. Output tokens are free on every current target. `None`
+             *     leaves each result's `cost_usd` unknown.
+             */
             input_cost_per_mtok_usd: number | null;
         };
         /**
@@ -733,20 +944,40 @@ export interface components {
          * @description One state, with the answers and action it expects.
          */
         "Case-Input": {
-            /** Id */
+            /**
+             * Id
+             * @description The case's id. It must be unique in the suite.
+             */
             id: string;
+            /** @description What the decision model reads: text, a JSON object, or a JSON array. */
             state: components["schemas"]["State"];
-            /** Images */
+            /**
+             * Images
+             * @description Paths of image files sent with the state.
+             */
             images?: string[];
-            /** Expected */
+            /**
+             * Expected
+             * @description Expected answers keyed by question id.
+             */
             expected?: {
                 [key: string]: components["schemas"]["Expectation-Input"];
             };
-            /** Expected Action */
+            /**
+             * Expected Action
+             * @description The action a policy should choose, for policy tests.
+             */
             expected_action?: string | null;
-            /** Tags */
+            /**
+             * Tags
+             * @description Labels for grouping cases.
+             */
             tags?: string[];
-            /** @default human */
+            /**
+             * @description Who wrote the case: `human`, or `claude-draft`. Runs and evaluation skip `claude-draft` cases until a person
+             *     changes them to `human`.
+             * @default human
+             */
             provenance: components["schemas"]["Provenance"];
         };
         /**
@@ -754,20 +985,40 @@ export interface components {
          * @description One state, with the answers and action it expects.
          */
         "Case-Output": {
-            /** Id */
+            /**
+             * Id
+             * @description The case's id. It must be unique in the suite.
+             */
             id: string;
+            /** @description What the decision model reads: text, a JSON object, or a JSON array. */
             state: components["schemas"]["State"];
-            /** Images */
+            /**
+             * Images
+             * @description Paths of image files sent with the state.
+             */
             images: string[];
-            /** Expected */
+            /**
+             * Expected
+             * @description Expected answers keyed by question id.
+             */
             expected: {
                 [key: string]: components["schemas"]["Expectation-Output"];
             };
-            /** Expected Action */
+            /**
+             * Expected Action
+             * @description The action a policy should choose, for policy tests.
+             */
             expected_action: string | null;
-            /** Tags */
+            /**
+             * Tags
+             * @description Labels for grouping cases.
+             */
             tags: string[];
-            /** @default human */
+            /**
+             * @description Who wrote the case: `human`, or `claude-draft`. Runs and evaluation skip `claude-draft` cases until a person
+             *     changes them to `human`.
+             * @default human
+             */
             provenance: components["schemas"]["Provenance"];
         };
         /**
@@ -775,10 +1026,17 @@ export interface components {
          * @description A case saved to a suite.
          */
         CaseCreated: {
-            /** Suite */
+            /**
+             * Suite
+             * @description The suite's name.
+             */
             suite: string;
+            /** @description The case as saved. */
             case: components["schemas"]["Case-Output"];
-            /** Case Count */
+            /**
+             * Case Count
+             * @description The suite's case count after the save. Claude drafts aren't included.
+             */
             case_count: number;
         };
         /**
@@ -786,19 +1044,36 @@ export interface components {
          * @description One job's result for a case.
          */
         CaseResult: {
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Repeat */
+            /**
+             * Repeat
+             * @description The repeat index, from 0.
+             */
             repeat: number;
-            /** Variant */
+            /**
+             * Variant
+             * @description The probe variant id, like `option_order:2`. `null` for the original case.
+             */
             variant: string | null;
-            /** Cached */
+            /**
+             * Cached
+             * @description Whether the result came from the cache.
+             */
             cached: boolean;
-            /** Correct */
+            /**
+             * Correct
+             * @description Whether each answer meets the case's expectation, keyed by question id. `None` without an expectation.
+             */
             correct: {
                 [key: string]: boolean | null;
             };
+            /** @description The suite policy's decision from these answers. `None` without a policy, or when the target failed. */
             decision: components["schemas"]["PolicyDecision"] | null;
+            /** @description The full result, with `request_body` and `raw`. */
             result: components["schemas"]["TargetResult"];
         };
         /** @enum {string} */
@@ -808,15 +1083,30 @@ export interface components {
          * @description One target's changes from the baseline, with McNemar's test on the paired results.
          */
         ChangeSummary: {
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Fixed */
+            /**
+             * Fixed
+             * @description Answers that went from wrong to right.
+             */
             fixed: number;
-            /** Broken */
+            /**
+             * Broken
+             * @description Answers that went from right to wrong.
+             */
             broken: number;
-            /** Changed */
+            /**
+             * Changed
+             * @description Answers that changed and stayed right or stayed wrong.
+             */
             changed: number;
-            /** Mcnemar P */
+            /**
+             * Mcnemar P
+             * @description The exact two-sided p-value. `None` when nothing was fixed or broken.
+             */
             mcnemar_p: number | null;
         };
         /**
@@ -829,19 +1119,35 @@ export interface components {
              * @enum {string}
              */
             type: "choice";
-            /** Choice */
+            /**
+             * Choice
+             * @description The option the server chose.
+             */
             choice: string;
-            /** Probabilities */
+            /**
+             * Probabilities
+             * @description The probability of each option, in the question's option order. An option the server sent no probability
+             *     for is left out, with a `missing_probability` warning.
+             */
             probabilities: {
                 [key: string]: number;
             };
-            /** Unknown Probabilities */
+            /**
+             * Unknown Probabilities
+             * @description Probabilities the server sent for options the question doesn't have, with an `unknown_option` warning.
+             */
             unknown_probabilities: {
                 [key: string]: number;
             };
-            /** Confidence */
+            /**
+             * Confidence
+             * @description `(p_max - 1/n) / (1 - 1/n)` over the question's `n` options, computed by jevtester.
+             */
             confidence: number;
-            /** Server Confidence */
+            /**
+             * Server Confidence
+             * @description The server's confidence, when it sends one.
+             */
             server_confidence: number | null;
         };
         /**
@@ -854,9 +1160,15 @@ export interface components {
              * @enum {string}
              */
             type: "choice";
-            /** Instructions */
+            /**
+             * Instructions
+             * @description The question. The model sees this text and not the question's id.
+             */
             instructions: string;
-            /** Criteria */
+            /**
+             * Criteria
+             * @description Option names mapped to descriptions, in the order sent to the model.
+             */
             criteria: {
                 [key: string]: string;
             };
@@ -871,9 +1183,15 @@ export interface components {
              * @enum {string}
              */
             type: "choice";
-            /** Instructions */
+            /**
+             * Instructions
+             * @description The question. The model sees this text and not the question's id.
+             */
             instructions: string;
-            /** Criteria */
+            /**
+             * Criteria
+             * @description Option names mapped to descriptions, in the order sent to the model.
+             */
             criteria: {
                 [key: string]: string;
             };
@@ -883,21 +1201,45 @@ export interface components {
          * @description Expected options against answered options, for one choice question and one target.
          */
         ConfusionMatrix: {
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Question */
+            /**
+             * Question
+             * @description The choice question's id.
+             */
             question: string;
-            /** Options */
+            /**
+             * Options
+             * @description Row and column labels: the question's options in order, then any unknown options the target answered.
+             */
             options: string[];
-            /** Counts */
+            /**
+             * Counts
+             * @description `counts[i][j]` is the number of cases that expected `options[i]` and got `options[j]`.
+             */
             counts: number[][];
-            /** Correct */
+            /**
+             * Correct
+             * @description Cases where the target chose the expected option: the sum of the diagonal.
+             */
             correct: number;
-            /** Total */
+            /**
+             * Total
+             * @description Cases counted: those that expect an option and have the target's choice.
+             */
             total: number;
-            /** Recall */
+            /**
+             * Recall
+             * @description Recall for each option. `None` for an option no case expected.
+             */
             recall: (number | null)[];
         };
         /**
@@ -905,16 +1247,29 @@ export interface components {
          * @description One request to send to one or more targets.
          */
         DecideBody: {
+            /** @description What the decision model reads: text, a JSON object, or a JSON array. */
             state: components["schemas"]["State"];
-            /** Questions */
+            /**
+             * Questions
+             * @description Questions keyed by the id each answer comes back under.
+             */
             questions: {
                 [key: string]: components["schemas"]["Question-Input"];
             };
-            /** Images */
+            /**
+             * Images
+             * @description Paths of image files sent with the state.
+             */
             images?: string[];
-            /** Targets */
+            /**
+             * Targets
+             * @description Target names. Empty means the config's default targets.
+             */
             targets?: string[];
-            /** Timeout S */
+            /**
+             * Timeout S
+             * @description Seconds to wait for each target. `None` uses the config's default.
+             */
             timeout_s?: number | null;
         };
         /**
@@ -922,15 +1277,24 @@ export interface components {
          * @description One result per target, in the order the targets were named.
          */
         DecideResponse: {
+            /** @description The state and questions as sent, so a client can label every result from the response alone. */
             request: components["schemas"]["DecisionRequest"];
-            /** Question Set Version */
+            /**
+             * Question Set Version
+             * @description The hash of the request's questions, as a question set with them would have.
+             */
             question_set_version: string;
             /**
              * Asked At
              * Format: date-time
+             * @description When jevtester sent the request.
              */
             asked_at: string;
-            /** Results */
+            /**
+             * Results
+             * @description One result per target, in the order the targets were named. A target that failed has `ok: false` and an
+             *     `error`.
+             */
             results: components["schemas"]["TargetResult"][];
         };
         /**
@@ -938,15 +1302,27 @@ export interface components {
          * @description One target's decision metrics, for a suite with a policy.
          */
         DecisionMetrics: {
-            /** N */
+            /**
+             * N
+             * @description Cases with an expected action.
+             */
             n: number;
             /** Accuracy */
             accuracy: number | null;
-            /** Decided Share */
+            /**
+             * Decided Share
+             * @description The share of cases the policy decided without escalating.
+             */
             decided_share: number | null;
-            /** Error Rate */
+            /**
+             * Error Rate
+             * @description The error rate among the cases the policy decided.
+             */
             error_rate: number | null;
-            /** Cost */
+            /**
+             * Cost
+             * @description The total error cost from the policy's cost matrix. `None` when it has none.
+             */
             cost: number | null;
         };
         /**
@@ -954,12 +1330,19 @@ export interface components {
          * @description One request to a decision model, before a target adds its model name and settings.
          */
         DecisionRequest: {
+            /** @description What the decision model reads: text, a JSON object, or a JSON array. */
             state: components["schemas"]["State"];
-            /** Questions */
+            /**
+             * Questions
+             * @description Questions keyed by the id each answer comes back under.
+             */
             questions: {
                 [key: string]: components["schemas"]["Question-Output"];
             };
-            /** Images */
+            /**
+             * Images
+             * @description Paths of image files sent with the state.
+             */
             images: string[];
         };
         /** @enum {string} */
@@ -971,11 +1354,20 @@ export interface components {
          * @description One validation error.
          */
         ErrorDetail: {
-            /** Field */
+            /**
+             * Field
+             * @description The dotted path of the field, like `questions.intent.criteria`. `None` for the whole input.
+             */
             field: string | null;
-            /** Message */
+            /**
+             * Message
+             * @description What's wrong, for a person.
+             */
             message: string;
-            /** Line */
+            /**
+             * Line
+             * @description The line of a YAML document the error is on, from 1, for an editor to mark. `None` when it isn't known.
+             */
             line: number | null;
         };
         /**
@@ -983,12 +1375,20 @@ export interface components {
          * @description The answer a case expects to one question.
          */
         "Expectation-Input": {
-            /** Answer */
+            /**
+             * Answer
+             * @description `true` or `false` for a noul, an option name for a choice, or a level index from 0 for a score. `None` expects
+             *     nothing, so the question isn't scored for the case.
+             */
             answer?: boolean | string | number | null;
-            /** Acceptable */
+            /**
+             * Acceptable
+             * @description Other answers that count as correct: option names for a choice, or level indexes for a score.
+             */
             acceptable?: (string | number)[] | null;
             /**
              * Tolerance
+             * @description Score levels of slack: an answer within this many levels of `answer` counts as correct. At least 0.
              * @default 0
              */
             tolerance: number;
@@ -998,12 +1398,20 @@ export interface components {
          * @description The answer a case expects to one question.
          */
         "Expectation-Output": {
-            /** Answer */
+            /**
+             * Answer
+             * @description `true` or `false` for a noul, an option name for a choice, or a level index from 0 for a score. `None` expects
+             *     nothing, so the question isn't scored for the case.
+             */
             answer: boolean | string | number | null;
-            /** Acceptable */
+            /**
+             * Acceptable
+             * @description Other answers that count as correct: option names for a choice, or level indexes for a score.
+             */
             acceptable: (string | number)[] | null;
             /**
              * Tolerance
+             * @description Score levels of slack: an answer within this many levels of `answer` counts as correct. At least 0.
              * @default 0
              */
             tolerance: number;
@@ -1021,11 +1429,20 @@ export interface components {
              * @enum {string}
              */
             type: "noul";
-            /** Probability */
+            /**
+             * Probability
+             * @description The probability of yes.
+             */
             probability: number;
-            /** Confidence */
+            /**
+             * Confidence
+             * @description `|2p - 1|`, computed by jevtester.
+             */
             confidence: number;
-            /** Server Confidence */
+            /**
+             * Server Confidence
+             * @description The server's confidence, when it sends one.
+             */
             server_confidence: number | null;
         };
         /**
@@ -1033,9 +1450,15 @@ export interface components {
          * @description Optional descriptions of the yes and no outcomes of a noul question.
          */
         "NoulCriteria-Input": {
-            /** True */
+            /**
+             * True
+             * @description What counts as yes.
+             */
             true?: string | null;
-            /** False */
+            /**
+             * False
+             * @description What counts as no.
+             */
             false?: string | null;
         };
         /**
@@ -1043,9 +1466,15 @@ export interface components {
          * @description Optional descriptions of the yes and no outcomes of a noul question.
          */
         "NoulCriteria-Output": {
-            /** True */
+            /**
+             * True
+             * @description What counts as yes.
+             */
             true: string | null;
-            /** False */
+            /**
+             * False
+             * @description What counts as no.
+             */
             false: string | null;
         };
         /**
@@ -1058,8 +1487,12 @@ export interface components {
              * @enum {string}
              */
             type: "noul";
-            /** Instructions */
+            /**
+             * Instructions
+             * @description The question. The model sees this text and not the question's id.
+             */
             instructions: string;
+            /** @description Descriptions of yes and no. Not every server accepts them. */
             criteria?: components["schemas"]["NoulCriteria-Input"] | null;
         };
         /**
@@ -1072,8 +1505,12 @@ export interface components {
              * @enum {string}
              */
             type: "noul";
-            /** Instructions */
+            /**
+             * Instructions
+             * @description The question. The model sees this text and not the question's id.
+             */
             instructions: string;
+            /** @description Descriptions of yes and no. Not every server accepts them. */
             criteria: components["schemas"]["NoulCriteria-Output"] | null;
         };
         /**
@@ -1081,12 +1518,21 @@ export interface components {
          * @description How one option or level changed.
          */
         OptionDiff: {
-            /** Key */
+            /**
+             * Key
+             * @description The option name for a choice, or the level index for a score.
+             */
             key: string;
             status: components["schemas"]["DiffStatus"];
-            /** Before */
+            /**
+             * Before
+             * @description The option's description, or the level's text, in the older version. `null` when it was added.
+             */
             before: string | null;
-            /** After */
+            /**
+             * After
+             * @description The option's description, or the level's text, in the newer version. `null` when it was removed.
+             */
             after: string | null;
         };
         /**
@@ -1094,7 +1540,11 @@ export interface components {
          * @description A policy's new YAML text.
          */
         PolicyBody: {
-            /** Yaml */
+            /**
+             * Yaml
+             * @description The policy's YAML text. Its `name` must match the policy's name in the path. It's saved as sent, comments
+             *     included, once it validates.
+             */
             yaml: string;
         };
         /**
@@ -1102,18 +1552,39 @@ export interface components {
          * @description The action a policy chose from one result's answers.
          */
         PolicyDecision: {
-            /** Action */
+            /**
+             * Action
+             * @description The action, like `parley_succeeds`.
+             */
             action: string;
+            /**
+             * @description The lowest band among the policy's banded questions: `act` when every one is at its `act` value or above,
+             *     `confirm` when one is between `confirm` and `act`, and `escalate` below that. `act` when the policy has no
+             *     bands.
+             */
             band: components["schemas"]["BandLevel"];
-            /** Escalated */
+            /**
+             * Escalated
+             * @description Whether the policy escalated instead of deciding, because of a band. A rule may still choose `escalate` as
+             *     an action.
+             */
             escalated: boolean;
-            /** Rule */
+            /**
+             * Rule
+             * @description The index of the rule that chose the action. `None` for the default action or a band escalation.
+             */
             rule: number | null;
-            /** Composites */
+            /**
+             * Composites
+             * @description Each composite's value. `None` when an answer it needs is missing.
+             */
             composites: {
                 [key: string]: number | null;
             };
-            /** Reason */
+            /**
+             * Reason
+             * @description Why the policy escalated, or that no rule matched.
+             */
             reason: string | null;
         };
         /**
@@ -1121,17 +1592,35 @@ export interface components {
          * @description A policy's YAML text and what it defines.
          */
         PolicyDetail: {
-            /** Name */
+            /**
+             * Name
+             * @description The policy's name.
+             */
             name: string;
-            /** Version */
+            /**
+             * Version
+             * @description The SHA-256 hash of the parsed policy. Comments and layout aren't part of it.
+             */
             version: string;
-            /** Yaml */
+            /**
+             * Yaml
+             * @description The policy file's text, comments included.
+             */
             yaml: string;
-            /** Actions */
+            /**
+             * Actions
+             * @description Every action the policy can choose, in the order it names them.
+             */
             actions: string[];
-            /** Thresholds */
+            /**
+             * Thresholds
+             * @description The policy's thresholds, in the file's order.
+             */
             thresholds: components["schemas"]["PolicyThreshold"][];
-            /** Suites */
+            /**
+             * Suites
+             * @description Suites that use this policy.
+             */
             suites: string[];
         };
         /**
@@ -1139,7 +1628,10 @@ export interface components {
          * @description Every policy under `suites/`.
          */
         PolicyList: {
-            /** Policies */
+            /**
+             * Policies
+             * @description Every policy, by name.
+             */
             policies: components["schemas"]["PolicySummary"][];
         };
         /**
@@ -1147,13 +1639,25 @@ export interface components {
          * @description A policy in the list of policies.
          */
         PolicySummary: {
-            /** Name */
+            /**
+             * Name
+             * @description The policy's name: its file name in `suites/policies/`, without `.yaml`.
+             */
             name: string;
-            /** Version */
+            /**
+             * Version
+             * @description The SHA-256 hash of the parsed policy. Comments and layout aren't part of it.
+             */
             version: string;
-            /** Actions */
+            /**
+             * Actions
+             * @description Every action the policy can choose, in the order it names them.
+             */
             actions: string[];
-            /** Suites */
+            /**
+             * Suites
+             * @description Suites that use this policy.
+             */
             suites: string[];
         };
         /**
@@ -1161,11 +1665,20 @@ export interface components {
          * @description A threshold a policy uses, with any per-target values.
          */
         PolicyThreshold: {
-            /** Name */
+            /**
+             * Name
+             * @description The threshold's name.
+             */
             name: string;
-            /** Value */
+            /**
+             * Value
+             * @description The shared value.
+             */
             value: number;
-            /** Per Target */
+            /**
+             * Per Target
+             * @description Values for single targets, keyed by target name. They replace the shared value for that target.
+             */
             per_target: {
                 [key: string]: number;
             };
@@ -1175,16 +1688,33 @@ export interface components {
          * @description How often one case's answers changed under one variant on one target.
          */
         ProbeCell: {
-            /** Case Id */
+            /**
+             * Case Id
+             * @description The case's id.
+             */
             case_id: string;
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
+            /** @description The probe. */
             variant: components["schemas"]["ProbeVariant"];
-            /** Instances */
+            /**
+             * Instances
+             * @description Variant requests made from the case that got an answer, like several shuffles of option order. A failed request
+             *     isn't counted.
+             */
             instances: number;
-            /** Changed */
+            /**
+             * Changed
+             * @description Instances where any answer differed from the original's.
+             */
             changed: number;
-            /** Change Rate */
+            /**
+             * Change Rate
+             * @description `changed / instances`.
+             */
             change_rate: number | null;
         };
         /**
@@ -1192,16 +1722,30 @@ export interface components {
          * @description A probe run to start.
          */
         ProbeCreate: {
-            /** Suite */
+            /**
+             * Suite
+             * @description The suite's name.
+             */
             suite: string;
-            /** Targets */
+            /**
+             * Targets
+             * @description Target names. Empty means the suite's default targets, or else the config's.
+             */
             targets?: string[];
-            /** Variants */
+            /**
+             * Variants
+             * @description The probes to run: `option_order`, `key_order`, `bare_levels`, or `pad_state`. A probe named twice runs once.
+             */
             variants: components["schemas"]["ProbeVariant"][];
-            /** Question Set Version */
+            /**
+             * Question Set Version
+             * @description A question set version to run, as its hash or a prefix of 8 or more characters. `null` runs the current
+             *     version.
+             */
             question_set_version?: string | null;
             /**
              * No Cache
+             * @description Send every request, even when a cached result exists.
              * @default false
              */
             no_cache: boolean;
@@ -1211,13 +1755,25 @@ export interface components {
          * @description A probe run's results.
          */
         ProbeReport: {
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The probe run's id.
+             */
             run_id: string;
-            /** Variants */
+            /**
+             * Variants
+             * @description The probes the run made.
+             */
             variants: components["schemas"]["ProbeVariant"][];
-            /** Cells */
+            /**
+             * Cells
+             * @description One cell for each case, target, and probe that has instances.
+             */
             cells: components["schemas"]["ProbeCell"][];
-            /** Summary */
+            /**
+             * Summary
+             * @description One row for each target and probe.
+             */
             summary: components["schemas"]["ProbeSummary"][];
         };
         /**
@@ -1225,12 +1781,23 @@ export interface components {
          * @description The change rate of one variant on one target, across every case.
          */
         ProbeSummary: {
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
+            /** @description The probe. */
             variant: components["schemas"]["ProbeVariant"];
-            /** Cases */
+            /**
+             * Cases
+             * @description Cases with at least one instance of the probe.
+             */
             cases: number;
-            /** Change Rate */
+            /**
+             * Change Rate
+             * @description Changed instances divided by all instances, across every case. `null` when the probe made no instances on this
+             *     target.
+             */
             change_rate: number | null;
         };
         /** @enum {string} */
@@ -1246,16 +1813,30 @@ export interface components {
          * @description How one question changed between two versions.
          */
         QuestionDiff: {
-            /** Id */
+            /**
+             * Id
+             * @description The question's id.
+             */
             id: string;
             status: components["schemas"]["DiffStatus"];
+            /** @description The question in the older version. `null` when it was added. */
             before: components["schemas"]["Question-Output"] | null;
+            /** @description The question in the newer version. `null` when it was removed. */
             after: components["schemas"]["Question-Output"] | null;
-            /** Changed Fields */
+            /**
+             * Changed Fields
+             * @description The question's fields that differ between the versions.
+             */
             changed_fields: ("type" | "instructions" | "criteria")[];
-            /** Options */
+            /**
+             * Options
+             * @description Options or levels in the newer version's order, then removed ones.
+             */
             options: components["schemas"]["OptionDiff"][];
-            /** Order Changed */
+            /**
+             * Order Changed
+             * @description Whether the options that both versions have are in a different order.
+             */
             order_changed: boolean;
         };
         /**
@@ -1263,30 +1844,68 @@ export interface components {
          * @description One target's metrics for one question. A metric that doesn't apply to the question's type is `None`.
          */
         QuestionMetrics: {
-            /** Question */
+            /**
+             * Question
+             * @description The question's id.
+             */
             question: string;
+            /** @description The question's type. */
             type: components["schemas"]["QuestionType"];
-            /** N */
+            /**
+             * N
+             * @description Answers scored against an expectation.
+             */
             n: number;
-            /** Accuracy */
+            /**
+             * Accuracy
+             * @description The share of scored answers that match the expected answer, or one of the `acceptable` ones. For a score, only
+             *     the exact level counts. A missing answer is wrong.
+             */
             accuracy: number | null;
-            /** Macro F1 */
+            /**
+             * Macro F1
+             * @description Choice only: F1 averaged across options.
+             */
             macro_f1: number | null;
-            /** Mae */
+            /**
+             * Mae
+             * @description Score only: mean absolute error between `score` and the expected level.
+             */
             mae: number | null;
-            /** Within Tolerance */
+            /**
+             * Within Tolerance
+             * @description Score only: the share of answers whose `level` is within the case's tolerance.
+             */
             within_tolerance: number | null;
-            /** Brier */
+            /**
+             * Brier
+             * @description Noul only.
+             */
             brier: number | null;
-            /** Log Loss */
+            /**
+             * Log Loss
+             * @description Noul only.
+             */
             log_loss: number | null;
-            /** Auroc */
+            /**
+             * Auroc
+             * @description Noul only. `None` when the cases are all yes or all no.
+             */
             auroc: number | null;
-            /** Ece */
+            /**
+             * Ece
+             * @description Expected calibration error. `None` for a target without probabilities.
+             */
             ece: number | null;
-            /** Abstention Rate */
+            /**
+             * Abstention Rate
+             * @description Choice only: how often the target chose the question's abstention option. `None` when it has none.
+             */
             abstention_rate: number | null;
-            /** Consistency */
+            /**
+             * Consistency
+             * @description The share of cases whose answer was the same in every repeat. `None` with one repeat.
+             */
             consistency: number | null;
         };
         /**
@@ -1294,9 +1913,15 @@ export interface components {
          * @description A named set of questions. Its content hash identifies a version.
          */
         QuestionSet: {
-            /** Name */
+            /**
+             * Name
+             * @description The question set's name. It must match the file name without `.yaml`.
+             */
             name: string;
-            /** Questions */
+            /**
+             * Questions
+             * @description Questions keyed by the id each answer comes back under.
+             */
             questions: {
                 [key: string]: components["schemas"]["Question-Output"];
             };
@@ -1311,7 +1936,10 @@ export interface components {
          * @description The questions to save as a question set's new version.
          */
         QuestionSetBody: {
-            /** Questions */
+            /**
+             * Questions
+             * @description The questions, keyed by the id each answer comes back under. They replace every question in the set.
+             */
             questions: {
                 [key: string]: components["schemas"]["Question-Input"];
             };
@@ -1321,10 +1949,17 @@ export interface components {
          * @description A question set's current version, the suites that use it, and its wording checks.
          */
         QuestionSetDetail: {
+            /** @description The question set as its file has it now, with its `version`. */
             question_set: components["schemas"]["QuestionSet"];
-            /** Suites */
+            /**
+             * Suites
+             * @description Suites that use this question set.
+             */
             suites: string[];
-            /** Checks */
+            /**
+             * Checks
+             * @description Question-wording findings for the questions.
+             */
             checks: components["schemas"]["WordingCheck"][];
         };
         /**
@@ -1332,13 +1967,25 @@ export interface components {
          * @description The differences between two versions of a question set.
          */
         QuestionSetDiff: {
-            /** Name */
+            /**
+             * Name
+             * @description The question set's name.
+             */
             name: string;
-            /** From Version */
+            /**
+             * From Version
+             * @description The older version's full hash.
+             */
             from_version: string;
-            /** To Version */
+            /**
+             * To Version
+             * @description The newer version's full hash.
+             */
             to_version: string;
-            /** Questions */
+            /**
+             * Questions
+             * @description How each question changed.
+             */
             questions: components["schemas"]["QuestionDiff"][];
         };
         /**
@@ -1346,7 +1993,10 @@ export interface components {
          * @description Every question set under `suites/`.
          */
         QuestionSetList: {
-            /** Question Sets */
+            /**
+             * Question Sets
+             * @description Every question set, by name.
+             */
             question_sets: components["schemas"]["QuestionSetSummary"][];
         };
         /**
@@ -1354,15 +2004,30 @@ export interface components {
          * @description A question set in the list of question sets.
          */
         QuestionSetSummary: {
-            /** Name */
+            /**
+             * Name
+             * @description The question set's name: its file name in `suites/question-sets/`, without `.yaml`.
+             */
             name: string;
-            /** Version */
+            /**
+             * Version
+             * @description The current version: the SHA-256 hash of the questions.
+             */
             version: string;
-            /** Question Count */
+            /**
+             * Question Count
+             * @description The number of questions in the current version.
+             */
             question_count: number;
-            /** Suites */
+            /**
+             * Suites
+             * @description Suites that use this question set.
+             */
             suites: string[];
-            /** Updated At */
+            /**
+             * Updated At
+             * @description When the current version was first seen.
+             */
             updated_at: string | null;
         };
         /**
@@ -1370,18 +2035,31 @@ export interface components {
          * @description One version of a question set.
          */
         QuestionSetVersion: {
-            /** Version */
+            /**
+             * Version
+             * @description The version's SHA-256 hash.
+             */
             version: string;
             /**
              * First Seen
              * Format: date-time
+             * @description When jevtester first saw this version: when a suite or question set was read or saved, or when a run used it.
              */
             first_seen: string;
-            /** Question Count */
+            /**
+             * Question Count
+             * @description The number of questions in this version.
+             */
             question_count: number;
-            /** Run Count */
+            /**
+             * Run Count
+             * @description Runs that used this version.
+             */
             run_count: number;
-            /** Current */
+            /**
+             * Current
+             * @description Whether this is the version in the YAML file now.
+             */
             current: boolean;
         };
         /**
@@ -1389,9 +2067,15 @@ export interface components {
          * @description A question set's versions, newest first.
          */
         QuestionSetVersions: {
-            /** Name */
+            /**
+             * Name
+             * @description The question set's name.
+             */
             name: string;
-            /** Versions */
+            /**
+             * Versions
+             * @description Every version jevtester has seen, newest first.
+             */
             versions: components["schemas"]["QuestionSetVersion"][];
         };
         /** @enum {string} */
@@ -1401,20 +2085,36 @@ export interface components {
          * @description A metric that dropped by more than the allowed amount from the baseline.
          */
         Regression: {
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Question */
+            /**
+             * Question
+             * @description The question's id.
+             */
             question: string;
             /**
              * Metric
+             * @description `within_tolerance` for a score question, or `accuracy` for any other.
              * @enum {string}
              */
             metric: "accuracy" | "within_tolerance";
-            /** Baseline */
+            /**
+             * Baseline
+             * @description The metric in the baseline run.
+             */
             baseline: number;
-            /** Value */
+            /**
+             * Value
+             * @description The metric in this run.
+             */
             value: number;
-            /** Drop */
+            /**
+             * Drop
+             * @description `baseline - value`.
+             */
             drop: number;
         };
         /**
@@ -1422,10 +2122,20 @@ export interface components {
          * @description Why a target returned no answers.
          */
         ResultError: {
+            /**
+             * @description Why the target returned no answers: `not_ready`, `preflight`, `auth`, `rate_limited`, `bad_request`,
+             *     `request_too_large`, `server_error`, `timeout`, `connection`, `invalid_response`, or `cancelled`.
+             */
             code: components["schemas"]["ErrorCode"];
-            /** Message */
+            /**
+             * Message
+             * @description What went wrong, for a person.
+             */
             message: string;
-            /** Status */
+            /**
+             * Status
+             * @description The HTTP status, when the server sent one.
+             */
             status: number | null;
         };
         /**
@@ -1433,10 +2143,20 @@ export interface components {
          * @description Something about a result that a person should know.
          */
         ResultWarning: {
+            /**
+             * @description Why the result has a warning: `missing_answer`, `invalid_answer`, `unknown_option`, `missing_probability`,
+             *     `unexpected_answer`, `strict_parse_failed`, `truncation_on`, or `state_may_truncate`.
+             */
             code: components["schemas"]["WarningCode"];
-            /** Message */
+            /**
+             * Message
+             * @description What the warning is about, for a person.
+             */
             message: string;
-            /** Question */
+            /**
+             * Question
+             * @description The question id the warning is about, if it's about one.
+             */
             question: string | null;
         };
         /**
@@ -1444,14 +2164,24 @@ export interface components {
          * @description A case in a run, with every target's result.
          */
         RunCase: {
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
+            /** @description The case as the run sent it. Editing the suite later doesn't change it. */
             case: components["schemas"]["Case-Output"];
-            /** Questions */
+            /**
+             * Questions
+             * @description The questions the run asked, so the answers can be labeled.
+             */
             questions: {
                 [key: string]: components["schemas"]["Question-Output"];
             };
-            /** Results */
+            /**
+             * Results
+             * @description Every job's result for the case: each target, repeat, and probe variant.
+             */
             results: components["schemas"]["CaseResult"][];
         };
         /**
@@ -1459,13 +2189,25 @@ export interface components {
          * @description The answers that changed between a run and a baseline run, for the targets both ran.
          */
         RunChanges: {
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
-            /** Baseline */
+            /**
+             * Baseline
+             * @description The baseline run's id.
+             */
             baseline: string;
-            /** Changes */
+            /**
+             * Changes
+             * @description Each answer that changed, on the first repeat of each case.
+             */
             changes: components["schemas"]["AnswerChange"][];
-            /** Summary */
+            /**
+             * Summary
+             * @description One row for each target both runs ran.
+             */
             summary: components["schemas"]["ChangeSummary"][];
         };
         /**
@@ -1473,12 +2215,21 @@ export interface components {
          * @description The result of `jevtester compare`: both runs' metrics, the changed answers, and any regressions.
          */
         RunComparison: {
+            /** @description This run's metrics. */
             run_metrics: components["schemas"]["RunMetrics"];
+            /** @description The baseline run's metrics. */
             baseline_metrics: components["schemas"]["RunMetrics"];
+            /** @description The answers that changed from the baseline. */
             changes: components["schemas"]["RunChanges"];
-            /** Max Drop */
+            /**
+             * Max Drop
+             * @description The largest drop allowed in accuracy, or in within-tolerance accuracy for a score question.
+             */
             max_drop: number;
-            /** Regressions */
+            /**
+             * Regressions
+             * @description Each target and question whose metric dropped by more than `max_drop`. Empty when none did.
+             */
             regressions: components["schemas"]["Regression"][];
         };
         /**
@@ -1486,19 +2237,40 @@ export interface components {
          * @description Job counts for a run. `done` is `sent + cached + failed + skipped`.
          */
         RunCounts: {
-            /** Jobs */
+            /**
+             * Jobs
+             * @description Jobs in the run. A job is one case on one target for one repeat, or for one probe variant.
+             */
             jobs: number;
-            /** Done */
+            /**
+             * Done
+             * @description Jobs finished. `done / jobs` is the run's progress.
+             */
             done: number;
-            /** Sent */
+            /**
+             * Sent
+             * @description Jobs sent that got an answer.
+             */
             sent: number;
-            /** Cached */
+            /**
+             * Cached
+             * @description Jobs answered from the cache.
+             */
             cached: number;
-            /** Failed */
+            /**
+             * Failed
+             * @description Jobs sent that failed.
+             */
             failed: number;
-            /** Skipped */
+            /**
+             * Skipped
+             * @description Jobs skipped because their target was down when the run started.
+             */
             skipped: number;
-            /** Targets */
+            /**
+             * Targets
+             * @description The counts for each target, in the run's target order.
+             */
             targets: components["schemas"]["TargetCounts"][];
         };
         /**
@@ -1506,20 +2278,38 @@ export interface components {
          * @description A run to start.
          */
         RunCreate: {
-            /** Suite */
+            /**
+             * Suite
+             * @description The suite's name.
+             */
             suite: string;
-            /** Targets */
+            /**
+             * Targets
+             * @description Target names. Empty means the suite's default targets, or else the config's.
+             */
             targets?: string[];
-            /** Question Set Version */
+            /**
+             * Question Set Version
+             * @description A question set version to run, as its hash or a prefix of 8 or more characters. `null` runs the current
+             *     version.
+             */
             question_set_version?: string | null;
-            /** Repeats */
+            /**
+             * Repeats
+             * @description Times to send each request. `None` uses the config's default.
+             */
             repeats?: number | null;
             /**
              * No Cache
+             * @description Send every request, even when a cached result exists.
              * @default false
              */
             no_cache: boolean;
-            /** Baseline */
+            /**
+             * Baseline
+             * @description A run to compare with. It must exist. A report of this run then includes the answers that changed from the
+             *     baseline.
+             */
             baseline?: string | null;
         };
         /**
@@ -1527,7 +2317,10 @@ export interface components {
          * @description A run that has started.
          */
         RunCreated: {
-            /** Id */
+            /**
+             * Id
+             * @description The run's id, like `0002`. Pass it to `GET /api/runs/{id}/events` to follow the run.
+             */
             id: string;
         };
         /** @enum {string} */
@@ -1537,7 +2330,10 @@ export interface components {
          * @description Runs, newest first.
          */
         RunList: {
-            /** Runs */
+            /**
+             * Runs
+             * @description Every run, newest first.
+             */
             runs: components["schemas"]["RunSummary"][];
         };
         /**
@@ -1545,11 +2341,20 @@ export interface components {
          * @description Metrics for each target in a run.
          */
         RunMetrics: {
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
-            /** Questions */
+            /**
+             * Questions
+             * @description The question ids, in the question set's order.
+             */
             questions: string[];
-            /** Targets */
+            /**
+             * Targets
+             * @description Metrics for each target, in the run's target order.
+             */
             targets: components["schemas"]["TargetMetrics"][];
         };
         /**
@@ -1557,9 +2362,14 @@ export interface components {
          * @description The result of `jevtester report`.
          */
         RunReport: {
+            /** @description The run's summary. */
             summary: components["schemas"]["RunSummary"];
+            /** @description The run's metrics. */
             metrics: components["schemas"]["RunMetrics"];
-            /** Markdown */
+            /**
+             * Markdown
+             * @description The same report as Markdown.
+             */
             markdown: string;
         };
         /** @enum {string} */
@@ -1569,44 +2379,98 @@ export interface components {
          * @description A run's settings, status, and counts.
          */
         RunSummary: {
-            /** Id */
+            /**
+             * Id
+             * @description The run's id: four or more digits, like `0002`, counting up from `0001`.
+             */
             id: string;
+            /** @description `suite` for a suite run, or `probe` for a probe run. */
             kind: components["schemas"]["RunKind"];
-            /** Suite */
+            /**
+             * Suite
+             * @description The suite's name.
+             */
             suite: string;
-            /** Question Set */
+            /**
+             * Question Set
+             * @description The question set's name.
+             */
             question_set: string;
-            /** Question Set Version */
+            /**
+             * Question Set Version
+             * @description The full hash of the question set version the run asked.
+             */
             question_set_version: string;
-            /** Policy */
+            /**
+             * Policy
+             * @description The suite's policy when the run started. `null` when it has none.
+             */
             policy: string | null;
-            /** Policy Version */
+            /**
+             * Policy Version
+             * @description The hash of the policy as it was when the run started. `null` without a policy.
+             */
             policy_version: string | null;
-            /** Targets */
+            /**
+             * Targets
+             * @description The targets the run used, in order.
+             */
             targets: string[];
-            /** Repeats */
+            /**
+             * Repeats
+             * @description Times each case was sent to each target. Always 1 for a probe run.
+             */
             repeats: number;
-            /** Variants */
+            /**
+             * Variants
+             * @description The probe variants. Empty for a suite run.
+             */
             variants: components["schemas"]["ProbeVariant"][];
-            /** No Cache */
+            /**
+             * No Cache
+             * @description Whether the run sent every request, even when a cached result existed.
+             */
             no_cache: boolean;
-            /** Baseline */
+            /**
+             * Baseline
+             * @description The run to compare with. `null` when the run has none.
+             */
             baseline: string | null;
+            /**
+             * @description `queued`, then `running`, then `finished`, `cancelled`, or `failed`. A run that was running when the server
+             *     stopped becomes `failed`.
+             */
             status: components["schemas"]["RunStatus"];
-            /** Case Count */
+            /**
+             * Case Count
+             * @description Cases the run sent. Claude drafts aren't included.
+             */
             case_count: number;
+            /** @description Job counts, as they stand now. */
             counts: components["schemas"]["RunCounts"];
-            /** Cost Usd */
+            /**
+             * Cost Usd
+             * @description The total cost of sent requests. Cached results cost nothing. `None` until a result arrives from the cache or
+             *     from a target whose price is known.
+             */
             cost_usd: number | null;
             /**
              * Created At
              * Format: date-time
+             * @description When the run was queued.
              */
             created_at: string;
-            /** Started At */
+            /**
+             * Started At
+             * @description When the run started sending. `null` while it's queued.
+             */
             started_at: string | null;
-            /** Finished At */
+            /**
+             * Finished At
+             * @description When the run ended. `null` until it does.
+             */
             finished_at: string | null;
+            /** @description Why the run failed, when `status` is `failed`. */
             error: components["schemas"]["ApiErrorBody"] | null;
         };
         /**
@@ -1619,17 +2483,37 @@ export interface components {
              * @enum {string}
              */
             type: "score";
-            /** Score */
+            /**
+             * Score
+             * @description The probability-weighted level index. It can fall between levels.
+             */
             score: number;
-            /** Level */
+            /**
+             * Level
+             * @description The most probable level, and the lowest of any tied. Evaluation compares this level with the expected one.
+             *     `None` when the server sent no level probabilities.
+             */
             level: number | null;
-            /** Probabilities */
+            /**
+             * Probabilities
+             * @description The probability of each level, lowest first. `None` for a level the server sent no probability for, with a
+             *     `missing_probability` warning.
+             */
             probabilities: (number | null)[];
-            /** Legend */
+            /**
+             * Legend
+             * @description The question's level descriptions, lowest first.
+             */
             legend: string[];
-            /** Confidence */
+            /**
+             * Confidence
+             * @description Always `None`: jevtester uses the server's value for scores, since the formula isn't published.
+             */
             confidence: number | null;
-            /** Server Confidence */
+            /**
+             * Server Confidence
+             * @description The server's confidence.
+             */
             server_confidence: number | null;
         };
         /**
@@ -1642,9 +2526,15 @@ export interface components {
              * @enum {string}
              */
             type: "score";
-            /** Instructions */
+            /**
+             * Instructions
+             * @description The question. The model sees this text and not the question's id.
+             */
             instructions: string;
-            /** Criteria */
+            /**
+             * Criteria
+             * @description One description per level, lowest first. Level `i` is `criteria[i]`.
+             */
             criteria: string[];
         };
         /**
@@ -1657,9 +2547,15 @@ export interface components {
              * @enum {string}
              */
             type: "score";
-            /** Instructions */
+            /**
+             * Instructions
+             * @description The question. The model sees this text and not the question's id.
+             */
             instructions: string;
-            /** Criteria */
+            /**
+             * Criteria
+             * @description One description per level, lowest first. Level `i` is `criteria[i]`.
+             */
             criteria: string[];
         };
         State: string | {
@@ -1670,15 +2566,30 @@ export interface components {
          * @description Cases, the question set they're asked, an optional policy, and default targets.
          */
         Suite: {
-            /** Name */
+            /**
+             * Name
+             * @description The suite's name. It must match the file name without `.yaml`.
+             */
             name: string;
-            /** Question Set */
+            /**
+             * Question Set
+             * @description The name of the question set.
+             */
             question_set: string;
-            /** Cases */
+            /**
+             * Cases
+             * @description The cases, in the order a run sends them.
+             */
             cases: components["schemas"]["Case-Output"][];
-            /** Policy */
+            /**
+             * Policy
+             * @description The name of the policy that turns answers into actions.
+             */
             policy: string | null;
-            /** Targets */
+            /**
+             * Targets
+             * @description Target names to run when a run names none. Empty means the config's default targets.
+             */
             targets: string[];
         };
         /**
@@ -1686,13 +2597,25 @@ export interface components {
          * @description The result of `jevtester suite check`.
          */
         SuiteCheck: {
-            /** Suite */
+            /**
+             * Suite
+             * @description The suite's name.
+             */
             suite: string;
-            /** Valid */
+            /**
+             * Valid
+             * @description Whether the suite, its question set, and its policy load, and every case's expectations name real questions.
+             */
             valid: boolean;
-            /** Errors */
+            /**
+             * Errors
+             * @description Every problem that makes the suite invalid. Empty when `valid` is true.
+             */
             errors: components["schemas"]["ErrorDetail"][];
-            /** Checks */
+            /**
+             * Checks
+             * @description Question-wording findings. Each is a prompt to look at a question, and none makes the suite invalid.
+             */
             checks: components["schemas"]["WordingCheck"][];
         };
         /**
@@ -1700,7 +2623,9 @@ export interface components {
          * @description A suite with its cases and its question set.
          */
         SuiteDetail: {
+            /** @description The suite as its file has it, with every case. */
             suite: components["schemas"]["Suite"];
+            /** @description The suite's question set as its file has it now, with its `version`. */
             question_set: components["schemas"]["QuestionSet"];
         };
         /**
@@ -1708,7 +2633,10 @@ export interface components {
          * @description Every suite under `suites/`.
          */
         SuiteList: {
-            /** Suites */
+            /**
+             * Suites
+             * @description Every suite, by name.
+             */
             suites: components["schemas"]["SuiteSummary"][];
         };
         /**
@@ -1716,19 +2644,40 @@ export interface components {
          * @description A suite in the list of suites.
          */
         SuiteSummary: {
-            /** Name */
+            /**
+             * Name
+             * @description The suite's name: its file name in `suites/`, without `.yaml`.
+             */
             name: string;
-            /** Question Set */
+            /**
+             * Question Set
+             * @description The name of the question set the suite asks.
+             */
             question_set: string;
-            /** Question Set Version */
+            /**
+             * Question Set Version
+             * @description The current version of the suite's question set. `None` when the question set doesn't exist.
+             */
             question_set_version: string | null;
-            /** Policy */
+            /**
+             * Policy
+             * @description The name of the suite's policy. `null` when it has none.
+             */
             policy: string | null;
-            /** Targets */
+            /**
+             * Targets
+             * @description The targets a run of the suite uses when the run names none. Empty means the config's default targets.
+             */
             targets: string[];
-            /** Case Count */
+            /**
+             * Case Count
+             * @description Cases that count in evaluation. Claude drafts aren't included.
+             */
             case_count: number;
-            /** Draft Count */
+            /**
+             * Draft Count
+             * @description Cases with `provenance: "claude-draft"`.
+             */
             draft_count: number;
         };
         /**
@@ -1736,24 +2685,36 @@ export interface components {
          * @description A threshold sweep over a finished run's answers.
          */
         SweepBody: {
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The id of the run whose answers the sweep measures.
+             */
             run_id: string;
-            /** Target */
+            /**
+             * Target
+             * @description A target the run ran.
+             */
             target: string;
-            /** Threshold */
+            /**
+             * Threshold
+             * @description The name of the policy threshold to move.
+             */
             threshold: string;
             /**
              * Start
+             * @description The first value.
              * @default 0
              */
             start: number;
             /**
              * Stop
+             * @description The last value. The sweep includes it when `start` plus a whole number of steps reaches it.
              * @default 1
              */
             stop: number;
             /**
              * Step
+             * @description The gap between values. A sweep has at most 1,000 points.
              * @default 0.05
              */
             step: number;
@@ -1763,13 +2724,25 @@ export interface components {
          * @description The policy's outcome at one threshold value.
          */
         SweepPoint: {
-            /** Value */
+            /**
+             * Value
+             * @description The threshold's value.
+             */
             value: number;
-            /** Decided Share */
+            /**
+             * Decided Share
+             * @description The share of cases the policy decided without escalating.
+             */
             decided_share: number | null;
-            /** Error Rate */
+            /**
+             * Error Rate
+             * @description The error rate among the cases the policy decided.
+             */
             error_rate: number | null;
-            /** Cost */
+            /**
+             * Cost
+             * @description The total error cost from the policy's cost matrix. `null` when the policy has no `costs`.
+             */
             cost: number | null;
         };
         /**
@@ -1777,17 +2750,35 @@ export interface components {
          * @description The trade-off between cases decided and errors as a threshold moves.
          */
         SweepResult: {
-            /** Policy */
+            /**
+             * Policy
+             * @description The policy's name.
+             */
             policy: string;
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Threshold */
+            /**
+             * Threshold
+             * @description The threshold's name.
+             */
             threshold: string;
-            /** Current */
+            /**
+             * Current
+             * @description The threshold's value in the policy, for this target.
+             */
             current: number | null;
-            /** Points */
+            /**
+             * Points
+             * @description One point for each value, from `start` up to `stop`.
+             */
             points: components["schemas"]["SweepPoint"][];
         };
         /**
@@ -1795,19 +2786,40 @@ export interface components {
          * @description One target's job counts in a run.
          */
         TargetCounts: {
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Jobs */
+            /**
+             * Jobs
+             * @description Jobs for this target.
+             */
             jobs: number;
-            /** Sent */
+            /**
+             * Sent
+             * @description Jobs sent that got an answer.
+             */
             sent: number;
-            /** Cached */
+            /**
+             * Cached
+             * @description Jobs answered from the cache.
+             */
             cached: number;
-            /** Failed */
+            /**
+             * Failed
+             * @description Jobs sent that failed.
+             */
             failed: number;
-            /** Skipped */
+            /**
+             * Skipped
+             * @description Jobs skipped because the target was down when the run started.
+             */
             skipped: number;
-            /** Skip Reason */
+            /**
+             * Skip Reason
+             * @description Why the target's jobs were skipped, like `Ollama isn't running`.
+             */
             skip_reason: string | null;
         };
         /**
@@ -1815,28 +2827,72 @@ export interface components {
          * @description A target, its capabilities, and its last health check.
          */
         TargetInfo: {
-            /** Name */
+            /**
+             * Name
+             * @description The target's id, like `decision-1@foundry`. Pass it in a request's `targets`.
+             */
             name: string;
-            /** Label */
+            /**
+             * Label
+             * @description The name people read, like `Microsoft-Decision-1, Azure Foundry`.
+             */
             label: string;
+            /**
+             * @description The provider that sends the target its requests: `systemone` for System One servers (Foundry, Ollama, and the MLX
+             *     server), `workers-ai` for Cloudflare Workers AI, or `claude`, which isn't built yet.
+             */
             provider: components["schemas"]["ProviderName"];
-            /** Model */
+            /**
+             * Model
+             * @description The model name sent in each request. On Foundry it's the deployment name.
+             */
             model: string;
-            /** Base Url */
+            /**
+             * Base Url
+             * @description The API root of the target's server. `null` for a target with no `base_url` in the config, like a Workers AI
+             *     target.
+             */
             base_url: string | null;
-            /** Local */
+            /**
+             * Local
+             * @description Whether the target runs on this machine: its `base_url` host is `localhost`, `127.0.0.1`, or `::1`. It doesn't
+             *     affect cost, which comes from the target's `input_cost_per_mtok_usd`.
+             */
             local: boolean;
+            /**
+             * @description The target's state after its last health check: `ready`, `warning` (ready, with `warnings`), `down` (see
+             *     `reason`), or `unchecked` (no health check has run since the server started).
+             */
             status: components["schemas"]["TargetStatus"];
-            /** Reason */
+            /**
+             * Reason
+             * @description Why the target is down, like `Ollama isn't running`. `null` unless `status` is `down`.
+             */
             reason: string | null;
-            /** Detail */
+            /**
+             * Detail
+             * @description What to do about it, or more about the target's state, like `Needs 0.35.1 or later`. `null` when the health check
+             *     has nothing to add.
+             */
             detail: string | null;
-            /** Credential */
+            /**
+             * Credential
+             * @description Where the credential comes from and when it expires, like `Azure CLI, refreshes in 41 min`. `null` for a target
+             *     without a credential, or before a health check.
+             */
             credential: string | null;
-            /** Warnings */
+            /**
+             * Warnings
+             * @description Warnings that apply to every request, from the target's config: `state_may_truncate` when
+             *     `capabilities.truncates_state` is true, and `truncation_on` when the target sets `truncate = true`.
+             */
             warnings: components["schemas"]["ResultWarning"][];
-            /** Checked At */
+            /**
+             * Checked At
+             * @description When the target's last health check ran. `null` before the first one.
+             */
             checked_at: string | null;
+            /** @description What the target accepts and returns, from the config. */
             capabilities: components["schemas"]["Capabilities"];
         };
         /**
@@ -1844,11 +2900,20 @@ export interface components {
          * @description Every configured target.
          */
         TargetList: {
-            /** Targets */
+            /**
+             * Targets
+             * @description Every target, in the config's order.
+             */
             targets: components["schemas"]["TargetInfo"][];
-            /** Default Targets */
+            /**
+             * Default Targets
+             * @description The targets a request goes to when it names none, from the config's `defaults.targets`, in order.
+             */
             default_targets: string[];
-            /** Checked At */
+            /**
+             * Checked At
+             * @description When the last health check ran. `None` before the first one.
+             */
             checked_at: string | null;
         };
         /**
@@ -1856,26 +2921,58 @@ export interface components {
          * @description One target's metrics in a run.
          */
         TargetMetrics: {
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Results */
+            /**
+             * Results
+             * @description Results for the original cases, failed ones included. Probe variants aren't counted.
+             */
             results: number;
-            /** Errors */
+            /**
+             * Errors
+             * @description Results that failed.
+             */
             errors: number;
-            /** Skipped */
+            /**
+             * Skipped
+             * @description Jobs skipped because the target was down when the run started.
+             */
             skipped: number;
-            /** Probabilities */
+            /**
+             * Probabilities
+             * @description Whether the target returns probabilities. Calibration metrics are `None` when it doesn't.
+             */
             probabilities: boolean;
-            /** Latency P50 Ms */
+            /**
+             * Latency P50 Ms
+             * @description The median latency of successful results, in milliseconds. `null` without one.
+             */
             latency_p50_ms: number | null;
-            /** Latency P95 Ms */
+            /**
+             * Latency P95 Ms
+             * @description The 95th percentile latency of successful results, in milliseconds. `null` without one.
+             */
             latency_p95_ms: number | null;
-            /** Cost Usd */
+            /**
+             * Cost Usd
+             * @description The cost of the requests the run sent. `0` when every result came from the cache. `null` when the target's price
+             *     is unknown.
+             */
             cost_usd: number | null;
-            /** Cost Per 1K Usd */
+            /**
+             * Cost Per 1K Usd
+             * @description The cost of 1,000 requests at this run's average cost per request.
+             */
             cost_per_1k_usd: number | null;
-            /** Questions */
+            /**
+             * Questions
+             * @description Metrics for each question, in the question set's order. Empty when the target has no results.
+             */
             questions: components["schemas"]["QuestionMetrics"][];
+            /** @description `None` when the suite has no policy. */
             decision: components["schemas"]["DecisionMetrics"] | null;
         };
         /**
@@ -1883,23 +2980,49 @@ export interface components {
          * @description The result of one request to one target.
          */
         TargetResult: {
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Ok */
+            /**
+             * Ok
+             * @description `True` when the target answered. Some answers may still be missing; see `warnings`.
+             */
             ok: boolean;
-            /** Latency Ms */
+            /**
+             * Latency Ms
+             * @description Milliseconds from sending the request to receiving the response. `None` when it isn't known, like when nothing
+             *     was sent.
+             */
             latency_ms: number | null;
+            /** @description Token counts the server reports. */
             usage: components["schemas"]["Usage"];
-            /** Cost Usd */
+            /**
+             * Cost Usd
+             * @description `None` when the target's price or token count is unknown.
+             */
             cost_usd: number | null;
-            /** Warnings */
+            /**
+             * Warnings
+             * @description Things a person should know about the result. A warning doesn't stop the result from counting.
+             */
             warnings: components["schemas"]["ResultWarning"][];
+            /** @description Why the target returned no answers. `None` when `ok` is `True`. */
             error: components["schemas"]["ResultError"] | null;
-            /** Answers */
+            /**
+             * Answers
+             * @description Answers keyed by question id, in the request's question order. Empty when `ok` is `False`.
+             */
             answers: {
                 [key: string]: components["schemas"]["Answer"];
             };
+            /** @description The exact body sent to the server. `None` when nothing was sent, and in a run's `result` events. */
             request_body: components["schemas"]["JsonValue"];
+            /**
+             * @description The server's response body, unchanged. For Workers AI, it's the whole Cloudflare response. `None` when no
+             *     response arrived, and in a run's `result` events.
+             */
             raw: components["schemas"]["JsonValue"];
         };
         /** @enum {string} */
@@ -1909,9 +3032,15 @@ export interface components {
          * @description Token counts the server reports. `None` where it reports none.
          */
         Usage: {
-            /** Input Tokens */
+            /**
+             * Input Tokens
+             * @description Input tokens the server counted. `None` when it reports none.
+             */
             input_tokens: number | null;
-            /** Output Tokens */
+            /**
+             * Output Tokens
+             * @description Output tokens the server counted. `None` when it reports none.
+             */
             output_tokens: number | null;
         };
         /** @enum {string} */
@@ -1921,10 +3050,21 @@ export interface components {
          * @description A finding from the question-wording checks.
          */
         WordingCheck: {
-            /** Question */
+            /**
+             * Question
+             * @description The id of the question the finding is about.
+             */
             question: string;
+            /**
+             * @description Which check found it: `multiple_dimensions` (more than one question mark), `degree_words` (criteria with words
+             *     like "very" or "somewhat"), `bare_number_levels` (score levels that are only numbers), `no_abstention` (a choice
+             *     with no option like `cannot_tell`), or `duplicate_options`.
+             */
             code: components["schemas"]["WordingCheckCode"];
-            /** Message */
+            /**
+             * Message
+             * @description What the check found, for a person.
+             */
             message: string;
         };
         /** @enum {string} */
@@ -1935,13 +3075,18 @@ export interface components {
          */
         CancelledEvent: {
             /**
-             * @description discriminator enum property added by openapi-typescript
+             * @description The event type. It matches the SSE `event` field. (enum property replaced by openapi-typescript)
              * @enum {string}
              */
             type: "cancelled";
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
+            /** @description The run's counts when it was cancelled. */
             counts: components["schemas"]["RunCounts"];
+            /** @description The run's final summary. */
             summary: components["schemas"]["RunSummary"];
         };
         /**
@@ -1950,13 +3095,18 @@ export interface components {
          */
         FinishedEvent: {
             /**
-             * @description discriminator enum property added by openapi-typescript
+             * @description The event type. It matches the SSE `event` field. (enum property replaced by openapi-typescript)
              * @enum {string}
              */
             type: "finished";
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
+            /** @description The run's final counts. */
             counts: components["schemas"]["RunCounts"];
+            /** @description The run's final summary. */
             summary: components["schemas"]["RunSummary"];
         };
         /**
@@ -1965,13 +3115,18 @@ export interface components {
          */
         ProgressEvent: {
             /**
-             * @description discriminator enum property added by openapi-typescript
+             * @description The event type. It matches the SSE `event` field. (enum property replaced by openapi-typescript)
              * @enum {string}
              */
             type: "progress";
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
+            /** @description The run's status. */
             status: components["schemas"]["RunStatus"];
+            /** @description The run's counts. */
             counts: components["schemas"]["RunCounts"];
         };
         /**
@@ -1980,26 +3135,44 @@ export interface components {
          */
         ResultEvent: {
             /**
-             * @description discriminator enum property added by openapi-typescript
+             * @description The event type. It matches the SSE `event` field. (enum property replaced by openapi-typescript)
              * @enum {string}
              */
             type: "result";
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
-            /** Case Id */
+            /**
+             * Case Id
+             * @description The case's id.
+             */
             case_id: string;
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Repeat */
+            /**
+             * Repeat
+             * @description The repeat index, from 0.
+             */
             repeat: number;
             /**
              * Variant
+             * @description The probe variant id, like `option_order:2`. `None` for the original case.
              * @default null
              */
             variant: string | null;
-            /** Cached */
+            /**
+             * Cached
+             * @description Whether the result came from the cache.
+             */
             cached: boolean;
+            /** @description The result, with `request_body` and `raw` set to `null`. Get them from `GET /api/runs/{id}/cases/{case_id}`. */
             result: components["schemas"]["TargetResult"];
+            /** @description The run's counts after this job. */
             counts: components["schemas"]["RunCounts"];
         };
         /**
@@ -2008,32 +3181,48 @@ export interface components {
          */
         RunErrorEvent: {
             /**
-             * @description discriminator enum property added by openapi-typescript
+             * @description The event type. It matches the SSE `event` field. (enum property replaced by openapi-typescript)
              * @enum {string}
              */
             type: "error";
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
+            /** @description Why the run failed. */
             error: components["schemas"]["ApiErrorBody"];
+            /** @description The run's counts when it failed. */
             counts: components["schemas"]["RunCounts"];
+            /** @description The run's final summary. */
             summary: components["schemas"]["RunSummary"];
         };
         /**
          * TargetSkippedEvent
-         * @description A target's jobs were skipped, because it isn't ready or a preflight check failed for every case.
+         * @description A target's jobs were skipped, because its health check failed when the run started.
          */
         TargetSkippedEvent: {
             /**
-             * @description discriminator enum property added by openapi-typescript
+             * @description The event type. It matches the SSE `event` field. (enum property replaced by openapi-typescript)
              * @enum {string}
              */
             type: "target_skipped";
-            /** Run Id */
+            /**
+             * Run Id
+             * @description The run's id.
+             */
             run_id: string;
-            /** Target */
+            /**
+             * Target
+             * @description The target's name.
+             */
             target: string;
-            /** Reason */
+            /**
+             * Reason
+             * @description Why the jobs were skipped, like `Ollama isn't running`.
+             */
             reason: string;
+            /** @description The run's counts after the skip. */
             counts: components["schemas"]["RunCounts"];
         };
         RunEvent: components["schemas"]["ProgressEvent"] | components["schemas"]["ResultEvent"] | components["schemas"]["TargetSkippedEvent"] | components["schemas"]["FinishedEvent"] | components["schemas"]["CancelledEvent"] | components["schemas"]["RunErrorEvent"];
@@ -2055,7 +3244,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Every target, in the config's order. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2064,7 +3253,7 @@ export interface operations {
                     "application/json": components["schemas"]["TargetList"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2073,7 +3262,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2082,7 +3271,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2102,7 +3291,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Every target, with its new health check result. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2111,7 +3300,7 @@ export interface operations {
                     "application/json": components["schemas"]["TargetList"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2120,7 +3309,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2129,7 +3318,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2153,7 +3342,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description One result per target, in the order the targets were named. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2162,7 +3351,7 @@ export interface operations {
                     "application/json": components["schemas"]["DecideResponse"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2171,7 +3360,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2180,7 +3369,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2200,7 +3389,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Every suite under `suites/`, by name. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2209,7 +3398,7 @@ export interface operations {
                     "application/json": components["schemas"]["SuiteList"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2218,7 +3407,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2227,7 +3416,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2243,13 +3432,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The suite's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The suite and its question set. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2258,7 +3448,7 @@ export interface operations {
                     "application/json": components["schemas"]["SuiteDetail"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2267,7 +3457,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2276,7 +3466,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2292,13 +3482,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The suite's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Whether the suite is valid, its errors, and the wording findings. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2307,7 +3498,7 @@ export interface operations {
                     "application/json": components["schemas"]["SuiteCheck"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2316,7 +3507,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2325,7 +3516,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2341,6 +3532,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The suite's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
@@ -2351,7 +3543,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description The saved case and the suite's new case count. */
             201: {
                 headers: {
                     [name: string]: unknown;
@@ -2360,7 +3552,7 @@ export interface operations {
                     "application/json": components["schemas"]["CaseCreated"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2369,7 +3561,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Conflict, or a target that isn't ready */
+            /** @description `conflict`: the suite already has a case with this `id`. Choose another id. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -2378,7 +3570,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2387,7 +3579,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2407,7 +3599,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Every question set under `suites/question-sets/`, by name. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2416,7 +3608,7 @@ export interface operations {
                     "application/json": components["schemas"]["QuestionSetList"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2425,7 +3617,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2434,7 +3626,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2450,13 +3642,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The question set, the suites that use it, and its wording findings. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2465,7 +3658,7 @@ export interface operations {
                     "application/json": components["schemas"]["QuestionSetDetail"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2474,7 +3667,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2483,7 +3676,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2499,6 +3692,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
@@ -2509,7 +3703,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description The saved question set, with its new version. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2518,7 +3712,7 @@ export interface operations {
                     "application/json": components["schemas"]["QuestionSetDetail"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2527,7 +3721,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2536,7 +3730,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2552,13 +3746,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Every version jevtester has seen, newest first. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2567,7 +3762,7 @@ export interface operations {
                     "application/json": components["schemas"]["QuestionSetVersions"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2576,7 +3771,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2585,7 +3780,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2601,14 +3796,16 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
+                /** @description The version's SHA-256 hash, or a prefix of it at least 8 characters long. */
                 version: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The question set as it was in that version. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2617,7 +3814,7 @@ export interface operations {
                     "application/json": components["schemas"]["QuestionSet"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2626,7 +3823,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2635,7 +3832,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2649,18 +3846,21 @@ export interface operations {
     diff_question_set: {
         parameters: {
             query: {
+                /** @description The older version's hash, or a prefix of 8 or more characters. */
                 from: string;
+                /** @description The newer version's hash, or a prefix of 8 or more characters. */
                 to: string;
             };
             header?: never;
             path: {
+                /** @description The question set's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description How each question changed from one version to the other. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2669,7 +3869,7 @@ export interface operations {
                     "application/json": components["schemas"]["QuestionSetDiff"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2678,7 +3878,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2687,7 +3887,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2707,7 +3907,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Every run, newest first. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2716,7 +3916,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunList"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2725,7 +3925,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2734,7 +3934,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2758,7 +3958,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description The new run's id. The run continues in the background. */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -2767,7 +3967,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunCreated"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2776,7 +3976,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2785,7 +3985,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2801,13 +4001,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The run's settings, status, and counts. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2816,7 +4017,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunSummary"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2825,7 +4026,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2834,7 +4035,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2850,13 +4051,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The run's events, until it ends. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2865,7 +4067,7 @@ export interface operations {
                     "text/event-stream": unknown;
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2874,7 +4076,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2883,7 +4085,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2899,13 +4101,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The run's summary. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2914,7 +4117,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunSummary"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2923,7 +4126,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2932,7 +4135,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2948,13 +4151,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Metrics for each target and question. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2963,7 +4167,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunMetrics"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -2972,7 +4176,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -2981,7 +4185,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -2995,18 +4199,21 @@ export interface operations {
     get_run_confusion: {
         parameters: {
             query: {
+                /** @description The id of a question the run asked, like `intent`. */
                 question: string;
+                /** @description A target the run ran, like `decision-1@foundry`. */
                 target: string;
             };
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Expected options against answered options. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3015,7 +4222,7 @@ export interface operations {
                     "application/json": components["schemas"]["ConfusionMatrix"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3024,7 +4231,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3033,7 +4240,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3047,19 +4254,23 @@ export interface operations {
     get_run_calibration: {
         parameters: {
             query: {
+                /** @description The id of a question the run asked, like `intent`. */
                 question: string;
+                /** @description A target the run ran, like `decision-1@foundry`. */
                 target: string;
+                /** @description The number of equal-width probability bins, from 1 to 100. */
                 bins?: number;
             };
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The probability bins and the expected calibration error. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3068,7 +4279,7 @@ export interface operations {
                     "application/json": components["schemas"]["Calibration"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3077,7 +4288,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3086,7 +4297,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3100,17 +4311,19 @@ export interface operations {
     get_run_changes: {
         parameters: {
             query: {
+                /** @description The baseline run's id, like `0001`. */
                 baseline: string;
             };
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The changed answers, and McNemar's test for each target. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3119,7 +4332,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunChanges"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3128,7 +4341,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3137,7 +4350,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3151,18 +4364,21 @@ export interface operations {
     compare_runs: {
         parameters: {
             query: {
+                /** @description The baseline run's id, like `0001`. */
                 baseline: string;
+                /** @description The largest allowed drop in a metric. Without it, the config's `defaults.max_drop`. */
                 max_drop?: number | null;
             };
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Both runs' metrics, the changed answers, and the regressions. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3171,7 +4387,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunComparison"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3180,7 +4396,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3189,7 +4405,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3205,14 +4421,16 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
+                /** @description The case's id, like `goblin-bribe`. */
                 case_id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The case, the questions, and every target's full result. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3221,7 +4439,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunCase"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3230,7 +4448,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3239,7 +4457,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3255,13 +4473,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The run's summary, its metrics, and the report as Markdown. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3270,7 +4489,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunReport"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3279,7 +4498,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3288,7 +4507,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3304,13 +4523,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The run's id, like `0002`, from `POST /api/runs`, `POST /api/probes`, or `GET /api/runs`. */
                 id: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description How often answers changed, by case, target, and probe. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3319,7 +4539,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProbeReport"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3328,7 +4548,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3337,7 +4557,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3361,7 +4581,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description The new run's id. The run continues in the background. */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -3370,7 +4590,7 @@ export interface operations {
                     "application/json": components["schemas"]["RunCreated"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3379,7 +4599,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3388,7 +4608,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3408,7 +4628,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description Every policy under `suites/policies/`, by name. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3417,7 +4637,7 @@ export interface operations {
                     "application/json": components["schemas"]["PolicyList"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3426,7 +4646,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3435,7 +4655,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3451,13 +4671,14 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The policy's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Successful Response */
+            /** @description The policy's YAML text and what it defines. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3466,7 +4687,7 @@ export interface operations {
                     "application/json": components["schemas"]["PolicyDetail"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3475,7 +4696,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3484,7 +4705,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3500,6 +4721,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The policy's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
@@ -3510,7 +4732,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description The saved policy. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3519,7 +4741,7 @@ export interface operations {
                     "application/json": components["schemas"]["PolicyDetail"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3528,7 +4750,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3537,7 +4759,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
@@ -3553,6 +4775,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description The policy's name, like `parley`. Lowercase letters, digits, `-`, and `_`, up to 64 characters. Any other name returns 422. */
                 name: string;
             };
             cookie?: never;
@@ -3563,7 +4786,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Successful Response */
+            /** @description The share decided, the error rate, and the cost at each value. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3572,7 +4795,7 @@ export interface operations {
                     "application/json": components["schemas"]["SweepResult"];
                 };
             };
-            /** @description Not found */
+            /** @description `not_found`: no route, suite, question set, version, run, case, or policy has that name. Check the name. A retry with the same name fails the same way. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3581,7 +4804,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Invalid request */
+            /** @description `invalid_request`: the body, a parameter, or a file it reads is invalid. `details` lists every error, and `field` is the first one's path. Fix the input before you retry. */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -3590,7 +4813,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiError"];
                 };
             };
-            /** @description Server error */
+            /** @description `internal`: a bug in jevtester. `message` says what failed. */
             500: {
                 headers: {
                     [name: string]: unknown;
