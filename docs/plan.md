@@ -128,8 +128,8 @@ These facts were checked on 2026-10-24. Recheck anything a step depends on.
 | Machine | Apple M1 Max, 10 cores, 64 GB memory, macOS 26.6.1, 189 GB free disk |
 | Tools | Python 3.14.4, uv, Node 24.4.1, Claude Code 2.1.310, Azure CLI 2.85.0 |
 | Ollama | 0.32.15 installed at `/usr/local/bin/ollama`, not running. Clef-flash needs 0.35.1 or later. |
-| Azure | Signed in to the Visual Studio Enterprise subscription. Deployment `decision-1` of Microsoft-Decision-1 exists on `goldbox-resource` (resource group `rg-01`, eastus2), `DataZoneStandard`, capacity 100 (100 requests and 100,000 tokens per minute). |
-| Cloudflare | Wrangler is signed in with OAuth for account `ac01e4453275b1832bbebe1c82c5b356`, with the `ai (write)` scope. jevtester uses this sign-in, as podcast-thingy does. Clef-flash on Workers AI was verified this way. |
+| Azure | Signed in with the Azure CLI. A deployment named `decision-1` of Microsoft-Decision-1 exists on a Foundry resource. |
+| Cloudflare | Wrangler is signed in with OAuth, with the `ai (write)` scope. jevtester uses this sign-in. Clef-flash on Workers AI was verified this way. |
 | Anthropic | No `ANTHROPIC_API_KEY` is set. The user chose to build without Claude for now. |
 | TypeSafe | No account. TypeSafe's hosted decision model, Jev, is out of scope unless you add an OpenRouter key later. |
 
@@ -139,7 +139,7 @@ A *target* is one model on one runtime, with its settings. The plan supports the
 
 | Target | Runtime | Endpoint | Client | Status |
 |---|---|---|---|---|
-| Microsoft-Decision-1 | Azure Foundry | `https://goldbox-resource.services.ai.azure.com/providers/microsoft/v1/systemone`, `"model": "decision-1"` | TypeSafe SDK | Verified raw and through the SDK |
+| Microsoft-Decision-1 | Azure Foundry | `https://<your Foundry resource>.services.ai.azure.com/providers/microsoft/v1/systemone`, `"model": "decision-1"` | TypeSafe SDK | Verified raw and through the SDK |
 | Clef-flash | Ollama, local | `http://localhost:11434/v1/systemone` | TypeSafe SDK | Needs the Ollama upgrade and a model pull (11-12 GB) |
 | Clef-flash, 4-bit or 8-bit | MLX, local | `http://127.0.0.1:8000/v1/systemone` from `python clef_mlx.py serve` | TypeSafe SDK | Needs a model download |
 | Clef (27B), 8-bit | MLX, local | Same server, a different model | TypeSafe SDK | Needs a download (peak memory about 31-33 GB) |
@@ -166,7 +166,7 @@ from typesafe_sdk import Choice, TypeSafeClient
 token = AzureCliCredential().get_token("https://cognitiveservices.azure.com/.default").token
 with TypeSafeClient(
     api_key=token,
-    base_url="https://goldbox-resource.services.ai.azure.com/providers/microsoft",
+    base_url="https://example-resource.services.ai.azure.com/providers/microsoft",
     compression=False,
 ) as client:
     response = client.system_one(
@@ -179,7 +179,7 @@ print(response.choices["intent"].choice)
 
 ### Target notes
 
-- **Foundry.** `goldbox-resource` has API keys disabled, so authenticate with Entra ID. Request a token for the scope `https://cognitiveservices.azure.com/.default` through `azure-identity`, and refresh it before it expires (tokens last about an hour). The request's `model` is the deployment name. The response's `model` is the underlying model name, `microsoft-decision-1`. Microsoft-Decision-1 is in preview, and its catalog entry shows inference retiring on 2027-02-04. It's built on Qwen3.5-9B, the same base model as Clef-flash.
+- **Foundry.** The Foundry resource used here has API keys disabled, so authenticate with Entra ID. Request a token for the scope `https://cognitiveservices.azure.com/.default` through `azure-identity`, and refresh it before it expires (tokens last about an hour). The request's `model` is the deployment name. The response's `model` is the underlying model name, `microsoft-decision-1`. Microsoft-Decision-1 is in preview, and its catalog entry shows inference retiring on 2027-02-04. It's built on Qwen3.5-9B, the same base model as Clef-flash.
 - **Ollama.** Ollama's library page lists 1-64 questions per request and 2-26 options or levels, and Pydantic AI's docs list a 64 KiB request limit. Decision models aren't available in the Ollama CLI or its client libraries, only over HTTP.
 - **MLX.** Use `mlx-community/clef-flash-4bit`, `clef-flash-8bit`, or `clef-8bit`, with the `clef_mlx.py` loader included in the model repository on Hugging Face. The loader is confirmed for `clef-8bit`, so check that the flash builds include it too. Install its dependencies with `pip install "mlx-vlm>=0.7.4,<0.8" huggingface_hub`. Generic MLX tools and LM Studio load the backbone and produce meaningless text. The server binds to `127.0.0.1`, has no authentication, and handles one request at a time. By default it truncates input at 16,384 tokens without telling you. Start it with `--no-truncate`, or send `"truncate": false` in a request body, and a long input returns HTTP 413 instead. `--max-length` changes the token limit. The server adds `latency_ms` to `usage`. The loader is custom Python code. The `clef-flash-4bit` copy was reviewed on 2026-10-24: it imports only the standard library, MLX, mlx-vlm or mlx-lm, Pillow, and `huggingface_hub`, and it fetches `http(s)` image URLs sent in requests. The repository also contains a compiled `__pycache__/clef_mlx.cpython-312.pyc`. Delete it so Python runs the reviewed source.
 - **GGUF builds.** Community GGUF quantizations of Clef don't include the decision head (the part that scores options), so llama.cpp and LM Studio generate text instead of answers. Don't add them as targets.
@@ -210,7 +210,7 @@ jevtester/
 
 The CLI and the API are thin layers over `service.py`. Put every operation there first, so the UI, the CLI, and agents can all do the same things.
 
-Use Python 3.14 with uv, pydantic v2, FastAPI, SQLite, `typesafe-sdk`, `httpx2` (already a dependency of the SDK) for the Workers AI adapter, `azure-identity`, and `anthropic`. Match the gates (the checks that must pass) of the osr-suite projects in `~/repos/osr-suite`: `ruff format --check`, `ruff check`, `pyright`, and `pytest`.
+Use Python 3.14 with uv, pydantic v2, FastAPI, SQLite, `typesafe-sdk`, `httpx2` (already a dependency of the SDK) for the Workers AI adapter, `azure-identity`, and `anthropic`. The gates (the checks that must pass) are `ruff format --check`, `ruff check`, `pyright`, and `pytest`.
 
 ### Data model
 
@@ -288,7 +288,7 @@ class DecisionProvider(Protocol):
 - **WorkersAI** - an `httpx2` call to `/ai/run/@cf/cloudflare/<model>` with a bearer token from the Wrangler sign-in, or from `CLOUDFLARE_API_TOKEN` when it's set. It unwraps the envelope and validates the result with `SystemOneResponse`.
 - **Claude** - one Messages API call per request, with a structured-output schema that has one enum property per question: the option names for a choice, `true` or `false` for a noul, and the level indexes for a score. It returns answers with `probabilities` set to `None`.
 
-Follow the pattern of `NarrativeProvider` in osr-web's `server/llm.py`: a protocol, stateless implementations, and a health check that reports why a target is unavailable.
+Follow the pattern of `NarrativeProvider` in [osr-web](https://github.com/mmacy/osr-web)'s `server/llm.py`: a protocol, stateless implementations, and a health check that reports why a target is unavailable.
 
 ### Normalizer
 
@@ -426,7 +426,7 @@ Keep the JSON output stable and documented, since agents and scripts parse it. L
 
 ## First suites: RPG referee decisions
 
-osrlib (in `~/repos/osr-suite/osrlib-python`) is a deterministic rules engine and the authority on game state. A decision model fits where the B/X rules leave a call to a human referee. Your code turns the model's answer into an ordinary referee command, and the engine applies it, so replays and the event stream still work.
+[osrlib](https://github.com/mmacy/osrlib-python) is a deterministic rules engine and the authority on game state. A decision model fits where the B/X rules leave a call to a human referee. Your code turns the model's answer into an ordinary referee command, and the engine applies it, so replays and the event stream still work.
 
 | Type | Question | Where it applies |
 |---|---|---|
@@ -466,7 +466,7 @@ The user chose the heat matrix direction in `mockups/3-matrix.html`: every view 
 
 ## Build order
 
-Each step ends with a command that shows the step works. Write the contracts (models and protocol signatures) and their tests before the implementation, as the osr-suite projects do.
+Each step ends with a command that shows the step works. Write the contracts (models and protocol signatures) and their tests before the implementation.
 
 1. **Project setup.** Create the uv project, the package layout, `jevtester.toml`, and the gates. Done when `uv run ruff check`, `uv run pyright`, and `uv run pytest` pass.
 2. **Contracts.** Write the spec models, `DecisionProvider`, `Capabilities`, and the canonical answer types. Test request serialization against the request above, and normalization against the Foundry response above. Done when those tests pass.
@@ -483,7 +483,6 @@ Each step ends with a command that shows the step works. Write the contracts (mo
 
 The user made these decisions on 2026-10-24:
 
-- **Foundry capacity.** `decision-1` runs at capacity 100.
 - **Local models.** Support both Ollama and MLX, so runs can compare runtimes and quantization on the same model.
 - **osrlib.** State builders read exported JSON first. Importing osrlib is a later, optional extra.
 - **Evaluation library.** Build the evaluation code in jevtester instead of adopting pydantic-evals. jevtester's requests have several questions each and run across a matrix of targets, which a library built around evaluating one task function doesn't fit, and jevtester needs calibration and confusion-matrix metrics that pydantic-evals' docs don't show.

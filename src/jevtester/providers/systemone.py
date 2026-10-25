@@ -150,7 +150,7 @@ class SystemOneProvider:
         except httpx2.HTTPError, ValueError, AttributeError:
             return Health(
                 reason="The MLX server isn't running",
-                detail=f"Start python clef_mlx.py serve --no-truncate in ~/models/clef-mlx/{self.target.model}",
+                detail=f"Start python clef_mlx.py serve --no-truncate in your {self.target.model} download",
             )
         if not isinstance(loaded, str) or not loaded:
             return Health(
@@ -159,7 +159,7 @@ class SystemOneProvider:
         if loaded != self.target.model:
             return Health(
                 reason=f"The MLX server has {loaded} loaded",
-                detail=f"Restart it from ~/models/clef-mlx/{self.target.model}",
+                detail=f"Restart it from your {self.target.model} download",
             )
         return Health()
 

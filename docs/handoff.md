@@ -1,29 +1,12 @@
 # jevtester handoff
 
-Two Claude Code sessions build jevtester at the same time: one builds the backend, and one builds the frontend. They message each other while they work. [The plan](plan.md) is the specification for both. Read it first, then the section here for your role.
+Two Claude Code sessions can build jevtester at the same time: one builds the backend, and one builds the frontend. They message each other while they work. [The plan](plan.md) is the specification for both. Read it first, then the section here for your role.
 
-## State on 2026-10-24
+## Before you start
 
-- `main` contains the plan, these handoff notes, `AGENTS.md`, a short README, and four UI mockups. There's no code yet.
-- The user chose the heat matrix UI direction: [`mockups/3-matrix.html`](../mockups/3-matrix.html).
-- Two hosted targets are verified with real calls:
-  - `decision-1@foundry`: Microsoft-Decision-1 on Azure Foundry, through the TypeSafe SDK with `compression=False`.
-  - `clef-flash@workers-ai`: Clef-flash on Workers AI, with a token from the Wrangler sign-in.
-- The `decision-1` deployment runs at capacity 100 (100 requests and 100,000 tokens per minute).
-- Ollama 0.40.11 is installed. The `clef-flash` pull was stopped before it finished.
-- The MLX environment is ready at `~/models/clef-mlx/.venv`. The model downloads were stopped part of the way through: `clef-flash-4bit` has 3.7 GB, and `clef-flash-8bit` and `clef-8bit` haven't started.
+- Copy `jevtester.toml` to `jevtester.local.toml` and set your own Foundry resource and Cloudflare account there. Git ignores the copy. See the [README](../README.md).
 - The Claude provider and the assist features are deferred.
-
-The local downloads were stopped because the machine is on a phone hotspot. Don't restart them without asking the user. To resume them later:
-
-```sh
-ollama pull clef-flash
-for r in clef-flash-4bit clef-flash-8bit clef-8bit; do
-  uvx --from huggingface_hub hf download mlx-community/$r --local-dir ~/models/clef-mlx/$r
-done
-```
-
-After a download finishes, delete any `__pycache__` directory in the model repository before you run `clef_mlx.py`. The plan explains why.
+- Don't start a local model download (Ollama or MLX) without asking the user. After an MLX download finishes, delete any `__pycache__` directory in the model repository before you run `clef_mlx.py`. The plan explains why.
 
 ## Who does what
 
@@ -37,17 +20,17 @@ After a download finishes, delete any `__pycache__` directory in the model repos
 
 ## Git
 
-The repository is private on GitHub at <https://github.com/mmacy/jevtester>, and `main` takes pull requests. [AGENTS.md](../AGENTS.md) has the pull request rules.
+The repository is on GitHub at <https://github.com/mmacy/jevtester>, and `main` takes pull requests. [AGENTS.md](../AGENTS.md) has the pull request rules.
 
 Each session works on a separate branch, in a separate worktree next to the main checkout. Cut each branch from `origin/main`:
 
 ```sh
-git -C ~/repos/jevtester fetch origin
-git -C ~/repos/jevtester worktree add ../jevtester-backend -b backend/<step> origin/main
-git -C ~/repos/jevtester worktree add ../jevtester-frontend -b frontend/<step> origin/main
+git fetch origin
+git worktree add ../jevtester-backend -b backend/<step> origin/main
+git worktree add ../jevtester-frontend -b frontend/<step> origin/main
 ```
 
-Work only in your worktree. The main checkout at `~/repos/jevtester` stays on `main`.
+Run these from the main checkout. Work only in your worktree. The main checkout stays on `main`.
 
 When a step passes its gates, open a pull request and ask the other session to review it. Merge it after the review, as [Pull request reviews](#pull-request-reviews) describes. To pick up the other session's work, fetch and merge `origin/main` into your branch.
 
@@ -157,7 +140,7 @@ Follow the plan's build order, with one change: write the API contract (above) r
 Build the UI from [`mockups/3-matrix.html`](../mockups/3-matrix.html) and the plan's [What the UI must show](plan.md#what-the-ui-must-show).
 
 1. Before you build views, write `docs/ui-plan.md` in your worktree: the views, the components, each component's states (loading, empty, error, and a target that isn't ready), and the API calls each view makes. Send it to the user for review. Scaffolding and design tokens can go ahead while you wait.
-2. Use the stack osr-editor uses (`~/repos/osr-suite/osr-editor/frontend`): React, TypeScript, Vite, Tailwind CSS, vitest, Playwright, prettier, and eslint. Generate API types from `docs/openapi.json` with `openapi-typescript`, and don't edit the generated file.
+2. Use the stack [osr-editor](https://github.com/mmacy/osr-editor)'s frontend uses: React, TypeScript, Vite, Tailwind CSS, vitest, Playwright, prettier, and eslint. Generate API types from `docs/openapi.json` with `openapi-typescript`, and don't edit the generated file.
 3. Take the colors, spacing, and type scale from the mockup's CSS variables.
 4. Serve the Noto fonts from the app with the `@fontsource` packages, not from Google Fonts. The app runs locally, sometimes on a slow connection.
 5. Build against the fixtures in `tests/fixtures/api/` until each endpoint is live. In development, Vite proxies `/api` to `http://127.0.0.1:8640`.
