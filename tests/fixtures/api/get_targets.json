@@ -5,7 +5,7 @@
       "label": "Microsoft-Decision-1, Azure Foundry",
       "provider": "systemone",
       "model": "decision-1",
-      "base_url": "https://goldbox-resource.services.ai.azure.com/providers/microsoft",
+      "base_url": "https://example-resource.services.ai.azure.com/providers/microsoft",
       "local": false,
       "status": "ready",
       "reason": null,

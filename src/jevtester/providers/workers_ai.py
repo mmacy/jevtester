@@ -153,7 +153,7 @@ class WorkersAIProvider:
             Ready when the model is in the account's Workers AI catalog, with the credential's source.
         """
         if self._account_id is None:
-            return Health(reason="No Cloudflare account", detail="Set cloudflare.account_id in jevtester.toml")
+            return Health(reason="No Cloudflare account", detail="Set cloudflare.account_id in jevtester.local.toml")
         try:
             token = await self._credential.token()
         except CredentialError as error:

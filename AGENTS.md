@@ -42,18 +42,20 @@ npx playwright test
 
 Fix a finding in the code. Don't add ignore lists, `noqa`, or `type: ignore`.
 
+CI (`.github/workflows/ci.yml`) runs these gates on every pull request and every push to `main`, without secrets and without the live tests.
+
 ## Credentials
 
-- Foundry uses the `az` sign-in through `azure-identity`. The `goldbox-resource` resource has API keys disabled.
+- Foundry uses the `az` sign-in through `azure-identity`. jevtester doesn't use Foundry API keys.
 - Workers AI uses the Wrangler sign-in: `npx wrangler auth token --json` returns a short-lived token in its `token` field.
 - Never print, log, or commit a token or key. Read a credential in code and use it there.
 - `.env` files are gitignored. jevtester doesn't need one yet.
+- `jevtester.toml` holds placeholders. Put a real Foundry resource name or Cloudflare account ID only in `jevtester.local.toml`, which is gitignored and which jevtester reads instead when it exists. Tests read `jevtester.toml`, so they never depend on a contributor's account.
 
 ## Local models
 
-- Ollama runs at `http://localhost:11434`. Its `clef-flash` pull isn't finished.
-- The MLX builds and their environment are in `~/models/clef-mlx`. The downloads aren't finished.
-- Don't start or resume a model download without asking the user. The machine is sometimes on a phone hotspot.
+- Ollama runs at `http://localhost:11434`. The MLX server from `clef_mlx.py` runs at `http://127.0.0.1:8000`.
+- Don't start or resume a model download without asking the user. The downloads are many gigabytes, and the connection may be metered.
 - Delete `__pycache__` from a downloaded MLX model repository before you run `clef_mlx.py`, so Python runs the reviewed source.
 - Stop a server you started by its process id, never by name. The user may be running a server too.
 
@@ -64,9 +66,9 @@ Fix a finding in the code. Don't add ignore lists, `noqa`, or `type: ignore`.
 
 ## Repository
 
-- `origin` is <https://github.com/mmacy/jevtester> (private). `main` takes pull requests.
+- `origin` is <https://github.com/mmacy/jevtester>. `main` takes pull requests.
 - Cut every branch from `origin/main`. When a branch builds on another unmerged branch, set its pull request's base to that branch.
 - Before you open a pull request, run `git log --oneline origin/main..HEAD` and confirm it lists only the branch's commits.
-- Work in a worktree beside the main checkout (`git worktree add ../jevtester-<branch> -b <branch> origin/main`), not under `.claude/worktrees/`. The main checkout at `~/repos/jevtester` stays on `main`.
-- Every pull request gets a review from the other session, posted as a pull request comment that names the reviewing session. Start each pull request description, review, and reply with the session's name, since both sessions use the user's GitHub account. [Pull request reviews](docs/handoff.md#pull-request-reviews) in the handoff gives the steps.
+- Work in a worktree beside the main checkout (`git worktree add ../jevtester-<branch> -b <branch> origin/main`), not under `.claude/worktrees/`. The main checkout stays on `main`.
+- When two sessions work in parallel, every pull request gets a review from the other session, posted as a pull request comment that names the reviewing session. Start each pull request description, review, and reply with the session's name, since both sessions use the user's GitHub account. [Pull request reviews](docs/handoff.md#pull-request-reviews) in the handoff gives the steps.
 - You may merge your own pull request once the latest review says `Ready to merge` and the gates pass.
