@@ -1,0 +1,677 @@
+# Forty encounter cases for comparing targets on the parley questions. The parley suite has seven cases for the
+# tutorial. These add harder ones: threats and bluffs that are still parley, offers that are only implied or only
+# promised, attacks disguised as talk, monsters that won't talk however politely they're asked, and words that show
+# no intent. As in the parley suite, the reaction counts what the monsters see the party do, so an attack is 0.
+name: parley-bench
+question_set: parley
+policy: parley
+targets:
+- clef-flash@ollama
+cases:
+- id: ogre-mutton
+  state:
+    party: Three adventurers carrying a leg of mutton
+    monsters: One hungry ogre gnawing a bare bone, 30 feet away
+    player_says: Big fellow, we've got a whole leg of mutton here. It's yours if you let us by.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+- id: troll-toll
+  state:
+    party: Four adventurers at the end of a rope bridge
+    monsters: One troll blocking the bridge, holding out a clawed hand and grunting "Toll"
+    player_says: Fine, fine. Here's your five gold. Now step aside.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+- id: lizardmen-map
+  state:
+    party: Three adventurers with a hand-drawn map of the marsh
+    monsters: Six lizardmen with spears, mourning eggs smashed by human hunters, 40 feet away
+    player_says: We know where the hunters who raided your nest are camped. We'll mark it on our map for you if you let us through.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+  - hard
+- id: hobgoblin-sellswords
+  state:
+    party: Four adventurers with heavy coin purses
+    monsters: Five hobgoblin mercenaries in a necromancer's pay, bored and counting coins, 50 feet away
+    player_says: Whatever the necromancer pays you, we'll pay double. Fifty gold now and fifty when we're out.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+- id: kobold-lantern
+  state:
+    party: Two adventurers, one holding a polished brass lantern
+    monsters: Nine kobolds around their chieftain, staring at the shiny lantern, 30 feet away
+    player_says: A gift for your chief! May we pass in peace?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+- id: bandit-purse
+  state:
+    party: Two adventurers on a forest road, surrounded
+    monsters: Seven bandits with bows drawn, demanding valuables, 30 feet away
+    player_says: All right, take the purse. Just let us walk away.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+- id: drow-hostage
+  state:
+    party: Four adventurers holding a captured dark elf scout, bound but unharmed
+    monsters: Eight dark elves with crossbows aimed, 60 feet away
+    player_says: Lower your crossbows and we'll hand your scout back unharmed.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+  - hard
+- id: orc-ale
+  state:
+    party: Three adventurers rolling a small cask of dwarven ale
+    monsters: Six orcs resting around a dead campfire, licking their lips, 40 feet away
+    player_says: Anyone thirsty? This cask is too heavy for us to carry much farther.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+  - hard
+- id: goblin-promise
+  state:
+    party: Three adventurers with empty packs, heading down
+    monsters: Seven goblins guarding the stairs to the lower level, 30 feet away
+    player_says: Let us pass, and on our way back up we'll share whatever treasure we find down there.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+  - hard
+- id: elf-patrol
+  state:
+    party: Three adventurers on an overgrown trail
+    monsters: Four wood elves with bows in hand but no arrows nocked, watching calmly, 30 feet away
+    player_says: Greetings, friends of the forest. We seek the old road to the river.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+- id: orc-threat
+  state:
+    party: Five well-armed adventurers, one of them a wizard with crackling hands
+    monsters: Three orcs, one already wounded, 40 feet away
+    player_says: Drop your weapons and run, or we burn the lot of you.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - hard
+- id: ghoul-plea
+  state:
+    party: Two adventurers, one wounded
+    monsters: Five ghouls shambling closer, jaws working, 30 feet away
+    player_says: Please, we don't want to fight you. Can't we talk about this?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 0
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+- id: bugbear-leader
+  state:
+    party: Four adventurers at the entrance to a cave
+    monsters: Six bugbears sharpening axes, glancing up suspiciously, 40 feet away
+    player_says: Who's in charge here? We'd like a word with your leader.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+- id: lizardman-baron
+  state:
+    party: Three adventurers in travel-stained clothes, no banner or seal
+    monsters: Five lizardmen guarding a causeway, tails twitching, 40 feet away
+    player_says: We are emissaries of the Baron. Stand aside in his name.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - hard
+- id: hobgoblin-toll-refused
+  state:
+    party: Four adventurers at a gate
+    monsters: Six hobgoblins demanding a toll, spears lowered, 20 feet away
+    player_says: We won't pay you a single copper. Now open the gate and let us through.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - hard
+- id: goblin-arrow
+  state:
+    party: Three adventurers on a ledge above a cavern
+    monsters: Eight goblins and their chieftain around a fire below, pointing up at the ledge, 60 feet away
+    player_says: I nock an arrow and shoot the chieftain.
+  expected:
+    intent:
+      answer: fight
+    bribe:
+      answer: false
+    reaction:
+      answer: 0
+      tolerance: 1
+  expected_action: battle
+  tags:
+  - combat
+- id: gnoll-white-flag
+  state:
+    party: Four adventurers, one waving a strip of white cloth
+    monsters: Five gnolls, wary but curious about the flag, 50 feet away
+    player_says: Keep waving the flag. When they come close, we cut them down.
+  expected:
+    intent:
+      answer: fight
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: battle
+  tags:
+  - combat
+  - hard
+- id: kobold-sleep
+  state:
+    party: Two adventurers, one a magic-user with a spellbook
+    monsters: Ten kobolds advancing with spears, 40 feet away
+    player_says: I cast sleep on the kobolds.
+  expected:
+    intent:
+      answer: fight
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: battle
+  tags:
+  - combat
+- id: zombie-oil
+  state:
+    party: Three adventurers with flasks of oil and a lit torch
+    monsters: Six zombies lurching forward, 20 feet away
+    player_says: Light the oil and throw it at them!
+  expected:
+    intent:
+      answer: fight
+    bribe:
+      answer: false
+    reaction:
+      answer: 0
+      tolerance: 1
+  expected_action: battle
+  tags:
+  - combat
+- id: rat-stomp
+  state:
+    party: Three adventurers in a sewer tunnel
+    monsters: A dozen giant rats swarming out of a drain, squealing, 10 feet away
+    player_says: Stomp on them! Don't let them climb up our legs!
+  expected:
+    intent:
+      answer: fight
+    bribe:
+      answer: false
+    reaction:
+      answer: 0
+      tolerance: 1
+  expected_action: battle
+  tags:
+  - combat
+- id: dwarf-ambush
+  state:
+    party: Four adventurers hidden behind ore carts
+    monsters: Three dwarf miners unloading ore, humming and unaware of the party, 30 feet away
+    player_says: Kill them and take the ore.
+  expected:
+    intent:
+      answer: fight
+    bribe:
+      answer: false
+    reaction:
+      answer: 0
+      tolerance: 1
+  expected_action: battle
+  tags:
+  - combat
+  - hard
+- id: hobgoblin-bow
+  state:
+    party: Three adventurers in a torchlit hall
+    monsters: Four hobgoblin guards, spears grounded, watching calmly, 20 feet away
+    player_says: I bow politely, then stab the nearest one in the throat.
+  expected:
+    intent:
+      answer: fight
+    bribe:
+      answer: false
+    reaction:
+      answer: 0
+      tolerance: 1
+  expected_action: battle
+  tags:
+  - combat
+  - hard
+- id: orc-no-quarter
+  state:
+    party: Four adventurers, swords bloody after a skirmish
+    monsters: Three beaten orcs kneeling, holding out their weapons hilt first, 20 feet away
+    player_says: No quarter. Cut them down.
+  expected:
+    intent:
+      answer: fight
+    bribe:
+      answer: false
+    reaction:
+      answer: 0
+      tolerance: 1
+  expected_action: battle
+  tags:
+  - combat
+  - hard
+- id: goblin-stairs-run
+  state:
+    party: Three adventurers at the foot of the stairs
+    monsters: Twelve goblins pouring out of a side tunnel, shrieking, 50 feet away
+    player_says: Run! Back up the stairs!
+  expected:
+    intent:
+      answer: evade
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: evade
+  tags:
+  - evade
+- id: troglodyte-side-passage
+  state:
+    party: Four adventurers beside a narrow side passage
+    monsters: Seven troglodytes lumbering along the main tunnel, not yet looking this way, 70 feet away
+    player_says: Into the side passage, quietly. Let's get away from them before they notice us.
+  expected:
+    intent:
+      answer: evade
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: evade
+  tags:
+  - evade
+  - hard
+- id: bugbear-invisibility
+  state:
+    party: Two adventurers, one an elf with a scroll of invisibility
+    monsters: Five bugbears blocking a doorway, sniffing the air, 40 feet away
+    player_says: I read the invisibility scroll and slip past them.
+  expected:
+    intent:
+      answer: evade
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: evade
+  tags:
+  - evade
+- id: ogre-wrong-room
+  state:
+    party: Three adventurers who just opened a door
+    monsters: Two ogres at a table, spoons halfway to their mouths, staring, 20 feet away
+    player_says: Oh, pardon us. Wrong room. We'll be going.
+  expected:
+    intent:
+      answer: evade
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: evade
+  tags:
+  - evade
+  - hard
+- id: gnoll-caltrops
+  state:
+    party: Three adventurers with a bag of caltrops, the exit behind them
+    monsters: Six gnolls charging with axes raised, 40 feet away
+    player_says: Scatter the caltrops behind us and sprint for the exit.
+  expected:
+    intent:
+      answer: evade
+    bribe:
+      answer: false
+    reaction:
+      answer: 0
+      tolerance: 1
+  expected_action: evade
+  tags:
+  - evade
+- id: orc-climb-rope
+  state:
+    party: Four adventurers at the bottom of a shaft, a rope hanging from above
+    monsters: Seven orcs bursting through the far door with clubs, 50 feet away
+    player_says: Everyone up the rope, now! Haul it up after us.
+  expected:
+    intent:
+      answer: evade
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: evade
+  tags:
+  - evade
+- id: goblin-corran
+  state:
+    party: Three adventurers near an open door
+    monsters: Ten goblins rushing in from the far end of the hall, 60 feet away
+    player_says: ¡Corran! ¡Todos a la puerta!
+  expected:
+    intent:
+      answer: evade
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: evade
+  tags:
+  - evade
+  - hard
+- id: orc-listen-door
+  state:
+    party: Four adventurers outside a closed oak door
+    monsters: Orcs laughing and throwing dice on the other side, unaware of the party
+    player_says: Press our ears to the door and listen.
+  expected:
+    intent:
+      answer: wait
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: wait
+  tags:
+  - wait
+- id: hobgoblin-shields-up
+  state:
+    party: Five adventurers in a tight formation
+    monsters: Six hobgoblins advancing in step, 50 feet away
+    player_says: Nobody move. Shields up, and let them come to us.
+  expected:
+    intent:
+      answer: wait
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: wait
+  tags:
+  - wait
+  - hard
+- id: skeleton-count
+  state:
+    party: Three adventurers crouched behind a broken wall
+    monsters: Skeletons marching in a slow patrol, 80 feet away
+    player_says: Let's count how many there are before we decide anything.
+  expected:
+    intent:
+      answer: wait
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: wait
+  tags:
+  - wait
+- id: bandit-hands-on-swords
+  state:
+    party: Three adventurers on a muddy road
+    monsters: Four bandits stepping out of the hedges, hands on their own blades, 30 feet away
+    player_says: Hands on our swords, but don't draw. Let's see what they do.
+  expected:
+    intent:
+      answer: wait
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: wait
+  tags:
+  - wait
+- id: troglodyte-alcove
+  state:
+    party: Three adventurers pressed into a dark alcove
+    monsters: Five troglodytes passing along the tunnel, not looking their way, 20 feet away
+    player_says: Keep still and watch them go by.
+  expected:
+    intent:
+      answer: wait
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: wait
+  tags:
+  - wait
+  - hard
+- id: orc-how-many
+  state:
+    party: Four adventurers at a bend in the tunnel
+    monsters: A band of orcs eating around a fire, 60 feet away
+    player_says: Wait, how many of them did you say there were?
+  expected:
+    intent:
+      answer: cannot_tell
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: escalate
+  tags:
+  - unclear
+- id: berserker-sarcasm
+  state:
+    party: Three tired adventurers
+    monsters: Six berserkers howling and beating their shields, 50 feet away
+    player_says: Oh, great. Berserkers. Just what we needed today.
+  expected:
+    intent:
+      answer: cannot_tell
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: escalate
+  tags:
+  - unclear
+  - hard
+- id: gnoll-rope
+  state:
+    party: Four adventurers at the edge of a pit
+    monsters: Three gnolls on the far side of the pit, watching, 40 feet away
+    player_says: Does anyone still have rope?
+  expected:
+    intent:
+      answer: cannot_tell
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: escalate
+  tags:
+  - unclear
+- id: bugbear-argument
+  state:
+    party: Three adventurers arguing among themselves
+    monsters: Five bugbears watching the argument, 40 feet away
+    player_says: Bram wants to fight and Lisel wants to run. I'll go with... I don't know.
+  expected:
+    intent:
+      answer: cannot_tell
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: escalate
+  tags:
+  - unclear
+  - hard
+- id: kobold-shrug
+  state:
+    party: Two adventurers
+    monsters: Six kobolds blinking in the torchlight, 30 feet away
+    player_says: '*shrugs*'
+  expected:
+    intent:
+      answer: cannot_tell
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: escalate
+  tags:
+  - unclear

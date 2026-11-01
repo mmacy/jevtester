@@ -242,7 +242,7 @@ Read your report's tables this way:
 
 In the decisions table, *Decided* is the share of cases the policy decided without escalating to a person. *Error rate when decided* is the share of those decisions that were wrong.
 
-Seven cases are too few to judge a model. They show what jevtester measures. [Concepts](concepts.md#metrics) explains each metric.
+Seven cases are too few to judge a model. They show what jevtester measures. To compare models, run the `parley-bench` suite, which asks the same questions in 40 harder cases. [Concepts](concepts.md#metrics) explains each metric.
 
 To get the same report as JSON, add `--format json`. Every command except `serve` takes `--format json`.
 

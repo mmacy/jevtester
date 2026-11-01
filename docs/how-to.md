@@ -406,6 +406,13 @@ In the web UI, the **Runs** view lists every run, and a run's page shows its pro
 
 ![Run 0002 while it runs: a progress bar at 8 of 12 jobs, with sent, cached, and skipped counts, and a Cancel button.](images/run-in-progress.png)
 
+To compare the local models, run the `parley-bench` suite on each one by itself. The MLX server serves one model at a time, so start it with the next model between runs. A run on one target also keeps its latency free of the other targets' load.
+
+```sh
+uv run jevtester run parley-bench --target clef-flash@ollama
+uv run jevtester run parley-bench --target clef-flash-4bit@mlx
+```
+
 To measure whether a target gives the same answer every time, send each request several times:
 
 ```sh
