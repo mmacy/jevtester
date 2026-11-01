@@ -245,7 +245,7 @@ jevtester decide --state @state.json --id reaction \
     --level "Attack at once" --level "Uncertain" --level "Friendly"
 ```
 
-With `goblin.json` holding the state and three questions from the `parley` suite's first case:
+With `goblin.json` holding a goblin encounter and three questions:
 
 ```json
 {
@@ -420,13 +420,13 @@ Example:
 ```console
 $ jevtester run parley --target decision-1@foundry --target clef-flash@workers-ai
 Run 0005 started
-1/8  goblin-bribe  decision-1@foundry  cached
-2/8  goblin-bribe  clef-flash@workers-ai  cached
+1/14  goblin-bribe  decision-1@foundry  cached
+2/14  goblin-bribe  clef-flash@workers-ai  cached
 ...
-8/8  gnoll-watch  clef-flash@workers-ai  cached
-Run 0005 finished: 8 jobs, 0 sent, 8 from cache, 0 failed, 0 skipped, $0.000000
-  decision-1@foundry  0 sent, 4 cached, 0 failed
-  clef-flash@workers-ai  0 sent, 4 cached, 0 failed
+14/14  hobgoblin-mumble  clef-flash@workers-ai  cached
+Run 0005 finished: 14 jobs, 0 sent, 14 from cache, 0 failed, 0 skipped, $0.000000
+  decision-1@foundry  0 sent, 7 cached, 0 failed
+  clef-flash@workers-ai  0 sent, 7 cached, 0 failed
 ```
 
 The first line and the job lines are on stderr. The summary is on stdout. A target whose jobs were skipped shows `skipped:` and the reason.
@@ -552,10 +552,13 @@ Example, with stderr left out:
 ```console
 $ jevtester probe parley --target decision-1@foundry
 Run 0006
-  decision-1@foundry  option_order  change rate 0.167 over 4 cases
-  decision-1@foundry  key_order  change rate 0.000 over 4 cases
-  decision-1@foundry  bare_levels  change rate 0.000 over 4 cases
-  changed  kobold-retreat  decision-1@foundry  option_order: 2 of 3
+  decision-1@foundry  option_order  change rate 0.143 over 7 cases
+  decision-1@foundry  key_order  change rate 0.000 over 7 cases
+  decision-1@foundry  bare_levels  change rate 0.429 over 7 cases
+  changed  goblin-bribe  decision-1@foundry  option_order: 3 of 3
+  changed  gnoll-watch  decision-1@foundry  bare_levels: 1 of 1
+  changed  bugbear-shrine  decision-1@foundry  bare_levels: 1 of 1
+  changed  hobgoblin-mumble  decision-1@foundry  bare_levels: 1 of 1
 ```
 
 ## jevtester policy sweep

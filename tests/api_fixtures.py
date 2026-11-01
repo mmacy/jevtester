@@ -59,6 +59,8 @@ from jevtester.store.runs import RunStore
 ROOT = Path(__file__).parent.parent
 OUT = ROOT / "tests" / "fixtures" / "api"
 SYSTEMONE = ROOT / "tests" / "fixtures" / "systemone"
+SUITES = ROOT / "tests" / "fixtures" / "suites"
+"""A frozen copy of `suites/`, so the real goblin-bribe responses answer its state while `suites/` changes."""
 
 T0 = datetime(2026, 10, 24, 14, 0, 0, tzinfo=UTC)
 
@@ -91,12 +93,12 @@ WORKERS_RESPONSE = load_json(SYSTEMONE / "parley_response_workers_ai.json")
 """A real Clef-flash response to the plan's request, from 2026-10-24, in its Cloudflare envelope."""
 
 # The fixtures ask the plan's questions, not the ones in suites/question-sets/parley.yaml, so the real responses in
-# tests/fixtures/systemone/ answer them. The cases come from suites/parley.yaml.
+# tests/fixtures/systemone/ answer them. The cases come from tests/fixtures/suites/parley.yaml.
 QUESTIONS = DecisionRequest.model_validate(
     {"state": PLAN_REQUEST["state"], "questions": PLAN_REQUEST["questions"]}
 ).questions
 QUESTION_SET = QuestionSet(name="parley", questions=QUESTIONS)
-CASES = SuiteFiles(ROOT / "suites").load_suite("parley").cases
+CASES = SuiteFiles(SUITES).load_suite("parley").cases
 
 _intent = QUESTIONS["intent"]
 assert isinstance(_intent, ChoiceQuestion)
@@ -343,7 +345,7 @@ def fixture_service(root: Path) -> Service:
     The copy's suite has a Claude draft, the store has both question set versions, and the cache holds two Workers AI
     results, so run 0002 shows every kind of job.
     """
-    shutil.copytree(ROOT / "suites", root / "suites", dirs_exist_ok=True)
+    shutil.copytree(SUITES, root / "suites", dirs_exist_ok=True)
     files = SuiteFiles(root / "suites")
     files.save_question_set(QUESTION_SET)
     suite = files.load_suite("parley")
@@ -482,7 +484,7 @@ def service_fixtures(root: Path) -> dict[str, BaseModel | str]:
         expected={"intent": Expectation(answer="parley"), "bribe": Expectation(answer=True)},
         tags=["bribe"],
     )
-    policy_text = (ROOT / "suites" / "policies" / "parley.yaml").read_text()
+    policy_text = (SUITES / "policies" / "parley.yaml").read_text()
     fixtures |= {
         "put_policies_{name}.json": service.save_policy("parley", PolicyBody(yaml=policy_text)),
         "put_question-sets_{name}.json": service.save_question_set("parley", QuestionSetBody(questions=QUESTIONS)),
@@ -568,7 +570,7 @@ def run_summary(run_id: str, **changes: Any) -> RunSummary:
     return summary.model_copy(update={"id": run_id, **changes})
 
 
-POLICY = SuiteFiles(ROOT / "suites").load_policy("parley")[0]
+POLICY = SuiteFiles(SUITES).load_policy("parley")[0]
 POLICY_VERSION = POLICY.version
 
 CANCELLED_RUN = run_summary(

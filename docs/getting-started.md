@@ -19,7 +19,7 @@ jevtester has no built-in offline target. To run a suite, you need one real deci
 | A local model | `clef-flash@ollama` | Free, and works offline once it's downloaded. | [Ollama](https://ollama.com/) 0.35.1 or later, and room for the model download. The project plan puts it at 11 to 12 GB. |
 | A hosted model | `clef-flash@workers-ai` | Less than $0.0001 for this tutorial, by the estimate below. | A Cloudflare account with Workers AI. |
 
-The hosted cost is an estimate. The config prices Clef-flash on Workers AI at $0.038 per million input tokens, with free output. One recorded parley request used 452 input tokens. If each of the four cases uses about that many, the run uses about 1,800 tokens, which costs about $0.00007. The second run in this tutorial comes from the cache and costs nothing.
+The hosted cost is an estimate. The config prices Clef-flash on Workers AI at $0.038 per million input tokens, with free output. One recorded parley request used 452 input tokens. If each of the seven cases uses about that many, the run uses about 3,200 tokens, which costs about $0.00012. The second run in this tutorial comes from the cache and costs nothing.
 
 ## Install jevtester
 
@@ -48,7 +48,7 @@ Run every `jevtester` command in this tutorial from the repository's root folder
 
 ## Look at the suite
 
-A *suite* is a set of test cases. Each case has a *state*, which is what the model reads, and the answers you expect. The included suite, `suites/parley.yaml`, has four cases from a tabletop role-playing game. In each one, a party of adventurers meets monsters, and the player says what they do.
+A *suite* is a set of test cases. Each case has a *state*, which is what the model reads, and the answers you expect. The included suite, `suites/parley.yaml`, has seven cases from a tabletop role-playing game. In each one, a party of adventurers meets monsters, and the player says what they do.
 
 Here's the first case:
 
@@ -56,7 +56,7 @@ Here's the first case:
 - id: goblin-bribe
   state:
     party: Three adventurers, torches lit
-    monsters: Six goblins, weapons drawn, 40 feet away
+    monsters: Six half-starved goblins, weapons drawn, 40 feet away, eyeing the sack
     player_says: We come in peace. Take this sack of silver and let us pass to the stairs.
   expected:
     intent:
@@ -73,7 +73,7 @@ The suite asks the questions in `suites/question-sets/parley.yaml`:
 
 - `intent` is a *choice* question. It asks what the player is trying to do: `parley`, `evade`, `fight`, `wait`, or `cannot_tell`.
 - `bribe` is a *noul* question, which is a yes/no question. It asks whether the player offers something of value.
-- `reaction` is a *score* question. It places the monsters' likely reaction on five levels, from "Attack at once" (level 0) to "Friendly, accept the offer" (level 4). The case above accepts any level from 2 to 4, because its tolerance is 1.
+- `reaction` is a *score* question. It asks how willing the monsters are to let the party go unharmed, on five levels from "Will attack now" (level 0) to "Friendly, open to a deal" (level 4). The case above accepts any level from 2 to 4, because its tolerance is 1.
 
 The suite also uses a *policy*, `suites/policies/parley.yaml`. A policy turns the answers into an action, like `parley_succeeds` or `battle`. Each case's `expected_action` is the action the policy should choose.
 
@@ -176,17 +176,20 @@ jevtester checks the target, sends one request per case, and saves the results. 
 
 ```text
 Run 0001 started
-1/4  goblin-bribe  clef-flash@ollama  ok
-2/4  orc-charge  clef-flash@ollama  ok
-3/4  kobold-retreat  clef-flash@ollama  ok
-4/4  gnoll-watch  clef-flash@ollama  ok
+1/7  goblin-bribe  clef-flash@ollama  ok
+2/7  orc-charge  clef-flash@ollama  ok
+3/7  kobold-retreat  clef-flash@ollama  ok
+4/7  gnoll-watch  clef-flash@ollama  ok
+5/7  bugbear-shrine  clef-flash@ollama  ok
+6/7  dwarf-traders  clef-flash@ollama  ok
+7/7  hobgoblin-mumble  clef-flash@ollama  ok
 ```
 
 The cases can finish in another order. When the run ends, jevtester prints its summary:
 
 ```text
-Run 0001 finished: 4 jobs, 4 sent, 0 from cache, 0 failed, 0 skipped, cost unknown
-  clef-flash@ollama  4 sent, 0 cached, 0 failed
+Run 0001 finished: 7 jobs, 7 sent, 0 from cache, 0 failed, 0 skipped, cost unknown
+  clef-flash@ollama  7 sent, 0 cached, 0 failed
 ```
 
 The run's id is `0001`. jevtester numbers runs in order, starting at `0001`. On Ollama the cost is unknown, because the target has no price in the config. On Workers AI, the summary shows the cost in US dollars.
@@ -194,8 +197,8 @@ The run's id is `0001`. jevtester numbers runs in order, starting at `0001`. On 
 Run the same command again. This time every result comes from the cache, so the run costs nothing:
 
 ```text
-Run 0002 finished: 4 jobs, 0 sent, 4 from cache, 0 failed, 0 skipped, $0.000000
-  clef-flash@ollama  0 sent, 4 cached, 0 failed
+Run 0002 finished: 7 jobs, 0 sent, 7 from cache, 0 failed, 0 skipped, $0.000000
+  clef-flash@ollama  0 sent, 7 cached, 0 failed
 ```
 
 jevtester caches each result by the target and the exact request. A rerun sends only the requests that changed. To send every request again, add `--no-cache`.
@@ -217,20 +220,20 @@ The report is Markdown. It has these sections:
 
 ![Terminal output of jevtester report 0002 for a sample run: the run summary, a targets table with latency and cost, and a metrics table for each question.](images/cli-report.png)
 
-Here's the `intent` table from a sample run in the test fixtures. Your numbers will differ.
+Here are two targets' rows from the `reaction` table of one run. Your numbers will differ.
 
 ```text
-## intent
+## reaction
 
 | Target | n | Accuracy | Macro-F1 | MAE | Within tolerance | Brier | Log loss | AUROC | ECE |
 |---|---|---|---|---|---|---|---|---|---|
-| decision-1@foundry | 4 | 1.000 | 1.000 |  |  |  |  |  | 0.054 |
-| clef-flash@workers-ai | 4 | 0.750 | 0.667 |  |  |  |  |  | 0.189 |
+| decision-1@foundry | 7 | 0.714 |  | 0.395 | 1.000 |  |  |  |  |
+| clef-flash@workers-ai | 7 | 0.714 |  | 0.650 | 1.000 |  |  |  |  |
 ```
 
 Read your report's tables this way:
 
-- `n` is the number of cases with an expected answer for the question. The parley suite has four.
+- `n` is the number of cases with an expected answer for the question. The parley suite has seven.
 - *Accuracy* is the share of answers that matched. For `reaction`, it's the share that hit the expected level exactly, and *Within tolerance* is the share within one level.
 - *Macro-F1* applies to the `intent` choice. It's the F1 score of each option, averaged so every option counts equally.
 - *MAE* is the `reaction` score's average distance from the expected level.
@@ -239,7 +242,7 @@ Read your report's tables this way:
 
 In the decisions table, *Decided* is the share of cases the policy decided without escalating to a person. *Error rate when decided* is the share of those decisions that were wrong.
 
-Four cases are too few to judge a model. They show what jevtester measures. [Concepts](concepts.md#metrics) explains each metric.
+Seven cases are too few to judge a model. They show what jevtester measures. [Concepts](concepts.md#metrics) explains each metric.
 
 To get the same report as JSON, add `--format json`. Every command except `serve` takes `--format json`.
 

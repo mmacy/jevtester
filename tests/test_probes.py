@@ -145,7 +145,7 @@ def test_a_probe_run_reuses_the_cache(service: Service) -> None:
 
 def test_cli_probe(service: Service, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     monkeypatch.setattr(Service, "load", classmethod(lambda cls, path=None: service))
-    assert cli.main(["probe", "suites/parley.yaml", "--target", api_fixtures.FOUNDRY]) == 0
+    assert cli.main(["probe", str(api_fixtures.SUITES / "parley.yaml"), "--target", api_fixtures.FOUNDRY]) == 0
     out = capsys.readouterr().out
     assert "decision-1@foundry  option_order  change rate 0.167 over 4 cases" in out
     assert "changed  kobold-retreat  decision-1@foundry  option_order: 2 of 3" in out
