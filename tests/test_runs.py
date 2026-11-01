@@ -80,9 +80,10 @@ def test_suite_files_round_trip(tmp_path: Path) -> None:
     assert [s.name for s in files.list_suites()] == ["parley"]
 
 
-def test_the_repository_suite_is_valid() -> None:
+@pytest.mark.parametrize("name", sorted(path.stem for path in (ROOT / "suites").glob("*.yaml")))
+def test_each_repository_suite_is_valid(name: str) -> None:
     files = SuiteFiles(ROOT / "suites")
-    suite = files.load_suite("parley")
+    suite = files.load_suite(name)
     question_set = files.load_question_set(suite.question_set)
     for case in suite.cases:
         assert set(case.expected) <= set(question_set.questions), case.id

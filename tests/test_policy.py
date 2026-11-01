@@ -72,9 +72,11 @@ def test_the_repository_policy_is_valid() -> None:
     assert parsed.threshold("goodwill", "decision-1@foundry") == 0.55
 
 
-def test_each_repository_case_expects_the_action_its_expected_answers_give() -> None:
+@pytest.mark.parametrize("name", ["parley", "parley-bench"])
+def test_each_repository_case_expects_the_action_its_expected_answers_give(name: str) -> None:
     files = SuiteFiles(ROOT / "suites")
-    suite = files.load_suite("parley")
+    suite = files.load_suite(name)
+    assert suite.policy == "parley"
     questions = files.load_question_set(suite.question_set).questions
     parsed = parse_policy(POLICY_TEXT, "parley")
     for case in suite.cases:
