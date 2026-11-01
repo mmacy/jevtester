@@ -68,8 +68,7 @@ def answers(
 def test_the_repository_policy_is_valid() -> None:
     parsed = parse_policy(POLICY_TEXT, "parley")
     assert parsed.actions == ["battle", "evade", "wait", "escalate", "parley_succeeds", "parley_fails"]
-    assert parsed.threshold("goodwill", "clef-flash@workers-ai") == 0.5
-    assert parsed.threshold("goodwill", "decision-1@foundry") == 0.55
+    assert parsed.per_target == {}, "The repository policy compares targets, so every target uses the same values."
 
 
 @pytest.mark.parametrize("name", ["parley", "parley-bench"])

@@ -324,10 +324,6 @@ thresholds:
   friendly: 3.5
   hostile: 1
 
-per_target:
-  clef-flash@workers-ai:
-    goodwill: 0.5
-
 bands:
   intent: {act: act, confirm: confirm}
 
@@ -362,7 +358,7 @@ costs:
 
 It works like this:
 
-1. `thresholds` names five numbers. `per_target` gives Clef-flash on Workers AI a different `goodwill` value, because probabilities differ between models.
+1. `thresholds` names five numbers. Every target uses the same values, so the decisions compare targets on equal terms. [Thresholds](concepts.md#thresholds) explains how to give one target its own value, and what that changes.
 2. The `intent` band escalates when the intent's confidence is below `confirm` (0.5). Between 0.5 and `act` (0.8), the policy acts and marks the decision for confirmation.
 3. The `goodwill` composite adds half the probability of a bribe and half the reaction score divided by its top level (4), so it runs from 0 to 1.
 4. The rules are checked in order. A parley succeeds when the reaction score is at least `friendly`, so friendly monsters deal without an offer. It also succeeds when `goodwill` is at least the `goodwill` threshold and the reaction score is at least `hostile`, so an offer can't win over monsters that will attack now. Otherwise the next rule makes it fail.
