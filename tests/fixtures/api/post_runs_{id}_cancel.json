@@ -5,7 +5,7 @@
   "question_set": "parley",
   "question_set_version": "95e251b70a75ea722a0c62ce89024a58c6bdb1a3ebde485db30bba925ffc0cb6",
   "policy": "parley",
-  "policy_version": "bc95cc4f4030850fa5ba4383e3beabd1dd1a513e0b01e7d2ecd4c64d4009485e",
+  "policy_version": "52ae86e6e816d4d7072579fe5d4b22dc3a954f1f9763e2b7968af14547b0ad3b",
   "targets": [
     "decision-1@foundry",
     "clef-flash@workers-ai",

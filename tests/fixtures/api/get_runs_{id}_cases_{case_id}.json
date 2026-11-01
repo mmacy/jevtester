@@ -74,7 +74,7 @@
         "action": "parley_succeeds",
         "band": "act",
         "escalated": false,
-        "rule": 4,
+        "rule": 5,
         "composites": {
           "goodwill": 0.7755081381579881
         },
@@ -227,7 +227,7 @@
         "action": "parley_succeeds",
         "band": "act",
         "escalated": false,
-        "rule": 4,
+        "rule": 5,
         "composites": {
           "goodwill": 0.6989000000000001
         },
