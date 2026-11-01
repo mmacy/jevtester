@@ -13,11 +13,13 @@ from jevtester.schemas import PolicyBody, SweepBody
 from jevtester.service import Service
 from jevtester.spec import Case, ChoiceQuestion, NoulQuestion, Question, ScoreQuestion
 from jevtester.spec.policy import Policy
-from jevtester.store.files import parse_policy
+from jevtester.store.files import SuiteFiles, parse_policy
 from jevtester.store.runs import StoredResult
 
 ROOT = Path(__file__).parent.parent
 POLICY_TEXT = (ROOT / "suites" / "policies" / "parley.yaml").read_text()
+FIXTURE_POLICY_TEXT = (api_fixtures.SUITES / "policies" / "parley.yaml").read_text()
+"""The policy in the frozen suite that the fixture service copies."""
 
 QUESTIONS: dict[str, Question] = {
     "intent": ChoiceQuestion(instructions="?", criteria={"parley": "P", "fight": "F", "wait": "W", "cannot_tell": "C"}),
@@ -68,6 +70,22 @@ def test_the_repository_policy_is_valid() -> None:
     assert parsed.actions == ["battle", "evade", "wait", "escalate", "parley_succeeds", "parley_fails"]
     assert parsed.threshold("goodwill", "clef-flash@workers-ai") == 0.5
     assert parsed.threshold("goodwill", "decision-1@foundry") == 0.55
+
+
+def test_each_repository_case_expects_the_action_its_expected_answers_give() -> None:
+    files = SuiteFiles(ROOT / "suites")
+    suite = files.load_suite("parley")
+    questions = files.load_question_set(suite.question_set).questions
+    parsed = parse_policy(POLICY_TEXT, "parley")
+    for case in suite.cases:
+        intent, bribe, level = (case.expected[key].answer for key in ("intent", "bribe", "reaction"))
+        assert isinstance(intent, str) and isinstance(bribe, bool) and isinstance(level, int), case.id
+        sure: dict[str, Answer] = {
+            "intent": ChoiceAnswer(choice=intent, probabilities={}, confidence=1.0),
+            "bribe": NoulAnswer(probability=1.0 if bribe else 0.0, confidence=1.0),
+            "reaction": ScoreAnswer(score=level, level=level, probabilities=[0.2] * 5, legend=["x"] * 5),
+        }
+        assert decide(parsed, questions, sure).action == case.expected_action, case.id
 
 
 @pytest.mark.parametrize(
@@ -219,7 +237,7 @@ def test_runs_record_and_measure_their_policy(service: Service) -> None:
 
 
 def test_a_run_keeps_its_policy_after_the_file_changes(service: Service) -> None:
-    edited = POLICY_TEXT.replace("act: 0.8\n  confirm: 0.5", "act: 0.99\n  confirm: 0.99")
+    edited = FIXTURE_POLICY_TEXT.replace("act: 0.8\n  confirm: 0.5", "act: 0.99\n  confirm: 0.99")
     service.save_policy("parley", PolicyBody(yaml=edited))
     foundry = next(t for t in service.run_metrics(api_fixtures.RUN).targets if t.target == api_fixtures.FOUNDRY)
     assert foundry.decision is not None
@@ -227,7 +245,7 @@ def test_a_run_keeps_its_policy_after_the_file_changes(service: Service) -> None
 
 
 def test_save_policy_keeps_comments_and_rejects_bad_text(service: Service) -> None:
-    detail = service.save_policy("other", PolicyBody(yaml=POLICY_TEXT.replace("name: parley", "name: other")))
+    detail = service.save_policy("other", PolicyBody(yaml=FIXTURE_POLICY_TEXT.replace("name: parley", "name: other")))
     assert detail.name == "other"
     saved = service.files.policy_path("other").read_text()
     assert saved.startswith("# Turns the parley questions")
@@ -256,7 +274,7 @@ def test_sweep_checks_its_inputs(service: Service) -> None:
 
 
 def test_suite_check_reports_a_policy_that_reads_unknown_questions(service: Service) -> None:
-    text = POLICY_TEXT.replace("intent: {act: act, confirm: confirm}", "mood: {act: act, confirm: confirm}")
+    text = FIXTURE_POLICY_TEXT.replace("intent: {act: act, confirm: confirm}", "mood: {act: act, confirm: confirm}")
     service.save_policy("parley", PolicyBody(yaml=text))
     check = service.check_suite("parley")
     assert not check.valid
