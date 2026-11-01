@@ -1,0 +1,44 @@
+# Turns the parley questions into a referee action for the encounter.
+name: parley
+
+thresholds:
+  # Intent confidence at or above act decides; below confirm escalates to the referee.
+  act: 0.8
+  confirm: 0.5
+  # How well the monsters must take the offer for a parley to succeed, from 0 to 1.
+  goodwill: 0.55
+
+per_target:
+  clef-flash@workers-ai:
+    goodwill: 0.5
+
+bands:
+  intent: {act: act, confirm: confirm}
+
+composites:
+  # The chance of a bribe and the reaction level, each from 0 to 1.
+  goodwill:
+    bribe: 0.5
+    reaction: 0.5
+
+rules:
+  - action: battle
+    when: {intent: fight}
+  - action: evade
+    when: {intent: evade}
+  - action: wait
+    when: {intent: wait}
+  - action: escalate
+    when: {intent: cannot_tell}
+  - action: parley_succeeds
+    when: {intent: parley, goodwill: {at_least: goodwill}}
+  - action: parley_fails
+    when: {intent: parley}
+
+# The cost of each wrong action, as costs[expected][chosen]. Any other wrong action costs 1.
+costs:
+  parley_succeeds:
+    battle: 5
+    parley_fails: 2
+  battle:
+    parley_succeeds: 5

@@ -52,8 +52,8 @@ def make_service(
 ) -> Service:
     files = SuiteFiles(tmp_path / "suites")
     files.save_question_set(api_fixtures.QUESTION_SET)
-    files.save_suite(SuiteFiles(ROOT / "suites").load_suite("parley"))
-    files.save_policy("parley", (ROOT / "suites" / "policies" / "parley.yaml").read_text())
+    files.save_suite(SuiteFiles(api_fixtures.SUITES).load_suite("parley"))
+    files.save_policy("parley", (api_fixtures.SUITES / "policies" / "parley.yaml").read_text())
     store = RunStore(tmp_path / "runs.sqlite")
     fakes = providers if providers is not None else {FOUNDRY.name: FakeProvider(FOUNDRY, respond_ok)}
     return Service(config, fakes, files=files, store=store, clock=lambda: NOW)
@@ -72,7 +72,7 @@ def run(service: Service, body: RunCreate) -> RunSummary:
 
 def test_suite_files_round_trip(tmp_path: Path) -> None:
     files = SuiteFiles(tmp_path)
-    suite = SuiteFiles(ROOT / "suites").load_suite("parley")
+    suite = SuiteFiles(api_fixtures.SUITES).load_suite("parley")
     files.save_suite(suite)
     assert files.load_suite("parley") == suite
     files.save_question_set(api_fixtures.QUESTION_SET)
@@ -110,7 +110,7 @@ def test_an_invalid_suite_file_names_the_problem(tmp_path: Path, text: str, mess
 
 def test_a_suite_file_must_match_its_name(tmp_path: Path) -> None:
     files = SuiteFiles(tmp_path)
-    files.save_suite(SuiteFiles(ROOT / "suites").load_suite("parley"))
+    files.save_suite(SuiteFiles(api_fixtures.SUITES).load_suite("parley"))
     (tmp_path / "parley.yaml").rename(tmp_path / "other.yaml")
     with pytest.raises(InvalidRequestError, match="names the suite parley"):
         files.load_suite("other")
@@ -243,7 +243,7 @@ def test_a_run_spaces_requests_to_stay_under_the_tokens_per_minute(tmp_path: Pat
                 WORKERS.model
             )
         )
-        for case in SuiteFiles(ROOT / "suites").load_suite("parley").cases
+        for case in SuiteFiles(api_fixtures.SUITES).load_suite("parley").cases
     )
     tpm = int(smallest * 60 / 0.1)
     limited = WORKERS.model_copy(
@@ -470,7 +470,7 @@ def other_suites(tmp_path: Path) -> Path:
     other = tmp_path / "other"
     files = SuiteFiles(other)
     files.save_question_set(api_fixtures.QUESTION_SET.model_copy(update={"name": "x"}))
-    suite = SuiteFiles(ROOT / "suites").load_suite("parley")
+    suite = SuiteFiles(api_fixtures.SUITES).load_suite("parley")
     files.save_suite(
         suite.model_copy(update={"name": "x", "question_set": "x", "policy": None, "cases": suite.cases[:2]})
     )

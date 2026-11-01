@@ -8,7 +8,7 @@ cases:
 - id: goblin-bribe
   state:
     party: Three adventurers, torches lit
-    monsters: Six goblins, weapons drawn, 40 feet away
+    monsters: Six half-starved goblins, weapons drawn, 40 feet away, eyeing the sack
     player_says: We come in peace. Take this sack of silver and let us pass to the stairs.
   expected:
     intent:
@@ -64,8 +64,57 @@ cases:
     bribe:
       answer: false
     reaction:
-      answer: 2
+      answer: 3
       tolerance: 1
   expected_action: wait
   tags:
   - wait
+- id: bugbear-shrine
+  state:
+    party: Three adventurers who killed the bugbears' scouts an hour ago
+    monsters: Ten angry bugbears guarding a shrine, 30 feet away
+    player_says: Let's talk. We mean no harm.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 1
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+- id: dwarf-traders
+  state:
+    party: Two adventurers with a coil of rope
+    monsters: Three dwarf miners carrying picks and lanterns, not weapons, waving at the party, 20 feet away
+    player_says: Hello! We'll trade you some rope for directions.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: true
+    reaction:
+      answer: 4
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - bribe
+- id: hobgoblin-mumble
+  state:
+    party: Four adventurers at a crossroads
+    monsters: Five hobgoblins watching from 40 feet away
+    player_says: Hmm. Uh, well...
+  expected:
+    intent:
+      answer: cannot_tell
+    bribe:
+      answer: false
+    reaction:
+      answer: 2
+      tolerance: 1
+  expected_action: escalate
+  tags:
+  - unclear
