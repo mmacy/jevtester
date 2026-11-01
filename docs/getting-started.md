@@ -220,7 +220,7 @@ The report is Markdown. It has these sections:
 
 ![Terminal output of jevtester report 0002 for a sample run: the run summary, a targets table with latency and cost, and a metrics table for each question.](images/cli-report.png)
 
-Here's the `reaction` table from a run on two targets. Your numbers will differ.
+Here are two targets' rows from the `reaction` table of one run. Your numbers will differ.
 
 ```text
 ## reaction

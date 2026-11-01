@@ -85,7 +85,8 @@ def test_each_repository_case_expects_the_action_its_expected_answers_give() -> 
             "bribe": NoulAnswer(probability=1.0 if bribe else 0.0, confidence=1.0),
             "reaction": ScoreAnswer(score=level, level=level, probabilities=[0.2] * 5, legend=["x"] * 5),
         }
-        assert decide(parsed, questions, sure).action == case.expected_action, case.id
+        for target in [None, *parsed.per_target]:
+            assert decide(parsed, questions, sure, target=target).action == case.expected_action, (case.id, target)
 
 
 @pytest.mark.parametrize(

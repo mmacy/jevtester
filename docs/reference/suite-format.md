@@ -46,13 +46,13 @@ questions:
     instructions: Does the player offer the monsters something of value?
   reaction:
     type: score
-    instructions: How are the monsters likely to react to what the player says and does?
+    instructions: How willing are the monsters to let the party go unharmed, given what they can see and hear?
     criteria:
-    - Attack at once
-    - Hostile, may attack
-    - Uncertain, hold and posture
-    - Indifferent, may let them pass
-    - Friendly, accept the offer
+    - Will attack now
+    - Hostile, likely to attack
+    - Wary, undecided
+    - Tolerant, will leave them be
+    - Friendly, open to a deal
 ```
 
 | Key | Type | Required | Description |
@@ -128,7 +128,7 @@ cases:
 - id: goblin-bribe
   state:
     party: Three adventurers, torches lit
-    monsters: Six goblins, weapons drawn, 40 feet away
+    monsters: Six half-starved goblins, weapons drawn, 40 feet away, eyeing the sack
     player_says: We come in peace. Take this sack of silver and let us pass to the stairs.
   expected:
     intent:

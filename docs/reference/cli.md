@@ -245,7 +245,7 @@ jevtester decide --state @state.json --id reaction \
     --level "Attack at once" --level "Uncertain" --level "Friendly"
 ```
 
-With `goblin.json` holding the state and three questions from the `parley` suite's first case:
+With `goblin.json` holding a goblin encounter and three questions:
 
 ```json
 {
