@@ -812,3 +812,139 @@ cases:
   tags:
   - parley
   - boundary
+- id: halfling-farmers
+  state:
+    party: Three adventurers on a country lane
+    monsters: Three halfling farmers at a hedge gate, waving the party over with big smiles, 20 feet away
+    player_says: Good afternoon! Is this the road to Millbrook?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 4
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - boundary
+- id: pixie-ring
+  state:
+    party: Two adventurers in a moonlit glade
+    monsters: Five pixies circling the party, giggling and beckoning them to follow, 15 feet away
+    player_says: Where are you leading us, little ones?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 4
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - boundary
+- id: elf-old-friends
+  state:
+    party: Four adventurers at a forest ford
+    monsters: Two elf scouts who fought beside the party last spring, calling them by name and laughing, 30 feet away
+    player_says: Good to see you again! Is the forest road safe this season?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 4
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - boundary
+- id: treant-boughs
+  state:
+    party: Three tired adventurers at dusk
+    monsters: An old treant who rustles its branches and greets the party in a slow, kindly voice, 30 feet away
+    player_says: Ancient one, may we rest beneath your boughs tonight?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 4
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - boundary
+- id: bugbear-dice
+  state:
+    party: Three adventurers in a guardroom doorway
+    monsters: Four bugbears absorbed in a dice game, giving the party a bored glance, 40 feet away
+    player_says: We're just passing through. Which way to the river?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - boundary
+- id: ogre-goatherd
+  state:
+    party: Four adventurers at the edge of a pasture
+    monsters: An ogre herding goats, watching the party but making no move toward them, 50 feet away
+    player_says: Morning! Mind if we cross your pasture?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - boundary
+- id: troglodyte-sunning
+  state:
+    party: Three adventurers on a rocky slope
+    monsters: Six troglodytes sunning themselves on flat rocks, ignoring the party, 60 feet away
+    player_says: You on the rocks! Is this the way to the ruined tower?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - boundary
+- id: orc-woodcutters
+  state:
+    party: Three adventurers on a forest path
+    monsters: Three orcs chopping wood, who stare at the party for a moment and go back to work, 40 feet away
+    player_says: Can we follow the path past your camp?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - boundary
