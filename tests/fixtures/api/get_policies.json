@@ -2,7 +2,7 @@
   "policies": [
     {
       "name": "parley",
-      "version": "52ae86e6e816d4d7072579fe5d4b22dc3a954f1f9763e2b7968af14547b0ad3b",
+      "version": "d71fb03192df233d1dda8aa92956fa4e7bf5ff6cbf4a0c811d252c1a86870012",
       "actions": [
         "battle",
         "evade",

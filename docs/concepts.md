@@ -216,6 +216,10 @@ A policy can't run code. Its conditions are data.
 
 Probabilities differ between models, so a threshold that works for one model may not work for another. A policy can set a threshold's value for one target under `per_target`.
 
+A value for one target changes what its decision metrics measure. With shared values, a model whose scores run high or low makes more wrong decisions, and the metrics show it. With a value tuned for each target, the metrics show only how well each model ranks the cases. Compare targets under the same policy values. Set those values from what the questions' answers mean, like halfway between two score levels, not from the targets' scores, which would favor the targets they came from.
+
+A threshold chosen on a set of cases fits those cases better than new ones, so the error rate on them is lower than you'd get in use. To measure a value, choose it from one run, then check it on cases the choice didn't use.
+
 ### Bands
 
 A *band* sets two confidence levels for a question, `act` and `confirm`:
