@@ -1,7 +1,8 @@
-# Forty encounter cases for comparing targets on the parley questions. The parley suite has seven cases for the
-# tutorial. These add harder ones: threats and bluffs that are still parley, offers that are only implied or only
-# promised, attacks disguised as talk, monsters that won't talk however politely they're asked, and words that show
-# no intent. As in the parley suite, the reaction counts what the monsters see the party do, so an attack is 0.
+# Encounter cases for comparing targets on the parley questions. The parley suite has seven cases for the tutorial.
+# These add harder ones: threats and bluffs that are still parley, offers that are only implied or only promised,
+# attacks disguised as talk, monsters that won't talk however politely they're asked, and words that show no intent.
+# As in the parley suite, the reaction counts what the monsters see the party do, so an attack is 0. The cases tagged
+# boundary are parleys with no offer, to friendly monsters (4), which succeed, or tolerant ones (3), which don't.
 name: parley-bench
 question_set: parley
 policy: parley
@@ -675,3 +676,139 @@ cases:
   expected_action: escalate
   tags:
   - unclear
+- id: gnome-welcome
+  state:
+    party: Three adventurers on a mountain path
+    monsters: Four gnomes with lanterns, waving and calling out a welcome, 30 feet away
+    player_says: Hello there! Could you tell us the way to the old mine?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 4
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - boundary
+- id: dwarf-cousin
+  state:
+    party: Three adventurers, one a dwarf from the nearby hold
+    monsters: Three dwarf guards who recognize the party's dwarf as their cousin, grinning and lowering their axes, 20 feet away
+    player_says: Cousin Bruni! Let us through, we're on our way to the deep hall.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 4
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - boundary
+- id: merman-guides
+  state:
+    party: Four adventurers in a rowing boat
+    monsters: Two mermen surfacing beside the boat, smiling and asking where the party is headed, 10 feet away
+    player_says: We're looking for the sunken temple. Do you know where it is?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 4
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - boundary
+- id: centaur-meadow
+  state:
+    party: Three adventurers at the edge of a meadow
+    monsters: Three centaurs trotting over and hailing the party warmly, 40 feet away
+    player_says: Well met! May we cross your meadow?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 4
+      tolerance: 1
+  expected_action: parley_succeeds
+  tags:
+  - parley
+  - boundary
+- id: giant-valley
+  state:
+    party: Four adventurers at the mouth of a valley
+    monsters: Two hill giants eating by a fire, glancing at the party without interest, 60 feet away
+    player_says: Excuse us, we'd like to pass through your valley.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - boundary
+- id: lizardman-fishers
+  state:
+    party: Three adventurers on a riverbank
+    monsters: Five lizardmen fishing at the water's edge, ignoring the party, 40 feet away
+    player_says: Good fishing today? We're heading upriver.
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - boundary
+- id: hobgoblin-stall
+  state:
+    party: Two adventurers in an underground market
+    monsters: Four hobgoblin merchants at a stall, eyeing the party and shrugging, 20 feet away
+    player_says: Can you tell us where the market's far gate is?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - boundary
+- id: dwarf-miners-busy
+  state:
+    party: Three adventurers in a mine tunnel
+    monsters: Three dwarf miners hard at work, nodding at the party but not stopping, 30 feet away
+    player_says: Mind if we walk through your tunnel?
+  expected:
+    intent:
+      answer: parley
+    bribe:
+      answer: false
+    reaction:
+      answer: 3
+      tolerance: 1
+  expected_action: parley_fails
+  tags:
+  - parley
+  - boundary
