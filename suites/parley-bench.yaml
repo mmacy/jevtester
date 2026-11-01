@@ -168,7 +168,7 @@ cases:
 - id: elf-patrol
   state:
     party: Three adventurers on an overgrown trail
-    monsters: Four wood elves with bows in hand but no arrows nocked, watching calmly, 30 feet away
+    monsters: Four wood elves, bows unstrung, smiling and curious, 30 feet away
     player_says: Greetings, friends of the forest. We seek the old road to the river.
   expected:
     intent:
@@ -176,9 +176,9 @@ cases:
     bribe:
       answer: false
     reaction:
-      answer: 3
+      answer: 4
       tolerance: 1
-  expected_action: parley_fails
+  expected_action: parley_succeeds
   tags:
   - parley
 - id: orc-threat

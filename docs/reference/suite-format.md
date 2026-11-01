@@ -191,6 +191,10 @@ thresholds:
   confirm: 0.5
   # How well the monsters must take the offer for a parley to succeed, from 0 to 1.
   goodwill: 0.55
+  # The reaction score, from 0 to 4, at which the monsters deal without an offer.
+  friendly: 3.5
+  # The reaction score below which no offer wins the monsters over.
+  hostile: 1
 
 per_target:
   clef-flash@workers-ai:
@@ -215,7 +219,9 @@ rules:
   - action: escalate
     when: {intent: cannot_tell}
   - action: parley_succeeds
-    when: {intent: parley, goodwill: {at_least: goodwill}}
+    when: {intent: parley, reaction: {at_least: friendly}}
+  - action: parley_succeeds
+    when: {intent: parley, reaction: {at_least: hostile}, goodwill: {at_least: goodwill}}
   - action: parley_fails
     when: {intent: parley}
 

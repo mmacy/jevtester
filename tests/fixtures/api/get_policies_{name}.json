@@ -1,7 +1,7 @@
 {
   "name": "parley",
-  "version": "bc95cc4f4030850fa5ba4383e3beabd1dd1a513e0b01e7d2ecd4c64d4009485e",
-  "yaml": "# Turns the parley questions into a referee action for the encounter.\nname: parley\n\nthresholds:\n  # Intent confidence at or above act decides; below confirm escalates to the referee.\n  act: 0.8\n  confirm: 0.5\n  # How well the monsters must take the offer for a parley to succeed, from 0 to 1.\n  goodwill: 0.55\n\nper_target:\n  clef-flash@workers-ai:\n    goodwill: 0.5\n\nbands:\n  intent: {act: act, confirm: confirm}\n\ncomposites:\n  # The chance of a bribe and the reaction level, each from 0 to 1.\n  goodwill:\n    bribe: 0.5\n    reaction: 0.5\n\nrules:\n  - action: battle\n    when: {intent: fight}\n  - action: evade\n    when: {intent: evade}\n  - action: wait\n    when: {intent: wait}\n  - action: escalate\n    when: {intent: cannot_tell}\n  - action: parley_succeeds\n    when: {intent: parley, goodwill: {at_least: goodwill}}\n  - action: parley_fails\n    when: {intent: parley}\n\n# The cost of each wrong action, as costs[expected][chosen]. Any other wrong action costs 1.\ncosts:\n  parley_succeeds:\n    battle: 5\n    parley_fails: 2\n  battle:\n    parley_succeeds: 5\n",
+  "version": "52ae86e6e816d4d7072579fe5d4b22dc3a954f1f9763e2b7968af14547b0ad3b",
+  "yaml": "# Turns the parley questions into a referee action for the encounter.\nname: parley\n\nthresholds:\n  # Intent confidence at or above act decides; below confirm escalates to the referee.\n  act: 0.8\n  confirm: 0.5\n  # How well the monsters must take the offer for a parley to succeed, from 0 to 1.\n  goodwill: 0.55\n  # The reaction score, from 0 to 4, at which the monsters deal without an offer.\n  friendly: 3.5\n  # The reaction score below which no offer wins the monsters over.\n  hostile: 1\n\nper_target:\n  clef-flash@workers-ai:\n    goodwill: 0.5\n\nbands:\n  intent: {act: act, confirm: confirm}\n\ncomposites:\n  # The chance of a bribe and the reaction level, each from 0 to 1.\n  goodwill:\n    bribe: 0.5\n    reaction: 0.5\n\nrules:\n  - action: battle\n    when: {intent: fight}\n  - action: evade\n    when: {intent: evade}\n  - action: wait\n    when: {intent: wait}\n  - action: escalate\n    when: {intent: cannot_tell}\n  - action: parley_succeeds\n    when: {intent: parley, reaction: {at_least: friendly}}\n  - action: parley_succeeds\n    when: {intent: parley, reaction: {at_least: hostile}, goodwill: {at_least: goodwill}}\n  - action: parley_fails\n    when: {intent: parley}\n\n# The cost of each wrong action, as costs[expected][chosen]. Any other wrong action costs 1.\ncosts:\n  parley_succeeds:\n    battle: 5\n    parley_fails: 2\n  battle:\n    parley_succeeds: 5\n",
   "actions": [
     "battle",
     "evade",
@@ -27,6 +27,16 @@
       "per_target": {
         "clef-flash@workers-ai": 0.5
       }
+    },
+    {
+      "name": "friendly",
+      "value": 3.5,
+      "per_target": {}
+    },
+    {
+      "name": "hostile",
+      "value": 1.0,
+      "per_target": {}
     }
   ],
   "suites": [
