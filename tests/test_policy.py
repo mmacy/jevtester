@@ -92,6 +92,25 @@ def test_each_repository_case_expects_the_action_its_expected_answers_give(name:
 
 
 @pytest.mark.parametrize(
+    ("bribe", "score", "action"),
+    [
+        (0.0, 4.0, "parley_succeeds"),
+        (0.0, 3.5, "parley_succeeds"),
+        (0.0, 3.4, "parley_fails"),
+        (1.0, 1.0, "parley_succeeds"),
+        (1.0, 0.0, "parley_fails"),
+    ],
+)
+def test_the_repository_policy_needs_an_offer_unless_the_monsters_are_friendly(
+    bribe: float, score: float, action: str
+) -> None:
+    parsed = parse_policy(POLICY_TEXT, "parley")
+    given = answers(confidence=1.0, bribe=bribe, score=score)
+    for target in [None, *parsed.per_target]:
+        assert decide(parsed, QUESTIONS, given, target=target).action == action, target
+
+
+@pytest.mark.parametrize(
     ("changes", "message"),
     [
         ({"bands": {"intent": {"act": "high", "confirm": 0.5}}}, "unknown threshold high"),

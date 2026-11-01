@@ -321,6 +321,8 @@ thresholds:
   act: 0.8
   confirm: 0.5
   goodwill: 0.55
+  friendly: 3.5
+  hostile: 1
 
 per_target:
   clef-flash@workers-ai:
@@ -344,7 +346,9 @@ rules:
   - action: escalate
     when: {intent: cannot_tell}
   - action: parley_succeeds
-    when: {intent: parley, goodwill: {at_least: goodwill}}
+    when: {intent: parley, reaction: {at_least: friendly}}
+  - action: parley_succeeds
+    when: {intent: parley, reaction: {at_least: hostile}, goodwill: {at_least: goodwill}}
   - action: parley_fails
     when: {intent: parley}
 
@@ -358,10 +362,10 @@ costs:
 
 It works like this:
 
-1. `thresholds` names three numbers. `per_target` gives Clef-flash on Workers AI a different `goodwill` value, because probabilities differ between models.
+1. `thresholds` names five numbers. `per_target` gives Clef-flash on Workers AI a different `goodwill` value, because probabilities differ between models.
 2. The `intent` band escalates when the intent's confidence is below `confirm` (0.5). Between 0.5 and `act` (0.8), the policy acts and marks the decision for confirmation.
 3. The `goodwill` composite adds half the probability of a bribe and half the reaction score divided by its top level (4), so it runs from 0 to 1.
-4. The rules are checked in order. A parley succeeds only when `goodwill` is at least the `goodwill` threshold. Otherwise the next rule makes it fail.
+4. The rules are checked in order. A parley succeeds when the reaction score is at least `friendly`, so friendly monsters deal without an offer. It also succeeds when `goodwill` is at least the `goodwill` threshold and the reaction score is at least `hostile`, so an offer can't win over monsters that will attack now. Otherwise the next rule makes it fail.
 5. `costs` makes a wrong `parley_succeeds` or `battle` cost 5. Any other wrong action costs 1.
 
 When no rule matches, the action is `default`, which is `escalate` unless you set it. [Concepts](concepts.md#policies) explains each part, and the [suite format reference](reference/suite-format.md) lists every field.
